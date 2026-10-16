@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Code-only Cities: Skylines II mod, built without the official modding toolchain:
+    it compiles directly against the game's own managed assemblies and has no Burst jobs,
+    so no post-processing step is needed. Build output is copied into the local Mods folder.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <AssemblyName>RealisticAviation</AssemblyName>
+    <RootNamespace>RealisticAviation</RootNamespace>
+    <Version>0.1.0</Version>
+    <Authors>Boing787(kanghyeon01)</Authors>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <NoStdLib>true</NoStdLib>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <!--
+      The game's managed assemblies. Point this at your install with -p:CS2ManagedPath=...
+      or in RealisticAviation.csproj.user (git-ignored), which MSBuild imports automatically.
+    -->
+    <CS2ManagedPath Condition="'$(CS2ManagedPath)' == '' and '$(CSII_MANAGEDPATH)' != ''">$(CSII_MANAGEDPATH)</CS2ManagedPath>
+    <CS2ManagedPath Condition="'$(CS2ManagedPath)' == ''">$(MSBuildProgramFiles32)\Steam\steamapps\common\Cities Skylines II\Cities2_Data\Managed</CS2ManagedPath>
+    <CS2LocalModsPath Condition="'$(CS2LocalModsPath)' == ''">$(USERPROFILE)\AppData\LocalLow\Colossal Order\Cities Skylines II\Mods</CS2LocalModsPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <GameReference Include="mscorlib;netstandard;System;System.Core" />
+    <GameReference Include="Game" />
+    <GameReference Include="Colossal.Core;Colossal.Collections;Colossal.IO.AssetDatabase;Colossal.Localization;Colossal.Logging;Colossal.Mathematics;Colossal.UI.Binding" />
+    <GameReference Include="Unity.Burst;Unity.Collections;Unity.Entities;Unity.Mathematics;UnityEngine.CoreModule" />
+    <Reference Include="@(GameReference)">
+      <HintPath>$(CS2ManagedPath)\%(Identity).dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- UI module (hand-written .mjs, no bundler), deployed next to the DLL. -->
+  <ItemGroup>
+    <ModUIFile Include="UI\**\*" />
+  </ItemGroup>
+
+  <Target Name="CheckGamePath" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(CS2ManagedPath)\Game.dll')" Text="Cities: Skylines II not found at '$(CS2ManagedPath)'. Build with -p:CS2ManagedPath=&lt;game folder&gt;\Cities2_Data\Managed or set CS2ManagedPath in RealisticAviation.csproj.user." />
+  </Target>
+
+  <Target Name="DeployToLocalMods" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(CS2LocalModsPath)\$(AssemblyName)" SkipUnchangedFiles="false" />
+    <Copy SourceFiles="@(ModUIFile)" DestinationFiles="@(ModUIFile->'$(CS2LocalModsPath)\$(AssemblyName)\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="false" />
+    <Message Importance="high" Text="Deployed $(TargetFileName) -> $(CS2LocalModsPath)\$(AssemblyName)" />
+  </Target>
+
+</Project>
