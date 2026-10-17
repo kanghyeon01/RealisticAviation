@@ -7,9 +7,10 @@ Status as of 2026-10-17. Game version 1.6.2f1. Author: Boing787 (kanghyeon01).
 | # | Phase | Status |
 | --- | --- | --- |
 | 1 | Tower control (ATC) | **Done, tested in game** |
-| 2 | Pushback | Next |
+| 2 | Pushback | Implemented, testing in game |
 | 3 | Traffic pattern (upwind, crosswind, downwind, base, final) | Planned |
 | 4 | Go-around, together with arrival sequencing | Planned |
+| 5 | Alternate airport (optional, toggle) | Idea |
 | – | Snow-free runways | **Dropped** (snow is a GPU snow-map shader effect; too hard) |
 
 Possible extra: an "ATC" section in the vehicle info panel showing each airplane's tower status, plus phraseology
@@ -46,7 +47,15 @@ templates. No LLM is needed for this.
 
 ## Phase 2 – pushback (next)
 
-At the gate the game turns the airplane 180° instantly. Idea: on the ground `AircraftMoveSystem` faces
+Implemented 2026-10-17: `UpdatePushback` in AtcSystem. Trigger: ground airplane below 1 m/s with route lanes and its nose
+against its path (cos < -0.5); gate airplanes keep `Moving` while boarding, so "just started moving" does not work.
+It is pushed at 3 m/s with `m_TargetDirection` locked for half its length (15–40 m; the author asked for a short push
+after long and diagonal pushes looked wrong), then swung in place at 15°/s and released. While the path is unknown
+it waits with the nose locked. Taxiing airplanes stop short of a `PushbackArea` (a capsule over the rest of the push).
+Phases: AwaitingApproval (no airplane moving within 40 m of the push area or standing in it; 60 s timeout) → Pushing
+→ Turning → EngineStart (10 s; the author asked for less than 20 s) → released. Option "Pushback" (on by default).
+Tug model skipped: there is no vanilla tug asset and a separate vehicle would be costly.
+Original note: at the gate the game turns the airplane 180° instantly. Idea: on the ground `AircraftMoveSystem` faces
 `m_TargetDirection` when it is set. Keep the nose locked towards the gate while the airplane moves backwards at low
 speed, swing the tail, then release it. A tug model is a later extra. First study the gate and parking-lane geometry.
 
@@ -77,3 +86,11 @@ Today one cleared arrival owns the runway from about 5 NM until it vacates, so a
 - Always do an optimization pass. The tower runs as a worker-thread IJob without Burst.
 - English-only code and comments. Ship both EN and KO locales.
 - Diagnostics: tower events are logged to `Logs/RealisticAviation.log`.
+
+## Phase 5 – alternate airport (optional, idea)
+
+Proposed by the author on 2026-10-17. An option that can be turned on or off: after N go-arounds (an option) the
+airplane diverts. Mechanism (not verified yet): set a new `Target` and mark the path obsolete so the game repaths.
+The alternate is usually an outside air connection (a diversion off the map), or another airport in the city if
+there is one. Open question to study first: what the game does with passengers on board and with the line/route
+state of a public-transport airplane whose target changes.

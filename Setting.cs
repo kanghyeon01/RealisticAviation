@@ -37,6 +37,10 @@ namespace RealisticAviation
         [SettingsUISlider(min = 0, max = 150, step = 5, unit = Unit.kLength)]
         public int HoldShortSetback { get; set; }
 
+        /// <summary>Airplanes leaving a nose-in gate are pushed back instead of turning around on the spot.</summary>
+        [SettingsUISection(kSection, kGroundGroup)]
+        public bool EnablePushback { get; set; }
+
         /// <summary>Gap a taxiing airplane keeps between its nose and the tail of the airplane ahead (0 = game default).</summary>
         [SettingsUISection(kSection, kGroundGroup)]
         [SettingsUISlider(min = 0, max = 150, step = 5, unit = Unit.kLength)]
@@ -51,6 +55,7 @@ namespace RealisticAviation
         {
             DepartureGapSeconds = 90;
             TaxiSpacing = 40;
+            EnablePushback = true;
             ContactDistanceNm = 5.5f;
             HoldingLegNm = 1.5f;
             HoldShortSetback = 30;

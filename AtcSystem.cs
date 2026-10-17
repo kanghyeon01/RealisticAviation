@@ -62,6 +62,7 @@ namespace RealisticAviation
         private NativeParallelHashMap<Entity, RunwayState> m_Runways;
         private NativeParallelHashMap<Entity, Flight> m_Flights;
         private NativeList<Entity> m_HoldingFlights;
+        private NativeParallelHashMap<Entity, Pushback> m_Pushbacks;
         private NativeReference<uint> m_Sequence;
 
         /// <summary>Airplane prefab names for the log (diagnostics only).</summary>
@@ -145,6 +146,7 @@ namespace RealisticAviation
             m_Runways = new NativeParallelHashMap<Entity, RunwayState>(16, Allocator.Persistent);
             m_Flights = new NativeParallelHashMap<Entity, Flight>(64, Allocator.Persistent);
             m_HoldingFlights = new NativeList<Entity>(16, Allocator.Persistent);
+            m_Pushbacks = new NativeParallelHashMap<Entity, Pushback>(16, Allocator.Persistent);
             m_Sequence = new NativeReference<uint>(0, Allocator.Persistent);
             m_PrefabNames = new NativeParallelHashMap<Entity, FixedString128Bytes>(64, Allocator.Persistent);
 
@@ -158,6 +160,7 @@ namespace RealisticAviation
             m_Runways.Dispose();
             m_Flights.Dispose();
             m_HoldingFlights.Dispose();
+            m_Pushbacks.Dispose();
             m_Sequence.Dispose();
             m_PrefabNames.Dispose();
             base.OnDestroy();
@@ -171,6 +174,7 @@ namespace RealisticAviation
             m_Runways.Clear();
             m_Flights.Clear();
             m_HoldingFlights.Clear();
+            m_Pushbacks.Clear();
             m_TaxiwayVersion = -1;
             m_AirportVersion = -1;
             m_RunwaySignature = 0;
@@ -223,6 +227,7 @@ namespace RealisticAviation
                 m_Runways = m_Runways,
                 m_Flights = m_Flights,
                 m_HoldingFlights = m_HoldingFlights,
+                m_Pushbacks = m_Pushbacks,
                 m_Sequence = m_Sequence,
                 m_PrefabNames = m_PrefabNames,
                 m_Settings = new AtcSettings(Mod.Setting),
@@ -489,6 +494,30 @@ namespace RealisticAviation
             private const float kLineUpBehindDistance = 150f;
             private const float kLineUpInset = 10f;
 
+            // Pushback: starts below kPushbackStartSpeed when the nose points against the path (cosine below kPushbackStartDot).
+            // Pushes at kPushbackSpeed for half the airplane's length (kMin..kMaxPushbackDistance), or less when the path turns
+            // away (cosine below kPushbackTurnDot after kPushbackSettleDistance), then swings at kPushbackTurnRate degrees/s.
+            // Waits up to kPushbackUnknownPathTicks ticks for a path. Taxiing airplanes keep kPushbackClearance from the
+            // pushing airplane, checking their path every kPushbackSampleStep metres.
+            private const float kPushbackStartSpeed = 1f;
+            private const float kPushbackStartDot = -0.5f;
+            private const float kPushbackTurnDot = 0.866f;
+            private const float kPushbackSpeed = 3f;
+            private const float kPushbackLengthFactor = 0.5f;
+            private const float kMinPushbackDistance = 15f;
+            private const float kMaxPushbackDistance = 40f;
+            private const float kPushbackSettleDistance = 5f;
+            private const float kPushbackTurnRate = 15f;
+            private const int kPushbackUnknownPathTicks = 30;
+            private const float kPushbackClearance = 10f;
+            private const float kPushbackSampleStep = 10f;
+
+            // Ground control holds a pushback while an airplane moves within this margin of its area, for at most this long
+            // (game seconds); after the turn the airplane stands this long while its engines start and the tug disconnects.
+            private const float kPushbackApprovalMargin = 40f;
+            private const float kPushbackApprovalTimeout = 60f;
+            private const float kEngineStartSeconds = 10f;
+
             // Taxi spacing looks this much further than the gap plus the stopping distance.
             private const float kTaxiScanMargin = 20f;
 
@@ -525,6 +554,7 @@ namespace RealisticAviation
             public NativeParallelHashMap<Entity, RunwayState> m_Runways;
             public NativeParallelHashMap<Entity, Flight> m_Flights;
             public NativeList<Entity> m_HoldingFlights;
+            public NativeParallelHashMap<Entity, Pushback> m_Pushbacks;
             public NativeReference<uint> m_Sequence;
             [ReadOnly] public NativeParallelHashMap<Entity, FixedString128Bytes> m_PrefabNames;
 
@@ -558,11 +588,14 @@ namespace RealisticAviation
                         RemoveStaleFlights();
                     }
                     GrantRunways();
+                    NativeList<PushbackArea> pushbackAreas = CollectPushbackAreas();
                     for (int i = 0; i < scans.Length; i++)
                     {
-                        Apply(scans[i]);
+                        Apply(scans[i], pushbackAreas);
                     }
+                    pushbackAreas.Dispose();
                     scans.Dispose();
+                    EndPushbackTick();
                 }
                 catch (Exception e)
                 {
@@ -1107,9 +1140,17 @@ namespace RealisticAviation
 
             // ------------------------------------------------------------ steering
 
-            private void Apply(in FlightScan scan)
+            private void Apply(in FlightScan scan, NativeList<PushbackArea> pushbackAreas)
             {
                 Entity entity = scan.m_Entity;
+                if (!scan.m_Flying && m_Settings.m_Pushback)
+                {
+                    UpdatePushback(entity);
+                    if (pushbackAreas.Length != 0 && scan.m_Occupied == Entity.Null && !m_Pushbacks.ContainsKey(entity))
+                    {
+                        GiveWayToPushbacks(entity, pushbackAreas);
+                    }
+                }
                 if (!scan.m_Flying && scan.m_Occupied == Entity.Null && m_Settings.m_TaxiSpacing > 0f)
                 {
                     KeepTaxiSpacing(entity);
@@ -1155,6 +1196,324 @@ namespace RealisticAviation
                         HoldShort(entity, scan);
                     }
                 }
+            }
+
+            // ------------------------------------------------------------ pushback
+
+            /// <summary>
+            /// The game turns an airplane leaving a nose-in gate around on the spot. Instead, an airplane that starts moving
+            /// with its nose against its path is pushed back: it rolls backwards along the path with the nose locked, stops
+            /// where the path turns onto the taxiway, and is swung around until it faces along the path. Only the speed
+            /// and the facing direction the game computed are replaced; its path and lane state are untouched.
+            /// </summary>
+            private void UpdatePushback(Entity entity)
+            {
+                bool active = m_Pushbacks.TryGetValue(entity, out Pushback pushback);
+                // Only an airplane standing still (at its gate) can begin a pushback. Airplanes at a gate keep their
+                // Moving component while boarding, so "just started moving" can't be used to find a departure.
+                if (!active && (math.lengthsq(m_MovingData[entity].m_Velocity) > kPushbackStartSpeed * kPushbackStartSpeed
+                    || m_NavigationLanes[entity].Length == 0))
+                {
+                    // Standing still with somewhere to go: an airplane still boarding has no route lanes yet.
+                    return;
+                }
+                Transform transform = m_TransformData[entity];
+                AircraftNavigation navigation = m_NavigationData[entity];
+                float2 pathDirection = GetPathDirection(entity, transform.m_Position, navigation);
+                if (math.lengthsq(pathDirection) < 0.5f)
+                {
+                    if (!active)
+                    {
+                        return;
+                    }
+                    // The path is being searched again (common right after leaving a gate). Stand still with the nose
+                    // locked instead of letting the game spin the airplane around; give up only after a while.
+                    if (++pushback.m_UnknownPathTicks > kPushbackUnknownPathTicks)
+                    {
+                        m_Pushbacks.Remove(entity);
+                        Mod.Log.Info($"{entity} pushback cancelled: no path");
+                        return;
+                    }
+                    pushback.m_LastTick = m_Tick;
+                    navigation.m_MaxSpeed = 0f;
+                    navigation.m_TargetDirection = new float3(pushback.m_Heading.x, 0f, pushback.m_Heading.y);
+                    m_NavigationData[entity] = navigation;
+                    m_Pushbacks[entity] = pushback;
+                    return;
+                }
+                if (!active)
+                {
+                    float2 forward = math.normalizesafe(math.forward(transform.m_Rotation).xz);
+                    if (math.dot(forward, pathDirection) > kPushbackStartDot)
+                    {
+                        return;
+                    }
+                    float2 size = m_PrefabGeometryData.TryGetComponent(m_PrefabRefData[entity].m_Prefab, out ObjectGeometryData geometry)
+                        ? geometry.m_Size.xz : new float2(30f, 30f);
+                    pushback = new Pushback
+                    {
+                        m_Start = transform.m_Position,
+                        m_Axis = pathDirection,
+                        m_Heading = forward,
+                        m_Phase = PushbackPhase.AwaitingApproval,
+                        m_PhaseFrame = m_Frame,
+                        // A short push, about half the airplane's length, then it turns towards the taxiway.
+                        m_MaxDistance = math.clamp(size.y * kPushbackLengthFactor, kMinPushbackDistance, kMaxPushbackDistance),
+                        m_Radius = 0.5f * math.cmax(size) + kPushbackClearance,
+                    };
+                    Mod.Log.Info($"{entity} ready for pushback (nose vs path cos {math.dot(forward, pathDirection):F2})");
+                }
+                pushback.m_LastTick = m_Tick;
+                pushback.m_UnknownPathTicks = 0;
+
+                switch (pushback.m_Phase)
+                {
+                    case PushbackPhase.AwaitingApproval:
+                        // Nothing has moved yet: keep the push laid out from where the airplane stands.
+                        pushback.m_Start = transform.m_Position;
+                        pushback.m_Axis = pathDirection;
+                        if (IsPushbackClear(entity, pushback) || (m_Frame - pushback.m_PhaseFrame) * kSecondsPerFrame > kPushbackApprovalTimeout)
+                        {
+                            pushback.m_Phase = PushbackPhase.Pushing;
+                            Mod.Log.Info($"{entity} pushback approved after {(m_Frame - pushback.m_PhaseFrame) * kSecondsPerFrame:F0} s");
+                        }
+                        else
+                        {
+                            navigation.m_MaxSpeed = 0f;
+                        }
+                        break;
+
+                    case PushbackPhase.Pushing:
+                        float pushed = math.distance(transform.m_Position.xz, pushback.m_Start.xz);
+                        if (pushed < kPushbackSettleDistance)
+                        {
+                            // The first lanes out of a stand (gate connections) can point a little off the stand's axis;
+                            // follow the path for a few metres before watching for the turn.
+                            pushback.m_Axis = pathDirection;
+                        }
+                        else if (pushed > pushback.m_MaxDistance || math.dot(pathDirection, pushback.m_Axis) < kPushbackTurnDot)
+                        {
+                            pushback.m_Phase = PushbackPhase.Turning;
+                            Mod.Log.Info($"{entity} pushback turning after {pushed:F0} m");
+                        }
+                        navigation.m_MaxSpeed = pushback.m_Phase == PushbackPhase.Pushing ? math.min(navigation.m_MaxSpeed, kPushbackSpeed) : 0f;
+                        break;
+
+                    case PushbackPhase.Turning:
+                        // Swing towards the path direction at the tug's turn rate, standing still.
+                        float2 heading = pushback.m_Heading;
+                        float angle = math.atan2(heading.x * pathDirection.y - heading.y * pathDirection.x, math.dot(heading, pathDirection));
+                        float step = math.radians(kPushbackTurnRate) * kTimeStep;
+                        if (math.abs(angle) <= step)
+                        {
+                            pushback.m_Heading = pathDirection;
+                            pushback.m_Phase = PushbackPhase.EngineStart;
+                            pushback.m_PhaseFrame = m_Frame;
+                        }
+                        else
+                        {
+                            math.sincos(math.sign(angle) * step, out float sin, out float cos);
+                            pushback.m_Heading = math.normalize(new float2(heading.x * cos - heading.y * sin, heading.x * sin + heading.y * cos));
+                        }
+                        navigation.m_MaxSpeed = 0f;
+                        break;
+
+                    case PushbackPhase.EngineStart:
+                        if ((m_Frame - pushback.m_PhaseFrame) * kSecondsPerFrame >= kEngineStartSeconds)
+                        {
+                            // Engines running, tug gone: hand the airplane back to the game, facing along its path.
+                            m_Pushbacks.Remove(entity);
+                            Mod.Log.Info($"{entity} pushback done after {math.distance(transform.m_Position.xz, pushback.m_Start.xz):F0} m");
+                            navigation.m_TargetDirection = new float3(pathDirection.x, 0f, pathDirection.y);
+                            m_NavigationData[entity] = navigation;
+                            return;
+                        }
+                        navigation.m_MaxSpeed = 0f;
+                        break;
+                }
+                // On the ground the move system faces the target direction when one is set.
+                navigation.m_TargetDirection = new float3(pushback.m_Heading.x, 0f, pushback.m_Heading.y);
+                m_NavigationData[entity] = navigation;
+                m_Pushbacks[entity] = pushback;
+            }
+
+            /// <summary>
+            /// Ground control's pushback approval: no airplane moving within kPushbackApprovalMargin of the area the push
+            /// would cover, and none standing in it.
+            /// </summary>
+            private bool IsPushbackClear(Entity entity, in Pushback pushback)
+            {
+                float2 from = pushback.m_Start.xz;
+                float2 to = from + pushback.m_Axis * pushback.m_MaxDistance;
+                float movingLimit = pushback.m_Radius + kPushbackApprovalMargin;
+                for (int i = 0; i < m_Airplanes.Length; i++)
+                {
+                    Entity other = m_Airplanes[i];
+                    if (other == entity || (m_CurrentLaneData[other].m_LaneFlags & AircraftLaneFlags.Flying) != 0)
+                    {
+                        continue;
+                    }
+                    float limit = math.lengthsq(m_MovingData[other].m_Velocity) > kPushbackStartSpeed * kPushbackStartSpeed
+                        ? movingLimit
+                        : pushback.m_Radius;
+                    if (DistanceToSegmentSq(m_TransformData[other].m_Position.xz, from, to) < limit * limit)
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            /// <summary>Direction of travel along the path at the airplane's position (the current lane's direction).</summary>
+            private float2 GetPathDirection(Entity entity, float3 position, in AircraftNavigation navigation)
+            {
+                AircraftCurrentLane currentLane = m_CurrentLaneData[entity];
+                float span = currentLane.m_CurvePosition.z - currentLane.m_CurvePosition.x;
+                if (math.abs(span) > 0.001f && m_CurveData.TryGetComponent(currentLane.m_Lane, out Curve curve))
+                {
+                    float2 tangent = MathUtils.Tangent(curve.m_Bezier, currentLane.m_CurvePosition.x).xz;
+                    return math.normalizesafe(math.select(tangent, -tangent, span < 0f));
+                }
+                return math.normalizesafe(navigation.m_TargetPosition.xz - position.xz);
+            }
+
+            /// <summary>
+            /// The ground each pushing airplane covers: from where it is now along the rest of its push (just its own spot
+            /// once it is turning). Built once per tick from last tick's pushback state.
+            /// </summary>
+            private NativeList<PushbackArea> CollectPushbackAreas()
+            {
+                NativeList<PushbackArea> areas = new NativeList<PushbackArea>(m_Pushbacks.Count(), Allocator.Temp);
+                if (m_Pushbacks.IsEmpty)
+                {
+                    return areas;
+                }
+                foreach (var pair in m_Pushbacks)
+                {
+                    if (pair.Value.m_Phase == PushbackPhase.AwaitingApproval)
+                    {
+                        // Not approved yet: it isn't moving, and traffic must be free to pass so that it can be approved.
+                        continue;
+                    }
+                    if (!m_TransformData.TryGetComponent(pair.Key, out Transform transform))
+                    {
+                        continue;
+                    }
+                    Pushback pushback = pair.Value;
+                    float2 from = transform.m_Position.xz;
+                    float remaining = pushback.m_Phase == PushbackPhase.Pushing
+                        ? math.max(0f, pushback.m_MaxDistance - math.distance(from, pushback.m_Start.xz))
+                        : 0f;
+                    areas.Add(new PushbackArea
+                    {
+                        m_Entity = pair.Key,
+                        m_From = from,
+                        m_To = from + pushback.m_Axis * remaining,
+                        m_Radius = pushback.m_Radius,
+                    });
+                }
+                return areas;
+            }
+
+            /// <summary>
+            /// A taxiing airplane stops before its path enters the area of an airplane being pushed back, the way ground
+            /// control holds traffic behind a pushback. The pushing airplane has priority, so the two can't block each other.
+            /// </summary>
+            private void GiveWayToPushbacks(Entity entity, NativeList<PushbackArea> areas)
+            {
+                Entity prefab = m_PrefabRefData[entity].m_Prefab;
+                AircraftData aircraftData = m_PrefabAircraftData[prefab];
+                AircraftNavigation navigation = m_NavigationData[entity];
+                float nose = GetNoseLength(prefab);
+                float limit = nose + VehicleUtils.GetBrakingDistance(aircraftData, navigation.m_MaxSpeed, kTimeStep) + kTaxiScanMargin;
+
+                AircraftCurrentLane currentLane = m_CurrentLaneData[entity];
+                float distance = 0f;
+                float hit = float.MaxValue;
+                if (!SamplePathForPushbacks(entity, currentLane.m_Lane, currentLane.m_CurvePosition.xz, limit, areas, ref distance, ref hit))
+                {
+                    DynamicBuffer<AircraftNavigationLane> navigationLanes = m_NavigationLanes[entity];
+                    for (int i = 0; i < navigationLanes.Length; i++)
+                    {
+                        if (SamplePathForPushbacks(entity, navigationLanes[i].m_Lane, navigationLanes[i].m_CurvePosition, limit, areas, ref distance, ref hit))
+                        {
+                            break;
+                        }
+                    }
+                }
+                if (hit == float.MaxValue)
+                {
+                    return;
+                }
+                float maxSpeed = VehicleUtils.GetMaxBrakingSpeed(aircraftData, math.max(0f, hit - nose), kTimeStep);
+                if (maxSpeed < navigation.m_MaxSpeed)
+                {
+                    navigation.m_MaxSpeed = maxSpeed;
+                    m_NavigationData[entity] = navigation;
+                }
+            }
+
+            /// <summary>
+            /// Walks the traversed part of one lane in steps and records the path distance of the first point inside a
+            /// pushback area. Returns true when done: an area was hit or the look-ahead limit was passed.
+            /// </summary>
+            private bool SamplePathForPushbacks(Entity entity, Entity lane, float2 delta, float limit, NativeList<PushbackArea> areas, ref float distance, ref float hit)
+            {
+                if (!m_CurveData.TryGetComponent(lane, out Curve curve))
+                {
+                    return false;
+                }
+                float length = curve.m_Length * math.abs(delta.y - delta.x);
+                int steps = math.max(1, (int)math.ceil(length / kPushbackSampleStep));
+                for (int step = 0; step <= steps; step++)
+                {
+                    float along = length * step / steps;
+                    if (distance + along > limit)
+                    {
+                        return true;
+                    }
+                    float2 point = MathUtils.Position(curve.m_Bezier, math.lerp(delta.x, delta.y, (float)step / steps)).xz;
+                    for (int i = 0; i < areas.Length; i++)
+                    {
+                        PushbackArea area = areas[i];
+                        if (area.m_Entity != entity && DistanceToSegmentSq(point, area.m_From, area.m_To) < area.m_Radius * area.m_Radius)
+                        {
+                            hit = distance + along;
+                            return true;
+                        }
+                    }
+                }
+                distance += length;
+                return distance > limit;
+            }
+
+            private static float DistanceToSegmentSq(float2 point, float2 a, float2 b)
+            {
+                float2 ab = b - a;
+                float t = math.saturate(math.dot(point - a, ab) / math.max(math.lengthsq(ab), 1e-4f));
+                return math.distancesq(point, a + ab * t);
+            }
+
+            /// <summary>Forgets pushbacks of airplanes that stopped being tracked (parked, deleted or flying).</summary>
+            private void EndPushbackTick()
+            {
+                if (m_Pushbacks.IsEmpty)
+                {
+                    return;
+                }
+                NativeList<Entity> stale = new NativeList<Entity>(Allocator.Temp);
+                foreach (var pair in m_Pushbacks)
+                {
+                    if (pair.Value.m_LastTick != m_Tick)
+                    {
+                        stale.Add(pair.Key);
+                    }
+                }
+                for (int i = 0; i < stale.Length; i++)
+                {
+                    m_Pushbacks.Remove(stale[i]);
+                }
+                stale.Dispose();
             }
 
             /// <summary>

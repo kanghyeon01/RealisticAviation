@@ -121,9 +121,12 @@ namespace RealisticAviation
         /// <summary>Gap a taxiing airplane keeps between its nose and the tail of the airplane ahead, in metres.</summary>
         public float m_TaxiSpacing;
 
+        public bool m_Pushback;
+
         public AtcSettings(Setting setting)
         {
             m_TaxiSpacing = setting.TaxiSpacing;
+            m_Pushback = setting.EnablePushback;
             m_DepartureGapSeconds = setting.DepartureGapSeconds;
             m_ContactDistance = setting.ContactDistanceNm * Setting.kMetersPerNauticalMile;
             m_HoldingLegLength = setting.HoldingLegNm * Setting.kMetersPerNauticalMile;
@@ -157,6 +160,64 @@ namespace RealisticAviation
 
         /// <summary>A new path is being searched, so the path buffers can't be trusted this tick.</summary>
         public bool m_PathUnknown;
+    }
+
+    public enum PushbackPhase : byte
+    {
+        /// <summary>Ready at the gate, waiting for ground control: traffic is close to the area it would be pushed into.</summary>
+        AwaitingApproval,
+
+        /// <summary>Rolling a short way backwards out of the stand, nose locked towards the gate.</summary>
+        Pushing,
+
+        /// <summary>Stopped after the push; the tug swings the tail until the nose points along the path.</summary>
+        Turning,
+
+        /// <summary>Facing along the path, standing while the engines start and the tug disconnects.</summary>
+        EngineStart,
+    }
+
+    /// <summary>An airplane being pushed back from its gate. Not saved; a pushback in progress at load just ends.</summary>
+    public struct Pushback
+    {
+        public float3 m_Start;
+
+        /// <summary>Direction of travel along the path when the pushback began (the push direction).</summary>
+        public float2 m_Axis;
+
+        /// <summary>Current nose direction.</summary>
+        public float2 m_Heading;
+
+        public PushbackPhase m_Phase;
+
+        /// <summary>How far the airplane is pushed before it is turned.</summary>
+        public float m_MaxDistance;
+
+        /// <summary>Half the airplane's larger dimension plus a margin: the area taxiing airplanes keep clear of.</summary>
+        public float m_Radius;
+
+        /// <summary>Ticks in a row without a usable path direction.</summary>
+        public byte m_UnknownPathTicks;
+
+        /// <summary>Frame the current phase began (approval wait, engine start).</summary>
+        public uint m_PhaseFrame;
+
+        public uint m_LastTick;
+    }
+
+    /// <summary>
+    /// The ground a pushing airplane covers this tick: a capsule from its position along the rest of its push.
+    /// Taxiing airplanes stop before entering it.
+    /// </summary>
+    internal struct PushbackArea
+    {
+        public Entity m_Entity;
+
+        public float2 m_From;
+
+        public float2 m_To;
+
+        public float m_Radius;
     }
 
     /// <summary>

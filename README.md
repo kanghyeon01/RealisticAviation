@@ -23,6 +23,10 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
   its takeoff roll, and passed its entry point; it takes off the moment the runway is clear. When off, it holds short until then.
 - **Departures ahead of arrivals.** A ground airplane may take off or cross ahead of a cleared arrival that is still
   far enough out (the departure gap).
+- **Pushback (phase 2).** An airplane leaving a nose-in gate is pushed back a short way (about half its length,
+  15–40 m) at 3 m/s with its nose locked, then swung around at 15°/s until it faces along its route, and taxis off
+  after a 10 s engine start. Ground control approves the pushback only when no airplane is moving close to the area
+  (at most 60 s wait); taxiing airplanes stop short of an airplane being pushed back.
 
 Helicopters are not affected. Only the per-airport line up and wait choice is saved with the city (and dropped
 harmlessly if the mod is removed); the tower rebuilds everything else after a save is loaded.
@@ -34,6 +38,7 @@ harmlessly if the mod is removed); the tower rebuilds everything else after a sa
 | Tower contact distance | 5.5 NM | Path distance before the runway at which an arrival asks to land |
 | Holding leg length | 1.5 NM | Straight-leg length of the holding pattern |
 | Hold short setback | 30 m | Gap between a waiting airplane's nose and the runway |
+| Pushback | On | Push airplanes back out of nose-in gates instead of turning them on the spot |
 | Taxi spacing | 40 m | Gap a taxiing airplane keeps behind the airplane ahead |
 | Departure gap before arrivals | 90 s | A ground airplane may go ahead of a cleared arrival at least this far out |
 

@@ -60,6 +60,12 @@ namespace RealisticAviation
                 "When on, a departing airplane may enter the runway and wait lined up as soon as the landing airplane, or the airplane taking off ahead of it, has passed its entry point, " +
                 "then takes off the moment the runway is clear. When off, it holds short until the runway is clear."
             },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.EnablePushback)), "Pushback" },
+            {
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.EnablePushback)),
+                "An airplane leaving a nose-in gate is pushed back out of the stand with its nose towards the gate, then swung " +
+                "around to face along its taxi route, instead of turning around on the spot."
+            },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.TaxiSpacing)), "Taxi spacing" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.TaxiSpacing)),
@@ -109,6 +115,12 @@ namespace RealisticAviation
                 "RealisticAviation.LineUp.Tooltip",
                 "켜면 착륙기나 앞서 이륙하는 비행기가 진입 지점을 지나가는 즉시 출발기가 활주로에 들어가 정렬한 채 기다리다가, 활주로가 비는 순간 이륙합니다. " +
                 "끄면 활주로가 빌 때까지 Hold Short로 기다립니다."
+            },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.EnablePushback)), "Pushback" },
+            {
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.EnablePushback)),
+                "게이트에 기수를 대고 서 있던 비행기가 출발할 때, 제자리에서 돌지 않고 기수를 게이트 쪽에 둔 채 뒤로 밀려 나온 뒤 " +
+                "택싱 방향으로 돌려집니다."
             },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.TaxiSpacing)), "택싱 간격" },
             {
