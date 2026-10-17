@@ -8,15 +8,18 @@ using Unity.Mathematics;
 namespace RealisticAviation
 {
     /// <summary>
-    /// Tower options in an airport's info panel: line up and wait for the airport, and the traffic pattern direction for
-    /// each runway end (listed as RWY 09, RWY 27, ...). RealisticAviation.mjs draws the checkboxes; a click comes back
-    /// through a trigger binding and updates <see cref="LineUpAndWaitAirport"/> on the airport building or
-    /// <see cref="RunwayPattern"/> on the runway's edges.
+    /// Tower options (including the ground delay and its limit) and the radio log (latest exchanges on the approach, tower and ground frequencies) in an airport's info panel (the closure
+    /// banner is <see cref="AirportClosedSection"/>). Options: line up
+    /// and wait for the airport, and the traffic pattern direction for each runway end (listed as RWY 09, RWY 27, ...).
+    /// RealisticAviation.mjs draws the checkboxes; a click comes back through a trigger binding and updates
+    /// <see cref="LineUpAndWaitAirport"/> on the airport building or <see cref="RunwayPattern"/> on the runway's edges.
     /// </summary>
     public partial class AirportSection : InfoSectionBase
     {
         public const string kToggleLineUpTrigger = "ToggleLineUpAndWait";
         public const string kToggleRightHandTrigger = "ToggleRunwayRightHand";
+        public const string kToggleGroundDelayTrigger = "ToggleGroundDelay";
+        public const string kAdjustGroundDelayTrigger = "AdjustGroundDelayLimit";
 
         private struct RunwayEnd
         {
@@ -32,10 +35,18 @@ namespace RealisticAviation
         }
 
         private readonly List<RunwayEnd> m_RunwayEnds = new List<RunwayEnd>();
+
+        // Radio log (phase 4-2): the latest exchanges on each frequency.
+        private const int kRadioExchanges = 4;
+        private readonly RadioBox m_TowerRadio = new RadioBox();
+        private readonly RadioBox m_GroundRadio = new RadioBox();
+        private readonly RadioBox m_ApproachRadio = new RadioBox();
+        private uint m_RadioVersion;
         private AtcSystem m_AtcSystem;
         private EntityQuery m_AirplaneStopQuery;
         private Entity m_Airport;
         private bool m_LineUp;
+        private GroundDelaySetting m_GroundDelay;
 
         protected override string group => nameof(AirportSection);
 
@@ -47,6 +58,8 @@ namespace RealisticAviation
             m_InfoUISystem.AddMiddleSection(this);
             AddBinding(new TriggerBinding(Mod.kName, kToggleLineUpTrigger, ToggleLineUp));
             AddBinding(new TriggerBinding<int>(Mod.kName, kToggleRightHandTrigger, ToggleRightHand));
+            AddBinding(new TriggerBinding(Mod.kName, kToggleGroundDelayTrigger, ToggleGroundDelay));
+            AddBinding(new TriggerBinding<int>(Mod.kName, kAdjustGroundDelayTrigger, AdjustGroundDelayLimit));
         }
 
         protected override void OnUpdate()
@@ -55,15 +68,29 @@ namespace RealisticAviation
             visible = m_Airport != Entity.Null;
         }
 
+        /// <summary>Refreshes the panel as soon as there is a new transmission, not only when the panel next updates by itself.</summary>
+        protected override void OnPreUpdate()
+        {
+            if (visible && m_AtcSystem.TryGetRadioVersion(out uint version) && version != m_RadioVersion)
+            {
+                m_RadioVersion = version;
+                m_InfoUISystem.RequestUpdate();
+            }
+        }
+
         protected override void Reset()
         {
             m_LineUp = false;
             m_RunwayEnds.Clear();
+            m_TowerRadio.Clear();
+            m_GroundRadio.Clear();
+            m_ApproachRadio.Clear();
         }
 
         protected override void OnProcess()
         {
             m_LineUp = EntityManager.HasComponent<LineUpAndWaitAirport>(m_Airport);
+            m_GroundDelay = GetGroundDelay();
             IReadOnlyList<RunwayInfo> runways = m_AtcSystem.RunwayList;
             for (int i = 0; i < runways.Count; i++)
             {
@@ -71,9 +98,8 @@ namespace RealisticAviation
                 {
                     continue;
                 }
-                // Only the ends airplanes actually use (game runways are usually one-way); both if the lanes say nothing.
                 RunwayGeometry geometry = runways[i].Geometry;
-                byte landings = geometry.m_Landings != 0 ? geometry.m_Landings : (byte)(RunwayGeometry.kAlong | RunwayGeometry.kAgainst);
+                byte landings = RunwayNames.UsedEnds(geometry);
                 if ((landings & RunwayGeometry.kAlong) != 0)
                 {
                     AddEnd(runways[i], geometry.m_Direction);
@@ -85,6 +111,10 @@ namespace RealisticAviation
             }
             m_RunwayEnds.Sort((a, b) => a.m_Designator != b.m_Designator ? a.m_Designator.CompareTo(b.m_Designator) : a.m_Lateral.CompareTo(b.m_Lateral));
             NameParallelRunways();
+
+            m_TowerRadio.Fill(m_AtcSystem, EntityManager, m_NameSystem, m_PrefabSystem, m_Airport, AtcFrequency.Tower, kRadioExchanges, Entity.Null);
+            m_GroundRadio.Fill(m_AtcSystem, EntityManager, m_NameSystem, m_PrefabSystem, m_Airport, AtcFrequency.Ground, kRadioExchanges, Entity.Null);
+            m_ApproachRadio.Fill(m_AtcSystem, EntityManager, m_NameSystem, m_PrefabSystem, m_Airport, AtcFrequency.Approach, kRadioExchanges, Entity.Null);
         }
 
         /// <summary>
@@ -105,28 +135,11 @@ namespace RealisticAviation
                 for (int i = start; i < end; i++)
                 {
                     RunwayEnd runwayEnd = m_RunwayEnds[i];
-                    runwayEnd.m_Name = runwayEnd.m_Designator.ToString("00") + Suffix(i - start, count);
+                    runwayEnd.m_Name = runwayEnd.m_Designator.ToString("00") + RunwayNames.Suffix(i - start, count);
                     m_RunwayEnds[i] = runwayEnd;
                 }
                 start = end;
             }
-        }
-
-        private static string Suffix(int index, int count)
-        {
-            if (count == 1)
-            {
-                return string.Empty;
-            }
-            if (count == 2)
-            {
-                return index == 0 ? "L" : "R";
-            }
-            if (count == 3)
-            {
-                return index == 0 ? "L" : index == 1 ? "C" : "R";
-            }
-            return "-" + (index + 1);
         }
 
         private void AddEnd(RunwayInfo runway, float2 landing)
@@ -135,22 +148,10 @@ namespace RealisticAviation
             {
                 m_Runway = runway,
                 m_Landing = landing,
-                m_Designator = Designator(landing),
-                m_Lateral = math.dot(runway.Geometry.Middle, Colossal.Mathematics.MathUtils.Right(landing)),
+                m_Designator = RunwayNames.Designator(landing),
+                m_Lateral = RunwayNames.Lateral(runway.Geometry, landing),
                 m_RightHand = IsRightHand(runway, landing),
             });
-        }
-
-        /// <summary>Runway number: the landing heading in tens of degrees, 01–36 (the game has no magnetic variation).</summary>
-        private static int Designator(float2 landing)
-        {
-            float heading = math.degrees(math.atan2(landing.x, landing.y));
-            int designator = (int)math.round(heading / 10f) % 36;
-            if (designator <= 0)
-            {
-                designator += 36;
-            }
-            return designator;
         }
 
         /// <summary>The player's choice for this runway end, or else the default the tower uses (see AtcSystem).</summary>
@@ -194,6 +195,16 @@ namespace RealisticAviation
         {
             writer.PropertyName("lineUp");
             writer.Write(m_LineUp);
+            writer.PropertyName("groundDelay");
+            writer.Write(m_GroundDelay.m_Enabled);
+            writer.PropertyName("groundDelayLimit");
+            writer.Write((int)m_GroundDelay.m_Limit);
+            writer.PropertyName("towerRadio");
+            m_TowerRadio.Write(writer);
+            writer.PropertyName("groundRadio");
+            m_GroundRadio.Write(writer);
+            writer.PropertyName("approachRadio");
+            m_ApproachRadio.Write(writer);
             writer.PropertyName("runways");
             writer.ArrayBegin(m_RunwayEnds.Count);
             for (int i = 0; i < m_RunwayEnds.Count; i++)
@@ -226,6 +237,50 @@ namespace RealisticAviation
             Mod.Log.Info($"Line up and wait {(enable ? "enabled" : "disabled")} at airport {m_Airport}");
             // Re-sends every section to the UI; only marking this one dirty would leave the checkbox unchanged on screen.
             m_InfoUISystem.RequestUpdate();
+        }
+
+        private GroundDelaySetting GetGroundDelay()
+        {
+            return EntityManager.HasComponent<GroundDelaySetting>(m_Airport)
+                ? EntityManager.GetComponentData<GroundDelaySetting>(m_Airport)
+                : GroundDelaySetting.Default(m_AtcSystem.GetGateCount(m_Airport));
+        }
+
+        private void SetGroundDelay(GroundDelaySetting setting)
+        {
+            if (EntityManager.HasComponent<GroundDelaySetting>(m_Airport))
+            {
+                EntityManager.SetComponentData(m_Airport, setting);
+            }
+            else
+            {
+                EntityManager.AddComponentData(m_Airport, setting);
+            }
+            Mod.Log.Info($"Ground delay at airport {m_Airport}: {(setting.m_Enabled ? "on" : "off")}, limit {setting.m_Limit}");
+            m_InfoUISystem.RequestUpdate();
+        }
+
+        private void ToggleGroundDelay()
+        {
+            if (m_Airport == Entity.Null || !EntityManager.Exists(m_Airport))
+            {
+                return;
+            }
+            GroundDelaySetting setting = GetGroundDelay();
+            setting.m_Enabled = !setting.m_Enabled;
+            SetGroundDelay(setting);
+        }
+
+        /// <summary>Raises or lowers the limit by <paramref name="delta"/> airplanes, within the allowed range.</summary>
+        private void AdjustGroundDelayLimit(int delta)
+        {
+            if (m_Airport == Entity.Null || !EntityManager.Exists(m_Airport))
+            {
+                return;
+            }
+            GroundDelaySetting setting = GetGroundDelay();
+            setting.m_Limit = (byte)math.clamp(setting.m_Limit + delta, GroundDelaySetting.kMinLimit, GroundDelaySetting.kMaxLimit);
+            SetGroundDelay(setting);
         }
 
         /// <summary>Flips one runway end between left- and right-hand, on every edge of that runway.</summary>

@@ -59,6 +59,50 @@ namespace RealisticAviation
         }
     }
 
+    /// <summary>
+    /// Ground flow control setting of one airport (phase 4-5), set in the airport info panel and stored on the airport
+    /// building: whether it is on and the number of airplanes moving on its ground at which the delay starts. An airport
+    /// without it uses <see cref="Default"/> (on, 1.5 airplanes per gate). Saved with the city.
+    /// </summary>
+    public struct GroundDelaySetting : IComponentData, IQueryTypeParameter, ISerializable
+    {
+        public const byte kDefaultLimit = 6;
+        public const byte kMinLimit = 2;
+        public const byte kMaxLimit = 20;
+
+        /// <summary>Airplanes moving on the ground at which the delay starts (kept while it is turned off).</summary>
+        public byte m_Limit;
+
+        public bool m_Enabled;
+
+        /// <summary>Airplanes per gate for the default limit: an airport with more gates can have more airplanes moving.</summary>
+        public const float kLimitPerGate = 1.5f;
+
+        /// <summary>The default limit: <see cref="kLimitPerGate"/> per gate (4 gates: 6), or <see cref="kDefaultLimit"/> without gates.</summary>
+        public static int DefaultLimit(int gates)
+        {
+            return gates <= 0 ? kDefaultLimit : math.clamp((int)math.round(gates * kLimitPerGate), kMinLimit, kMaxLimit);
+        }
+
+        /// <summary>The setting of an airport the player hasn't changed: on, with the default limit for its gates.</summary>
+        public static GroundDelaySetting Default(int gates) => new GroundDelaySetting { m_Limit = (byte)DefaultLimit(gates), m_Enabled = true };
+
+        /// <summary>The limit in force: 0 when off.</summary>
+        public int ActiveLimit => m_Enabled ? m_Limit : 0;
+
+        public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
+        {
+            writer.Write(m_Limit);
+            writer.Write(m_Enabled);
+        }
+
+        public void Deserialize<TReader>(TReader reader) where TReader : IReader
+        {
+            reader.Read(out m_Limit);
+            reader.Read(out m_Enabled);
+        }
+    }
+
     /// <summary>An airport is a top-level building that owns airplane stops (gates), outside connections excluded.</summary>
     internal static class Airports
     {

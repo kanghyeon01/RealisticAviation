@@ -15,6 +15,81 @@ const l10n = window["cs2/l10n"];
 const GROUP = "RealisticAviation";
 const SECTION_TYPE = "RealisticAviation.AirportSection";
 const SECTIONS_MODULE = "game-ui/game/components/selected-info-panel/selected-info-sections/selected-info-sections.tsx";
+const CLOSED_SECTION_TYPE = "RealisticAviation.AirportClosedSection";
+
+// Closure banner: red, in the top area of the panel next to the notifications.
+const BANNER_STYLE = {
+    backgroundColor: "rgba(200, 40, 30, 0.85)",
+    borderRadius: "4rem",
+    padding: "10rem 12rem",
+    textAlign: "center",
+    color: "white",
+};
+// Ground delay banner (phase 4-5): amber instead of red, and below the closure banner when both apply.
+const DELAY_BANNER_STYLE = Object.assign({}, BANNER_STYLE, { backgroundColor: "rgba(215, 140, 20, 0.85)", marginTop: "6rem" });
+const BANNER_TITLE_STYLE = { fontSize: "18rem", fontWeight: "bold", textTransform: "uppercase" };
+const BANNER_REASON_STYLE = { fontSize: "14rem", marginTop: "4rem" };
+
+const ATC_SECTION_TYPE = "RealisticAviation.AirplaneAtcSection";
+
+// Radio box (phase 4-2): a dark panel with the tower's words in blue and the pilot's readback in white; the selected
+// airplane's own exchanges are marked with a yellow bar.
+const RADIO_BOX_STYLE = {
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    border: "1rem solid rgba(255, 255, 255, 0.2)",
+    borderRadius: "4rem",
+    padding: "8rem 10rem",
+    fontSize: "13rem",
+    lineHeight: 1.35,
+};
+const TOWER_LINE_STYLE = { color: "rgb(130, 200, 255)" };
+const PILOT_LINE_STYLE = { color: "white" };
+const EXCHANGE_STYLE = { marginBottom: "6rem", paddingLeft: "6rem", borderLeft: "3rem solid transparent" };
+const OWN_EXCHANGE_STYLE = { marginBottom: "6rem", paddingLeft: "6rem", borderLeft: "3rem solid rgb(255, 200, 60)" };
+const EMPTY_STYLE = { color: "rgba(255, 255, 255, 0.5)" };
+
+// The newest exchange (at the bottom) is lit up, and each new one slides up into place, so the eye goes to the bottom.
+const NEWEST_BACKGROUND = "rgba(130, 200, 255, 0.16)";
+const RADIO_ANIMATION_CLASS = "realistic-aviation-radio-in";
+const RADIO_STYLE_ID = "realistic-aviation-radio-style";
+const RADIO_CSS = "@keyframes realistic-aviation-radio-in { from { opacity: 0; transform: translateY(10rem); } to { opacity: 1; transform: translateY(0); } }"
+    + " ." + RADIO_ANIMATION_CLASS + " { animation: realistic-aviation-radio-in 0.45s ease-out; }";
+
+function injectRadioStyle() {
+    if (typeof document === "undefined" || document.getElementById(RADIO_STYLE_ID)) {
+        return;
+    }
+    const style = document.createElement("style");
+    style.id = RADIO_STYLE_ID;
+    style.textContent = RADIO_CSS;
+    document.head.appendChild(style);
+}
+
+// A frequency's recent exchanges, oldest first, under a "Tower radio  TWR 118.300" row. A broadcast to all aircraft has
+// no readback (empty pilot line).
+function radioRows(key, box, translate) {
+    const exchanges = (box && box.exchanges) || [];
+    const children = [];
+    for (let i = 0; i < exchanges.length; i++) {
+        const exchange = exchanges[i];
+        let style = exchange.own ? OWN_EXCHANGE_STYLE : EXCHANGE_STYLE;
+        if (i === exchanges.length - 1) {
+            style = Object.assign({}, style, { backgroundColor: NEWEST_BACKGROUND, borderRadius: "3rem" });
+        }
+        // Keyed by the exchange itself: only a newly arrived one mounts, and so only it plays the slide-in animation.
+        children.push(React.createElement("div", { key: exchange.id || i, className: RADIO_ANIMATION_CLASS, style: style },
+            // "tower" and "pilot" are the first and second line; on a pilot's own call (pilotFirst) the pilot speaks first.
+            React.createElement("div", { style: exchange.pilotFirst ? PILOT_LINE_STYLE : TOWER_LINE_STYLE }, exchange.tower),
+            exchange.pilot ? React.createElement("div", { style: exchange.pilotFirst ? TOWER_LINE_STYLE : PILOT_LINE_STYLE }, exchange.pilot) : null));
+    }
+    if (children.length === 0) {
+        children.push(React.createElement("div", { key: "empty", style: EMPTY_STYLE }, translate("RealisticAviation.Radio.Empty", "No recent transmissions")));
+    }
+    return [
+        React.createElement(InfoRow, { key: key + "Title", left: translate("RealisticAviation.Radio.Label", "Tower radio"), right: (box && box.label) || "", uppercase: true }),
+        React.createElement("div", { key: key, style: RADIO_BOX_STYLE }, ...children),
+    ];
+}
 
 function getGameModule(path, name) {
     try {
@@ -28,6 +103,24 @@ const InfoSection = getGameModule("game-ui/game/components/selected-info-panel/s
 const InfoRow = getGameModule("game-ui/game/components/selected-info-panel/shared-components/info-row/info-row.tsx", "InfoRow");
 const Checkbox = getGameModule("game-ui/common/input/toggle/checkbox/checkbox.tsx", "Checkbox");
 
+// "[-] value [+]" for a small number setting; dimmed (still clickable) while the setting is off.
+const STEPPER_BUTTON_STYLE = {
+    display: "inline-block",
+    width: "22rem",
+    textAlign: "center",
+    margin: "0 6rem",
+    borderRadius: "3rem",
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    cursor: "pointer",
+};
+
+function stepper(value, onDown, onUp, dimmed) {
+    return React.createElement("div", { style: { display: "flex", alignItems: "center", opacity: dimmed ? 0.5 : 1 } },
+        React.createElement("div", { style: STEPPER_BUTTON_STYLE, onClick: onDown }, "−"),
+        React.createElement("div", null, value),
+        React.createElement("div", { style: STEPPER_BUTTON_STYLE, onClick: onUp }, "+"));
+}
+
 function checkboxRow(key, label, checked, onChange, tooltip) {
     return React.createElement(InfoRow, {
         key: key,
@@ -38,12 +131,21 @@ function checkboxRow(key, label, checked, onChange, tooltip) {
     });
 }
 
-// Airport info panel: line up and wait for the airport, and right-hand traffic pattern for each runway end.
+// Airport info panel: line up and wait for the airport, right-hand traffic pattern for each runway end, and the radio log.
 function AirportSection(props) {
     const { translate } = l10n.useLocalization();
     const rows = [
         checkboxRow("lineUp", translate("RealisticAviation.LineUp.Label", "Line up and wait"), props.lineUp,
             () => api.trigger(GROUP, "ToggleLineUpAndWait"), translate("RealisticAviation.LineUp.Tooltip", "")),
+        checkboxRow("groundDelay", translate("RealisticAviation.GroundDelay.Toggle", "Ground delay"), props.groundDelay,
+            () => api.trigger(GROUP, "ToggleGroundDelay"), translate("RealisticAviation.GroundDelay.Tooltip", "")),
+        React.createElement(InfoRow, {
+            key: "groundDelayLimit",
+            left: translate("RealisticAviation.GroundDelay.Limit", "Ground delay limit"),
+            right: stepper(translate("RealisticAviation.GroundDelay.LimitValue", "{COUNT} airplanes").replace("{COUNT}", String(props.groundDelayLimit)),
+                () => api.trigger(GROUP, "AdjustGroundDelayLimit", -1), () => api.trigger(GROUP, "AdjustGroundDelayLimit", 1), !props.groundDelay),
+            uppercase: true,
+        }),
     ];
     const runways = props.runways || [];
     const rightHand = translate("RealisticAviation.RightHand.Label", "right-hand pattern");
@@ -53,16 +155,47 @@ function AirportSection(props) {
         rows.push(checkboxRow("rwy" + i, "RWY " + runways[i].name + " " + rightHand, runways[i].rightHand,
             () => api.trigger(GROUP, "ToggleRunwayRightHand", index), rightHandTooltip));
     }
+    rows.push(...radioRows("approachRadio", props.approachRadio, translate));
+    rows.push(...radioRows("towerRadio", props.towerRadio, translate));
+    rows.push(...radioRows("groundRadio", props.groundRadio, translate));
     return React.createElement(InfoSection, { disableFocus: true }, ...rows);
 }
 
+// Airplane info panel: the recent exchanges on the frequency it is on, its own marked.
+function AirplaneAtcSection(props) {
+    const { translate } = l10n.useLocalization();
+    return React.createElement(InfoSection, { disableFocus: true }, ...radioRows("radio", props.radio, translate));
+}
+
+// "Airport closed" banner, with the event that closed it in the game's own words (e.g. "Hail Storm").
+function AirportClosedSection(props) {
+    const { translate } = l10n.useLocalization();
+    const banners = [];
+    if (props.closed) {
+        const reason = props.closedBy ? translate("Assets.NAME[" + props.closedBy + "]", props.closedBy) : "";
+        banners.push(React.createElement("div", { key: "closed", style: BANNER_STYLE },
+            React.createElement("div", { style: BANNER_TITLE_STYLE }, translate("RealisticAviation.Closed.Label", "Airport closed")),
+            reason ? React.createElement("div", { style: BANNER_REASON_STYLE }, reason) : null));
+    }
+    if (props.groundDelay) {
+        const count = translate("RealisticAviation.GroundDelay.Count", "{COUNT} airplanes moving on the ground").replace("{COUNT}", String(props.groundCount));
+        banners.push(React.createElement("div", { key: "delay", style: DELAY_BANNER_STYLE },
+            React.createElement("div", { style: BANNER_TITLE_STYLE }, translate("RealisticAviation.GroundDelay.Label", "Ground delay")),
+            React.createElement("div", { style: BANNER_REASON_STYLE }, count)));
+    }
+    return React.createElement(InfoSection, { disableFocus: true }, ...banners);
+}
+
 export default function register(moduleRegistry) {
+    injectRadioStyle();
     if (!InfoSection || !InfoRow || !Checkbox) {
         console.error("RealisticAviation: info panel components not found; the airport options are unavailable.");
         return;
     }
     moduleRegistry.extend(SECTIONS_MODULE, "selectedInfoSectionComponents", (components) => {
         components[SECTION_TYPE] = AirportSection;
+        components[CLOSED_SECTION_TYPE] = AirportClosedSection;
+        components[ATC_SECTION_TYPE] = AirplaneAtcSection;
         return components;
     });
 }

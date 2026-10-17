@@ -32,9 +32,13 @@ namespace RealisticAviation
             // every navigation update: one right before it, one between it and AircraftMoveSystem.
             updateSystem.UpdateBefore<AtcPreNavigationSystem, AircraftNavigationSystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAfter<AtcSystem, AircraftNavigationSystem>(SystemUpdatePhase.GameSimulation);
+            // Testing aid (temporary): starts a weather disaster at an airport when asked from the options page.
+            updateSystem.UpdateAt<DisasterTestSystem>(SystemUpdatePhase.GameSimulation);
 
             // Info panel sections aren't scheduled; the selected-info system updates the ones it knows about.
             updateSystem.World.GetOrCreateSystemManaged<AirportSection>();
+            updateSystem.World.GetOrCreateSystemManaged<AirportClosedSection>();
+            updateSystem.World.GetOrCreateSystemManaged<AirplaneAtcSection>();
         }
 
         public void OnDispose()

@@ -1,8 +1,22 @@
+using System;
+using Game.Vehicles;
 using Unity.Entities;
 using Unity.Mathematics;
 
 namespace RealisticAviation
 {
+    /// <summary>Kinds of disaster the tower may close an airport for (chosen in the options).</summary>
+    [Flags]
+    public enum HazardKinds : byte
+    {
+        None = 0,
+        Tornado = 1,
+        Hail = 2,
+
+        /// <summary>Every other disaster event: thunderstorms, and anything else that puts the airport in danger.</summary>
+        Other = 4,
+    }
+
     public enum Clearance : byte
     {
         /// <summary>Asked for the runway; holding short (on the ground) or holding at the fix (in the air).</summary>
@@ -34,6 +48,24 @@ namespace RealisticAviation
         public float m_LastDistance;
 
         public bool m_LastFlying;
+
+        /// <summary>Wake category of the airplane (its size class).</summary>
+        public SizeClass m_Size;
+
+        /// <summary>A ground airplane that only crosses the runway (its path leaves the runway before any takeoff lane).</summary>
+        public bool m_Crossing;
+
+        /// <summary>The tower has told it to hold (short, or at present position) since its last clearance.</summary>
+        public bool m_Told;
+
+        /// <summary>It asked for the runway in the air: an arrival (a departure is never "touched down").</summary>
+        public bool m_Arrival;
+
+        /// <summary>The tower has given it the landing clearance (on final) for its current approach clearance.</summary>
+        public bool m_ToldLanding;
+
+        /// <summary>The weather go-around chance was already rolled on this approach (once, at the decision height).</summary>
+        public bool m_WeatherChecked;
 
         /// <summary>Estimated seconds until an airborne airplane reaches the runway, from the last tick.</summary>
         public float m_LastEta;
@@ -91,12 +123,6 @@ namespace RealisticAviation
         /// <summary>The ground airplane currently cleared to take off from or cross the runway, or Entity.Null.</summary>
         public Entity m_Holder;
 
-        /// <summary>
-        /// The airplane cleared to land, or Entity.Null. While it is still far out, ground airplanes may be cleared
-        /// ahead of it (see <see cref="AtcSettings.m_DepartureGapSeconds"/>).
-        /// </summary>
-        public Entity m_Arrival;
-
         /// <summary>The ground airplane cleared to line up and wait on the runway, or Entity.Null.</summary>
         public Entity m_LineUp;
 
@@ -109,14 +135,79 @@ namespace RealisticAviation
         /// <summary>Airplanes physically on the runway's lanes; only valid when <see cref="m_OccupiedTick"/> is the current tick.</summary>
         public int m_Occupants;
 
+        /// <summary>Of those, the ones on the ground (not yet lifted off); same tick as <see cref="m_OccupiedTick"/>.</summary>
+        public int m_GroundOccupants;
+
         public uint m_OccupiedTick;
 
+        // The arrival picture, rebuilt every tick from the cleared arrivals still in the air (valid when m_ArrivalTick is
+        // the current tick): the soonest and the latest of them, and the cleared arrival rolling out on the runway.
+        public uint m_ArrivalTick;
+
+        public float m_NextArrivalEta;
+
+        public float m_LastArrivalEta;
+
+        public SizeClass m_LastArrivalSize;
+
+        public Entity m_LandingTraffic;
+
+        /// <summary>Cleared arrivals still in the air (for "number two" in the landing clearance).</summary>
+        public int m_ArrivalCount;
+
+        /// <summary>Why the runway is closed this tick (a disaster event, or the airport when it is in danger), or Entity.Null.</summary>
+        public Entity m_ClosedBy;
+
+        public uint m_ClosedTick;
+
+        /// <summary>Frame the current closure began (for the closure time limit).</summary>
+        public uint m_ClosedFrame;
+
+        /// <summary>An event whose closure reached the time limit: it no longer closes this runway.</summary>
+        public Entity m_WaivedBy;
+
         /// <summary>
-        /// No ground airplane is cleared or lined up, and nobody is physically on the runway (a cleared arrival may be inbound).
+        /// No ground airplane is cleared or lined up, and nobody is on the runway. Arrivals in the air on final don't count:
+        /// whether the runway is clear for them is decided at the decision height.
         /// </summary>
         public bool IsFree(uint tick) => m_Holder == Entity.Null && m_LineUp == Entity.Null && Occupants(tick) == 0;
 
         public int Occupants(uint tick) => m_OccupiedTick == tick ? m_Occupants : 0;
+
+        public int GroundOccupants(uint tick) => m_OccupiedTick == tick ? m_GroundOccupants : 0;
+
+        public bool IsClosed(uint tick) => m_ClosedTick == tick && m_ClosedBy != Entity.Null;
+
+        public float NextArrivalEta(uint tick) => m_ArrivalTick == tick ? m_NextArrivalEta : float.MaxValue;
+
+        public bool HasArrivalInSequence(uint tick) => m_ArrivalTick == tick && m_LastArrivalEta >= 0f;
+
+        public Entity LandingTraffic(uint tick) => m_ArrivalTick == tick ? m_LandingTraffic : Entity.Null;
+
+        /// <summary>Starts this tick's arrival picture if it is still last tick's.</summary>
+        public void BeginArrivals(uint tick)
+        {
+            if (m_ArrivalTick != tick)
+            {
+                m_ArrivalTick = tick;
+                m_NextArrivalEta = float.MaxValue;
+                m_LastArrivalEta = -1f;
+                m_LastArrivalSize = SizeClass.Small;
+                m_LandingTraffic = Entity.Null;
+                m_ArrivalCount = 0;
+            }
+        }
+
+        public void AddArrival(float eta, SizeClass size)
+        {
+            m_ArrivalCount++;
+            m_NextArrivalEta = math.min(m_NextArrivalEta, eta);
+            if (eta > m_LastArrivalEta)
+            {
+                m_LastArrivalEta = eta;
+                m_LastArrivalSize = size;
+            }
+        }
     }
 
     /// <summary>The mod options, copied into a plain struct so jobs can use them.</summary>
@@ -143,7 +234,19 @@ namespace RealisticAviation
 
         public float m_FinalLength;
 
-        public bool m_PracticeGoAround;
+        /// <summary>Minimum time between two arrivals cleared to the same runway.</summary>
+        public float m_ArrivalSpacingSeconds;
+
+        /// <summary>Disasters that close an airport.</summary>
+        public HazardKinds m_ClosureHazards;
+
+        /// <summary>Longest closure for one event, in simulation frames; 0 = until the event is over.</summary>
+        public uint m_MaxClosureFrames;
+
+        /// <summary>Chance that an arrival goes around at the decision height because of the weather (set from the climate).</summary>
+        public float m_WeatherGoAroundChance;
+
+        public bool m_Snowing;
 
         public AtcSettings(Setting setting)
         {
@@ -151,7 +254,14 @@ namespace RealisticAviation
             m_Pushback = setting.EnablePushback;
             m_PatternWidth = setting.PatternWidthNm * Setting.kMetersPerNauticalMile;
             m_FinalLength = setting.FinalLengthNm * Setting.kMetersPerNauticalMile;
-            m_PracticeGoAround = setting.PracticeGoAround;
+            m_ArrivalSpacingSeconds = setting.ArrivalSpacingSeconds;
+            // Set from the climate by AtcSystem.
+            m_WeatherGoAroundChance = 0f;
+            m_Snowing = false;
+            m_ClosureHazards = (setting.CloseForTornado ? HazardKinds.Tornado : HazardKinds.None)
+                | (setting.CloseForHail ? HazardKinds.Hail : HazardKinds.None)
+                | (setting.CloseForOtherDisasters ? HazardKinds.Other : HazardKinds.None);
+            m_MaxClosureFrames = setting.LimitClosureTime ? (uint)(System.Math.Max(5, setting.MaxClosureMinutes) * Setting.kFramesPerGameMinute) : 0u;
             m_DepartureGapSeconds = setting.DepartureGapSeconds;
             m_ContactDistance = setting.ContactDistanceNm * Setting.kMetersPerNauticalMile;
             m_HoldingLegLength = setting.HoldingLegNm * Setting.kMetersPerNauticalMile;
@@ -182,6 +292,12 @@ namespace RealisticAviation
         public float2 m_EntryDirection;
 
         public bool m_Flying;
+
+        /// <summary>Taking off (on the runway or just airborne from it); such an airplane still occupies the runway.</summary>
+        public bool m_TakingOff;
+
+        /// <summary>The path crosses the upcoming runway instead of taking off from it (ground only).</summary>
+        public bool m_Crossing;
 
         /// <summary>A new path is being searched, so the path buffers can't be trusted this tick.</summary>
         public bool m_PathUnknown;
@@ -259,6 +375,12 @@ namespace RealisticAviation
 
         /// <summary>Parallel to the runway, opposite to the landing direction, abeam until the base turn.</summary>
         Downwind,
+
+        /// <summary>
+        /// "Extend downwind": not cleared at the end of downwind, it keeps flying straight on, ready to turn base once cleared,
+        /// for at most kDownwindExtension; then the tower holds it.
+        /// </summary>
+        ExtendedDownwind,
     }
 
     public enum PushbackPhase : byte
@@ -308,6 +430,23 @@ namespace RealisticAviation
     /// The ground a pushing airplane covers this tick: a capsule from its position along the rest of its push.
     /// Taxiing airplanes stop before entering it.
     /// </summary>
+    /// <summary>How long the mod's taxi hold has kept an airplane behind the same other one (see AtcSystem.MayHoldBehind).</summary>
+    internal struct TaxiHold
+    {
+        public Entity m_Ahead;
+        public uint m_Since;
+        public uint m_LastTick;
+        public bool m_Released;
+    }
+
+    /// <summary>A ground airplane's last navigation speed that no airborne airplane limited (see AtcSystem.PassAirborneBlocker).</summary>
+    internal struct FreeSpeed
+    {
+        public float m_MaxSpeed;
+        public float m_Speed;
+        public uint m_Tick;
+    }
+
     internal struct PushbackArea
     {
         public Entity m_Entity;
@@ -329,6 +468,9 @@ namespace RealisticAviation
         public Entity m_Air;
 
         public float m_AirRatio;
+
+        /// <summary>The arrival with the highest ratio can join the sequence now; if not, the others wait behind it.</summary>
+        public bool m_AirReady;
 
         public Entity m_Ground;
 
