@@ -8,7 +8,7 @@ Status as of 2026-10-17. Game version 1.6.2f1. Author: Boing787 (kanghyeon01).
 | --- | --- | --- |
 | 1 | Tower control (ATC) | **Done, tested in game** |
 | 2 | Pushback | Implemented, testing in game |
-| 3 | Traffic pattern (upwind, crosswind, downwind, base, final) | Implemented, testing in game |
+| 3 | Traffic pattern (upwind, crosswind, downwind, base, final) | **Done, tested in game** |
 | 4 | Go-around, together with arrival sequencing | Planned |
 | 5 | Alternate airport (optional, toggle) | Idea |
 | – | Snow-free runways | **Dropped** (snow is a GPU snow-map shader effect; too hard) |
