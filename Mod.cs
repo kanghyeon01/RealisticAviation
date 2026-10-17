@@ -34,7 +34,7 @@ namespace RealisticAviation
             updateSystem.UpdateAfter<AtcSystem, AircraftNavigationSystem>(SystemUpdatePhase.GameSimulation);
 
             // Info panel sections aren't scheduled; the selected-info system updates the ones it knows about.
-            updateSystem.World.GetOrCreateSystemManaged<LineUpSection>();
+            updateSystem.World.GetOrCreateSystemManaged<AirportSection>();
         }
 
         public void OnDispose()

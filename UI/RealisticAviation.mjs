@@ -13,7 +13,7 @@ const modding = window["cs2/modding"];
 const l10n = window["cs2/l10n"];
 
 const GROUP = "RealisticAviation";
-const SECTION_TYPE = "RealisticAviation.LineUpSection";
+const SECTION_TYPE = "RealisticAviation.AirportSection";
 const SECTIONS_MODULE = "game-ui/game/components/selected-info-panel/selected-info-sections/selected-info-sections.tsx";
 
 function getGameModule(path, name) {
@@ -28,29 +28,41 @@ const InfoSection = getGameModule("game-ui/game/components/selected-info-panel/s
 const InfoRow = getGameModule("game-ui/game/components/selected-info-panel/shared-components/info-row/info-row.tsx", "InfoRow");
 const Checkbox = getGameModule("game-ui/common/input/toggle/checkbox/checkbox.tsx", "Checkbox");
 
-// Airport info panel: the per-airport "line up and wait" switch.
-function LineUpSection(props) {
-    const { translate } = l10n.useLocalization();
-    const checkbox = React.createElement(Checkbox, {
-        checked: !!props.enabled,
-        onChange: () => api.trigger(GROUP, "ToggleLineUpAndWait"),
-    });
-    const row = React.createElement(InfoRow, {
-        left: translate("RealisticAviation.LineUp.Label", "Line up and wait"),
-        right: checkbox,
+function checkboxRow(key, label, checked, onChange, tooltip) {
+    return React.createElement(InfoRow, {
+        key: key,
+        left: label,
+        right: React.createElement(Checkbox, { checked: !!checked, onChange: onChange }),
         uppercase: true,
-        tooltip: translate("RealisticAviation.LineUp.Tooltip", ""),
+        tooltip: tooltip,
     });
-    return React.createElement(InfoSection, { disableFocus: true }, row);
+}
+
+// Airport info panel: line up and wait for the airport, and right-hand traffic pattern for each runway end.
+function AirportSection(props) {
+    const { translate } = l10n.useLocalization();
+    const rows = [
+        checkboxRow("lineUp", translate("RealisticAviation.LineUp.Label", "Line up and wait"), props.lineUp,
+            () => api.trigger(GROUP, "ToggleLineUpAndWait"), translate("RealisticAviation.LineUp.Tooltip", "")),
+    ];
+    const runways = props.runways || [];
+    const rightHand = translate("RealisticAviation.RightHand.Label", "right-hand pattern");
+    const rightHandTooltip = translate("RealisticAviation.RightHand.Tooltip", "");
+    for (let i = 0; i < runways.length; i++) {
+        const index = i;
+        rows.push(checkboxRow("rwy" + i, "RWY " + runways[i].name + " " + rightHand, runways[i].rightHand,
+            () => api.trigger(GROUP, "ToggleRunwayRightHand", index), rightHandTooltip));
+    }
+    return React.createElement(InfoSection, { disableFocus: true }, ...rows);
 }
 
 export default function register(moduleRegistry) {
     if (!InfoSection || !InfoRow || !Checkbox) {
-        console.error("RealisticAviation: info panel components not found; the line up and wait checkbox is unavailable.");
+        console.error("RealisticAviation: info panel components not found; the airport options are unavailable.");
         return;
     }
     moduleRegistry.extend(SECTIONS_MODULE, "selectedInfoSectionComponents", (components) => {
-        components[SECTION_TYPE] = LineUpSection;
+        components[SECTION_TYPE] = AirportSection;
         return components;
     });
 }

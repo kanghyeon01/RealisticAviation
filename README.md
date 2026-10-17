@@ -18,7 +18,9 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
   (time waited + expected runway time) / expected runway time goes next: quick users of the runway are favored,
   but every waiting airplane's ratio keeps rising, so nobody waits forever. On a taxiway, the airplane at the head of
   the queue is the one cleared.
-- **Line up and wait (per airport).** A checkbox in each airport's info panel. When on, the next departure may enter
+- **Line up and wait (per airport).** A checkbox in each airport's info panel. The same panel lists every runway end in use
+  (game runways are usually one-way) with a right-hand traffic pattern checkbox, ticked by default when a parallel
+  runway lies to its left so that the pattern stays on the outside. Parallel runways are named L/R (or L/C/R), e.g. RWY 07L. When on, the next departure may enter
   the runway and wait lined up as soon as the landing airplane has touched down, or the departing airplane has started
   its takeoff roll, and passed its entry point; it takes off the moment the runway is clear. When off, it holds short until then.
 - **Departures ahead of arrivals.** A ground airplane may take off or cross ahead of a cleared arrival that is still
@@ -27,6 +29,12 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
   15–40 m) at 3 m/s with its nose locked, then swung around at 15°/s until it faces along its route, and taxis off
   after a 10 s engine start. Ground control approves the pushback only when no airplane is moving close to the area
   (at most 60 s wait); taxiing airplanes stop short of an airplane being pushed back.
+
+- **Traffic pattern (phase 3).** After a go-around the airplane climbs straight ahead and flies a left-hand pattern (right-hand
+  where set for that runway end in the airport info panel, e.g. "RWY 27 right-hand pattern") built from its own runway: upwind past the runway end, crosswind, downwind 1,500 ft above the
+  runway, then base and final once cleared (holding at the end of downwind if not). A parallel runway on the pattern
+  side moves the pattern to the other side. Airliners normally fly straight-in approaches, so arrivals do not fly the
+  pattern otherwise. A "practice go-around" testing option sends every arrival around once.
 
 Helicopters are not affected. Only the per-airport line up and wait choice is saved with the city (and dropped
 harmlessly if the mod is removed); the tower rebuilds everything else after a save is loaded.
@@ -39,6 +47,9 @@ harmlessly if the mod is removed); the tower rebuilds everything else after a sa
 | Holding leg length | 1.5 NM | Straight-leg length of the holding pattern |
 | Hold short setback | 30 m | Gap between a waiting airplane's nose and the runway |
 | Pushback | On | Push airplanes back out of nose-in gates instead of turning them on the spot |
+| Pattern width | 1.5 NM | Runway centerline to downwind |
+| Final length | 2 NM | Distance of the base turn before the runway |
+| Practice go-around | Off | Testing: every arrival goes around once and flies the pattern |
 | Taxi spacing | 40 m | Gap a taxiing airplane keeps behind the airplane ahead |
 | Departure gap before arrivals | 90 s | A ground airplane may go ahead of a cleared arrival at least this far out |
 

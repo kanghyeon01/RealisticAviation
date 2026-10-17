@@ -8,7 +8,7 @@ Status as of 2026-10-17. Game version 1.6.2f1. Author: Boing787 (kanghyeon01).
 | --- | --- | --- |
 | 1 | Tower control (ATC) | **Done, tested in game** |
 | 2 | Pushback | Implemented, testing in game |
-| 3 | Traffic pattern (upwind, crosswind, downwind, base, final) | Planned |
+| 3 | Traffic pattern (upwind, crosswind, downwind, base, final) | Implemented, testing in game |
 | 4 | Go-around, together with arrival sequencing | Planned |
 | 5 | Alternate airport (optional, toggle) | Idea |
 | – | Snow-free runways | **Dropped** (snow is a GPU snow-map shader effect; too hard) |
@@ -94,3 +94,39 @@ airplane diverts. Mechanism (not verified yet): set a new `Target` and mark the 
 The alternate is usually an outside air connection (a diversion off the map), or another airport in the city if
 there is one. Open question to study first: what the game does with passengers on board and with the line/route
 state of a public-transport airplane whose target changes.
+
+## Phase 3 – traffic pattern (implemented 2026-10-17)
+
+Research (FAA): the traffic pattern is a VFR procedure. Turns are left by default (14 CFR 91.126); large or turbine
+airplanes fly it at 1,500 ft AGL (91.129, AIM 4-3-3). IFR airliners fly straight-in instrument approaches, and RKSS
+arrivals on Flightradar24 do too. After a go-around they climb on runway heading and are radar-vectored around a
+pattern-shaped circuit back to final. Departures follow the SID or a heading; they do not fly pattern legs.
+
+Design agreed with the author: arrivals keep straight-in approaches. The pattern is the go-around re-approach and is
+reused by phase 4. Nothing is pre-generated. `GoAround` builds the waypoints from the flight's own runway entry
+(threshold, landing direction): upwind end = runway end + max(0.5 NM, turn radius); crosswind and downwind at the
+pattern width (option, 1.5 NM); downwind end = final length (option, 2 NM) before the threshold; altitude = threshold
++ 1,500 ft. Left by default. Right-hand is set per runway end in the airport info panel (`AirportSection` lists
+RWY designators from the landing heading). It is stored as `RunwayPattern` bits on every edge of the runway: bit 1 =
+landing with the edge curve, bit 2 = against it. The author asked for per-runway rather than a global or per-airport
+setting. Only the ends actually used are listed (`RunwayGeometry.m_Landings`, from the direction of the runway lanes,
+because game runways are one-way). Bits shifted by 2 mark the player's choice. Without a choice the default is
+right-hand when a parallel runway lies to the left (outside patterns, as at large airports), shared by the UI and
+the tower through `RunwayGeometry.IsParallelOnSide`. Parallel runways sharing a number get L/R (L/C/R for three) by
+position seen in the landing direction, as at real airports (the author asked for this).
+
+Bug fixed 2026-10-17 (practice go-around deadlock): below about 100 ft the game has already switched the approach
+from Approaching to Landing-only. In that state, being below the target (our pattern altitude) counts as touchdown and
+drops `Flying`, so the climbing airplane became a "ground" occupant of the runway forever: ground traffic held
+short and arrivals held. `GoAround` now restores `Approaching` (the one lane-flag write), and any pattern or holding
+flight that loses `Flying` is handed back to the game. A parallel runway (from `RunwayGeometry`, built in
+RefreshRunways) on the pattern side flips the side.
+
+At the end of downwind, `EndCircuit` starts a hold at present position whose resume point is the final-approach start
+(on the centerline at glide height, lined up). Once cleared, `ReturnToPath` flies base and joins final, and the game's
+own Approaching|Landing logic lands it. The game state stays "on the runway lane, Approaching|Landing" throughout the
+circuit, so lanes and flags are never touched. While circuiting or holding, the airplane is not counted as on the
+runway; it re-requests (Waiting, keeping its request time for HRN). Testing option: "Practice go-around" sends every
+arrival around once at 100 ft above the runway. Pattern and holding speed: at least the speed at which the move
+system's minimum pitch, lerp(-climb, slowPitch, (1-f)^2), is level. Near the minimum flying speed the airplane would
+otherwise fly nose-up like in the flare (the author reported this).

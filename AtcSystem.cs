@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Colossal.Mathematics;
 using Colossal.Serialization.Entities;
 using Game;
@@ -56,10 +57,15 @@ namespace RealisticAviation
         private BufferLookup<PathElement> m_PathElements;
         private BufferLookup<LaneObject> m_LaneObjects;
         private ComponentLookup<LineUpAndWaitAirport> m_LineUpAirportData;
+        private ComponentLookup<RunwayPattern> m_RunwayPatternData;
 
         /// <summary>Runway key of every runway edge and runway node. The key is the runway's lowest-index edge or node.</summary>
         private NativeParallelHashMap<Entity, Entity> m_RunwayOf;
         private NativeParallelHashMap<Entity, RunwayState> m_Runways;
+        private NativeParallelHashMap<Entity, RunwayGeometry> m_RunwayGeometry;
+
+        /// <summary>Main-thread copy of the runways for the airport info panel; rebuilt with the runway map.</summary>
+        private readonly List<RunwayInfo> m_RunwayList = new List<RunwayInfo>();
         private NativeParallelHashMap<Entity, Flight> m_Flights;
         private NativeList<Entity> m_HoldingFlights;
         private NativeParallelHashMap<Entity, Pushback> m_Pushbacks;
@@ -76,6 +82,8 @@ namespace RealisticAviation
         private int m_AirportVersion = -1;
         private ulong m_RunwaySignature;
         private uint m_Tick;
+
+        internal IReadOnlyList<RunwayInfo> RunwayList => m_RunwayList;
 
         public override int GetUpdateInterval(SystemUpdatePhase phase) => 16;
 
@@ -108,7 +116,7 @@ namespace RealisticAviation
                 {
                     ComponentType.ReadOnly<Airplane>(),
                     ComponentType.ReadOnly<Moving>(),
-                    ComponentType.ReadOnly<AircraftCurrentLane>(),
+                    ComponentType.ReadWrite<AircraftCurrentLane>(),
                     ComponentType.ReadWrite<AircraftNavigation>(),
                     ComponentType.ReadOnly<PathOwner>(),
                 },
@@ -135,15 +143,17 @@ namespace RealisticAviation
             m_TransformData = GetComponentLookup<Transform>(true);
             m_MovingData = GetComponentLookup<Moving>(true);
             m_PathOwnerData = GetComponentLookup<PathOwner>(true);
-            m_CurrentLaneData = GetComponentLookup<AircraftCurrentLane>(true);
+            m_CurrentLaneData = GetComponentLookup<AircraftCurrentLane>(false);
             m_NavigationData = GetComponentLookup<AircraftNavigation>(false);
             m_NavigationLanes = GetBufferLookup<AircraftNavigationLane>(true);
             m_PathElements = GetBufferLookup<PathElement>(true);
             m_LaneObjects = GetBufferLookup<LaneObject>(true);
             m_LineUpAirportData = GetComponentLookup<LineUpAndWaitAirport>(true);
+            m_RunwayPatternData = GetComponentLookup<RunwayPattern>(true);
 
             m_RunwayOf = new NativeParallelHashMap<Entity, Entity>(64, Allocator.Persistent);
             m_Runways = new NativeParallelHashMap<Entity, RunwayState>(16, Allocator.Persistent);
+            m_RunwayGeometry = new NativeParallelHashMap<Entity, RunwayGeometry>(16, Allocator.Persistent);
             m_Flights = new NativeParallelHashMap<Entity, Flight>(64, Allocator.Persistent);
             m_HoldingFlights = new NativeList<Entity>(16, Allocator.Persistent);
             m_Pushbacks = new NativeParallelHashMap<Entity, Pushback>(16, Allocator.Persistent);
@@ -158,6 +168,7 @@ namespace RealisticAviation
             m_JobHandle.Complete();
             m_RunwayOf.Dispose();
             m_Runways.Dispose();
+            m_RunwayGeometry.Dispose();
             m_Flights.Dispose();
             m_HoldingFlights.Dispose();
             m_Pushbacks.Dispose();
@@ -172,6 +183,7 @@ namespace RealisticAviation
             m_JobHandle.Complete();
             m_RunwayOf.Clear();
             m_Runways.Clear();
+            m_RunwayGeometry.Clear();
             m_Flights.Clear();
             m_HoldingFlights.Clear();
             m_Pushbacks.Clear();
@@ -202,6 +214,7 @@ namespace RealisticAviation
             m_PathElements.Update(this);
             m_LaneObjects.Update(this);
             m_LineUpAirportData.Update(this);
+            m_RunwayPatternData.Update(this);
 
             NativeList<Entity> airplanes = m_AirplaneQuery.ToEntityListAsync(Allocator.TempJob, out JobHandle airplanesHandle);
             AtcJob job = new AtcJob
@@ -222,9 +235,11 @@ namespace RealisticAviation
                 m_PathElements = m_PathElements,
                 m_LaneObjects = m_LaneObjects,
                 m_LineUpAirportData = m_LineUpAirportData,
+                m_RunwayPatternData = m_RunwayPatternData,
                 m_Airplanes = airplanes,
                 m_RunwayOf = m_RunwayOf,
                 m_Runways = m_Runways,
+                m_RunwayGeometry = m_RunwayGeometry,
                 m_Flights = m_Flights,
                 m_HoldingFlights = m_HoldingFlights,
                 m_Pushbacks = m_Pushbacks,
@@ -298,6 +313,7 @@ namespace RealisticAviation
             NativeArray<Edge> edgeEnds = m_RunwayEdgeQuery.ToComponentDataArray<Edge>(Allocator.Temp);
             NativeParallelHashMap<Entity, Entity> parent = new NativeParallelHashMap<Entity, Entity>(math.max(8, edges.Length * 2), Allocator.Temp);
             NativeParallelHashMap<Entity, RunwayState> kept = new NativeParallelHashMap<Entity, RunwayState>(math.max(8, m_Runways.Count()), Allocator.Temp);
+            NativeList<Entity> runwayEdges = new NativeList<Entity>(edges.Length, Allocator.Temp);
             try
             {
                 for (int i = 0; i < edges.Length; i++)
@@ -310,6 +326,7 @@ namespace RealisticAviation
                     }
                     Entity edge = edges[i];
                     Edge ends = edgeEnds[i];
+                    runwayEdges.Add(edge);
                     Union(parent, edge, ends.m_Start);
                     Union(parent, edge, ends.m_End);
                 }
@@ -328,27 +345,93 @@ namespace RealisticAviation
                 }
                 members.Dispose();
 
+                // Centerline extent of each runway, along the direction of its first edge (traffic pattern size and side).
+                m_RunwayGeometry.Clear();
+                for (int i = 0; i < runwayEdges.Length; i++)
+                {
+                    Entity edge = runwayEdges[i];
+                    if (!entityManager.HasComponent<Curve>(edge))
+                    {
+                        continue;
+                    }
+                    Bezier4x3 bezier = entityManager.GetComponentData<Curve>(edge).m_Bezier;
+                    Entity key = m_RunwayOf[edge];
+                    if (!m_RunwayGeometry.TryGetValue(key, out RunwayGeometry geometry))
+                    {
+                        geometry.m_Origin = bezier.a.xz;
+                        geometry.m_Direction = math.normalizesafe(bezier.d.xz - bezier.a.xz);
+                        geometry.m_Min = float.MaxValue;
+                        geometry.m_Max = float.MinValue;
+                    }
+                    geometry.Include(bezier.a.xz);
+                    geometry.Include(bezier.d.xz);
+                    geometry.m_Landings |= LandingDirections(entityManager, edge, geometry.m_Direction);
+                    m_RunwayGeometry[key] = geometry;
+                }
+
                 // Flights pointing at a runway that no longer exists drop themselves on the next tick.
                 m_Runways.Clear();
                 NativeList<Entity> airports = new NativeList<Entity>(4, Allocator.Temp);
                 Airports.Collect(entityManager, m_AirplaneStopQuery, airports);
+                m_RunwayList.Clear();
+                Dictionary<Entity, RunwayInfo> infos = new Dictionary<Entity, RunwayInfo>();
                 foreach (var pair in kept)
                 {
                     RunwayState state = pair.Value;
                     state.m_Airport = FindAirport(entityManager, pair.Key, airports);
                     m_Runways.Add(pair.Key, state);
+                    if (m_RunwayGeometry.TryGetValue(pair.Key, out RunwayGeometry geometry))
+                    {
+                        RunwayInfo info = new RunwayInfo(pair.Key, state.m_Airport, geometry);
+                        infos.Add(pair.Key, info);
+                        m_RunwayList.Add(info);
+                    }
+                }
+                for (int i = 0; i < runwayEdges.Length; i++)
+                {
+                    if (infos.TryGetValue(m_RunwayOf[runwayEdges[i]], out RunwayInfo info))
+                    {
+                        info.Edges.Add(runwayEdges[i]);
+                    }
                 }
                 airports.Dispose();
                 Mod.Log.Info($"Found {m_Runways.Count()} runways.");
             }
             finally
             {
+                runwayEdges.Dispose();
                 kept.Dispose();
                 parent.Dispose();
                 edgeEnds.Dispose();
                 prefabs.Dispose();
                 edges.Dispose();
             }
+        }
+
+        /// <summary>
+        /// Which way the runway lanes of an edge run relative to the runway axis. Game runways are usually one-way, so this
+        /// tells which end airplanes actually land on and take off from.
+        /// </summary>
+        private static byte LandingDirections(EntityManager entityManager, Entity edge, float2 axis)
+        {
+            if (!entityManager.HasBuffer<Game.Net.SubLane>(edge))
+            {
+                return 0;
+            }
+            byte directions = 0;
+            DynamicBuffer<Game.Net.SubLane> subLanes = entityManager.GetBuffer<Game.Net.SubLane>(edge, true);
+            for (int i = 0; i < subLanes.Length; i++)
+            {
+                Entity lane = subLanes[i].m_SubLane;
+                if (!entityManager.HasComponent<Game.Net.CarLane>(lane) || !entityManager.HasComponent<Curve>(lane)
+                    || (entityManager.GetComponentData<Game.Net.CarLane>(lane).m_Flags & Game.Net.CarLaneFlags.Runway) == 0)
+                {
+                    continue;
+                }
+                Bezier4x3 bezier = entityManager.GetComponentData<Curve>(lane).m_Bezier;
+                directions |= math.dot(bezier.d.xz - bezier.a.xz, axis) >= 0f ? RunwayGeometry.kAlong : RunwayGeometry.kAgainst;
+            }
+            return directions;
         }
 
         /// <summary>Order-independent fingerprint of a set of entities.</summary>
@@ -470,6 +553,8 @@ namespace RealisticAviation
 
             // Holding speed as a factor of the airplane's minimum flying speed.
             private const float kHoldingSpeedFactor = 1.15f;
+            // Extra share of the speed range above the speed at which the nose would be level.
+            private const float kLevelAttitudeMargin = 0.05f;
 
             // Path elements scanned beyond the navigation lanes when looking for the next runway, and past its entry for its first runway lane.
             private const int kMaxRunwayLaneScan = 8;
@@ -481,6 +566,16 @@ namespace RealisticAviation
             // Ground airplanes ask for the runway at least this far before it, plus their stopping distance.
             private const float kMinGroundRequestDistance = 200f;
             private const float kGroundRequestMargin = 50f;
+
+            // Traffic pattern: 1,500 ft above the runway (FAA pattern altitude for large and turbine airplanes); upwind runs at
+            // least this far past the runway end; legs turn this many turn radii before each corner. (Parallel runways: see
+            // RunwayGeometry.IsParallelOnSide.) The practice go-around happens 100 ft above
+            // the runway (within 2 NM of the threshold), where a real go-around decision is made.
+            private const float kPatternHeight = 1500f * 0.3048f;
+            private const float kUpwindExtension = 0.5f * Setting.kMetersPerNauticalMile;
+            private const float kCircuitLeadFactor = 1.5f;
+            private const float kPracticeGoAroundHeight = 100f * 0.3048f;
+            private const float kPracticeGoAroundDistance = 2f * Setting.kMetersPerNauticalMile;
 
             // Response-ratio scheduling: expected runway time of each kind of use, in game seconds.
             private const float kSecondsPerFrame = 1f / 60f;
@@ -542,16 +637,18 @@ namespace RealisticAviation
             [ReadOnly] public ComponentLookup<Transform> m_TransformData;
             [ReadOnly] public ComponentLookup<Moving> m_MovingData;
             [ReadOnly] public ComponentLookup<PathOwner> m_PathOwnerData;
-            [ReadOnly] public ComponentLookup<AircraftCurrentLane> m_CurrentLaneData;
+            public ComponentLookup<AircraftCurrentLane> m_CurrentLaneData;
             public ComponentLookup<AircraftNavigation> m_NavigationData;
             [ReadOnly] public BufferLookup<AircraftNavigationLane> m_NavigationLanes;
             [ReadOnly] public BufferLookup<PathElement> m_PathElements;
             [ReadOnly] public BufferLookup<LaneObject> m_LaneObjects;
             [ReadOnly] public ComponentLookup<LineUpAndWaitAirport> m_LineUpAirportData;
+            [ReadOnly] public ComponentLookup<RunwayPattern> m_RunwayPatternData;
 
             [ReadOnly] public NativeList<Entity> m_Airplanes;
             [ReadOnly] public NativeParallelHashMap<Entity, Entity> m_RunwayOf;
             public NativeParallelHashMap<Entity, RunwayState> m_Runways;
+            [ReadOnly] public NativeParallelHashMap<Entity, RunwayGeometry> m_RunwayGeometry;
             public NativeParallelHashMap<Entity, Flight> m_Flights;
             public NativeList<Entity> m_HoldingFlights;
             public NativeParallelHashMap<Entity, Pushback> m_Pushbacks;
@@ -762,6 +859,35 @@ namespace RealisticAviation
             private bool UpdateFlight(ref FlightScan scan)
             {
                 Entity entity = scan.m_Entity;
+                bool hasFlight = m_Flights.TryGetValue(entity, out Flight flight);
+
+                // Safety net: an airplane flying the pattern or holding that the game no longer considers airborne (landed
+                // after all) is handed back at once, so it can never sit on the runway as a pattern flight forever.
+                if (hasFlight && !scan.m_Flying && (flight.m_InCircuit || (flight.m_Holding && scan.m_Occupied == flight.m_Runway)))
+                {
+                    if (flight.m_Holding)
+                    {
+                        FreeStackLevel(flight.m_Runway, flight.m_StackLevel);
+                    }
+                    flight.m_InCircuit = false;
+                    flight.m_Holding = false;
+                    m_Flights[entity] = flight;
+                    LogEvent(entity, "lost its flying state in the pattern; handed back to the game on runway", flight.m_Runway);
+                }
+
+                // After a go-around the airplane's game state still says "on final on the runway lane" while it flies the
+                // pattern or holds; it isn't using the runway, and its path can't tell where it is.
+                if (hasFlight && scan.m_Flying && (flight.m_InCircuit || flight.m_Holding) && scan.m_Occupied == flight.m_Runway)
+                {
+                    flight.m_LastTick = m_Tick;
+                    flight.m_LastFlying = true;
+                    float2 offset = m_TransformData[entity].m_Position.xz - flight.m_EntryPosition.xz;
+                    flight.m_LastDistance = math.length(offset);
+                    flight.m_LastEta = flight.m_LastDistance / math.max(math.length(m_MovingData[entity].m_Velocity), 1f);
+                    m_Flights[entity] = flight;
+                    return true;
+                }
+
                 if (scan.m_Occupied != Entity.Null && m_Runways.TryGetValue(scan.m_Occupied, out RunwayState occupied))
                 {
                     if (occupied.m_OccupiedTick != m_Tick)
@@ -773,7 +899,7 @@ namespace RealisticAviation
                     m_Runways[scan.m_Occupied] = occupied;
                 }
 
-                if (m_Flights.TryGetValue(entity, out Flight flight))
+                if (hasFlight)
                 {
                     flight.m_LastTick = m_Tick;
                     flight.m_LastFlying = scan.m_Flying;
@@ -1164,8 +1290,21 @@ namespace RealisticAviation
                     HoldAtLineUpPoint(entity, scan);
                     return;
                 }
-                if (scan.m_Occupied == flight.m_Runway)
+                if (flight.m_InCircuit)
                 {
+                    FlyCircuit(entity, ref flight);
+                    m_HoldingFlights.Add(entity);
+                    return;
+                }
+                if (scan.m_Occupied == flight.m_Runway && !flight.m_Holding)
+                {
+                    if (m_Settings.m_PracticeGoAround && scan.m_Flying && !flight.m_WentAround && flight.m_Clearance == Clearance.Cleared
+                        && IsBelowGoAroundHeight(entity, flight))
+                    {
+                        GoAround(entity, ref flight, "practice");
+                        FlyCircuit(entity, ref flight);
+                        m_HoldingFlights.Add(entity);
+                    }
                     return;
                 }
                 if (flight.m_Holding)
@@ -1668,24 +1807,178 @@ namespace RealisticAviation
             /// </summary>
             private void StartHolding(Entity entity, ref Flight flight)
             {
-                Entity prefab = m_PrefabRefData[entity].m_Prefab;
-                AirplaneData airplaneData = m_PrefabAirplaneData[prefab];
                 Transform transform = m_TransformData[entity];
                 AircraftNavigation navigation = m_NavigationData[entity];
-                flight.m_ResumeTarget = navigation.m_TargetPosition;
-                flight.m_ResumeDirection = navigation.m_TargetDirection;
-
                 float2 inbound = math.normalizesafe(navigation.m_TargetPosition.xz - transform.m_Position.xz,
                     math.normalizesafe(m_MovingData[entity].m_Velocity.xz, new float2(0f, 1f)));
-                float holdingSpeed = GetHoldingSpeed(airplaneData);
-                // The move system turns with radius speed / m_FlyingTurning; keep a little margin.
-                float turnRadius = holdingSpeed / math.max(airplaneData.m_FlyingTurning, 0.001f) * 1.1f;
+                StartHolding(entity, ref flight, navigation.m_TargetPosition, navigation.m_TargetDirection, inbound);
+            }
+
+            /// <summary>
+            /// Holds at present position, then (once cleared) flies to <paramref name="resumeTarget"/> lined up with
+            /// <paramref name="resumeDirection"/> and hands the airplane back there.
+            /// </summary>
+            private void StartHolding(Entity entity, ref Flight flight, float3 resumeTarget, float3 resumeDirection, float2 inbound)
+            {
+                AirplaneData airplaneData = m_PrefabAirplaneData[m_PrefabRefData[entity].m_Prefab];
+                flight.m_ResumeTarget = resumeTarget;
+                flight.m_ResumeDirection = resumeDirection;
                 flight.m_StackLevel = TakeStackLevel(flight.m_Runway);
-                float3 fix = transform.m_Position;
+                float3 fix = m_TransformData[entity].m_Position;
                 fix.y += flight.m_StackLevel * kStackSpacing;
-                flight.m_Pattern = new HoldingPattern(fix, inbound, m_Settings.m_HoldingLegLength, turnRadius);
+                flight.m_Pattern = new HoldingPattern(fix, inbound, m_Settings.m_HoldingLegLength, GetTurnRadius(airplaneData));
                 flight.m_Holding = true;
                 m_Flights[entity] = flight;
+            }
+
+            /// <summary>Turn radius at holding speed: the move system turns with radius speed / m_FlyingTurning, plus a margin.</summary>
+            private static float GetTurnRadius(AirplaneData airplaneData)
+            {
+                return GetHoldingSpeed(airplaneData) / math.max(airplaneData.m_FlyingTurning, 0.001f) * 1.1f;
+            }
+
+            // ------------------------------------------------------------ go-around and traffic pattern
+
+            /// <summary>
+            /// Breaks off the approach: the runway is released and the airplane asks again, keeping its place in time.
+            /// It climbs straight ahead and flies the traffic pattern built from its own runway: upwind past the runway
+            /// end, crosswind, downwind abeam the runway to the base turn. Left-hand by default; on the other side when a
+            /// parallel runway lies on the pattern side.
+            /// </summary>
+            private void GoAround(Entity entity, ref Flight flight, string reason)
+            {
+                // Close to the threshold the game has already moved the approach on from "approaching" to "landing", and in
+                // that state it treats being below the steering target as touchdown and drops the flying state, so the
+                // climbing airplane would turn into a ground vehicle in the air. Put the approach state it had back.
+                AircraftCurrentLane currentLane = m_CurrentLaneData[entity];
+                if ((currentLane.m_LaneFlags & AircraftLaneFlags.Landing) != 0 && (currentLane.m_LaneFlags & AircraftLaneFlags.Approaching) == 0)
+                {
+                    currentLane.m_LaneFlags |= AircraftLaneFlags.Approaching;
+                    m_CurrentLaneData[entity] = currentLane;
+                }
+
+                ReleaseRunway(entity, flight.m_Runway);
+                flight.m_Clearance = Clearance.Waiting;
+                flight.m_SeenOnRunway = false;
+                flight.m_TouchedDown = false;
+                flight.m_WentAround = true;
+
+                AirplaneData airplaneData = m_PrefabAirplaneData[m_PrefabRefData[entity].m_Prefab];
+                float radius = GetTurnRadius(airplaneData);
+                float3 threshold = flight.m_EntryPosition;
+                float2 landing = flight.m_EntryDirection;
+                float2 side = IsRightHandPattern(entity, flight.m_Runway, landing) ? MathUtils.Right(landing) : MathUtils.Left(landing);
+                float width = math.max(m_Settings.m_PatternWidth, radius * 2.2f);
+
+                // Upwind ends past the runway end (and past the airplane), leaving room for the crosswind turn.
+                float upwind = math.dot(m_TransformData[entity].m_Position.xz - threshold.xz, landing);
+                if (m_RunwayGeometry.TryGetValue(flight.m_Runway, out RunwayGeometry geometry))
+                {
+                    float2 a = geometry.m_Origin + geometry.m_Direction * geometry.m_Min;
+                    float2 b = geometry.m_Origin + geometry.m_Direction * geometry.m_Max;
+                    upwind = math.max(upwind, math.max(math.dot(a - threshold.xz, landing), math.dot(b - threshold.xz, landing)));
+                }
+                upwind += math.max(kUpwindExtension, radius);
+                float final = math.max(m_Settings.m_FinalLength, radius * 2f);
+                float altitude = threshold.y + kPatternHeight;
+
+                flight.m_UpwindEnd = new float3(threshold.x + landing.x * upwind, altitude, threshold.z + landing.y * upwind);
+                flight.m_CrosswindEnd = flight.m_UpwindEnd + new float3(side.x, 0f, side.y) * width;
+                flight.m_DownwindEnd = new float3(threshold.x - landing.x * final + side.x * width, altitude, threshold.z - landing.y * final + side.y * width);
+                flight.m_CircuitLeg = CircuitLeg.Upwind;
+                flight.m_InCircuit = true;
+                m_Flights[entity] = flight;
+                LogEvent(entity, $"went around ({reason}), {(math.dot(side, MathUtils.Right(landing)) > 0f ? "right" : "left")}-hand pattern for runway", flight.m_Runway);
+            }
+
+            /// <summary>Flies the pattern legs; at the end of downwind the base turn and final are flown by the hold/return logic.</summary>
+            private void FlyCircuit(Entity entity, ref Flight flight)
+            {
+                float3 position = m_TransformData[entity].m_Position;
+                float radius = GetTurnRadius(m_PrefabAirplaneData[m_PrefabRefData[entity].m_Prefab]);
+                // Turn onto the next leg a little before each corner, as a fly-by waypoint.
+                float lead = radius * kCircuitLeadFactor;
+                float3 waypoint = flight.m_CircuitLeg == CircuitLeg.Upwind ? flight.m_UpwindEnd
+                    : flight.m_CircuitLeg == CircuitLeg.Crosswind ? flight.m_CrosswindEnd
+                    : flight.m_DownwindEnd;
+                if (math.distancesq(position.xz, waypoint.xz) < lead * lead)
+                {
+                    if (flight.m_CircuitLeg != CircuitLeg.Downwind)
+                    {
+                        flight.m_CircuitLeg++;
+                        m_Flights[entity] = flight;
+                        FlyCircuit(entity, ref flight);
+                        return;
+                    }
+                    EndCircuit(entity, ref flight);
+                    return;
+                }
+                Steer(entity, waypoint, default);
+                m_Flights[entity] = flight;
+            }
+
+            /// <summary>
+            /// End of downwind: the final approach starts the final length out on the extended centerline, at the glide
+            /// path height there, lined up with the runway. A cleared airplane turns base and joins it at once; one that
+            /// isn't yet holds right here until it is (the same hold-and-return used for arrivals).
+            /// </summary>
+            private void EndCircuit(Entity entity, ref Flight flight)
+            {
+                AirplaneData airplaneData = m_PrefabAirplaneData[m_PrefabRefData[entity].m_Prefab];
+                float3 threshold = flight.m_EntryPosition;
+                float2 landing = flight.m_EntryDirection;
+                float final = math.max(m_Settings.m_FinalLength, GetTurnRadius(airplaneData) * 2f);
+                float3 finalStart = new float3(threshold.x - landing.x * final, 0f, threshold.z - landing.y * final);
+                finalStart.y = math.min(flight.m_DownwindEnd.y, threshold.y + final * math.tan(airplaneData.m_ClimbAngle));
+
+                flight.m_InCircuit = false;
+                float2 downwind = math.normalizesafe(flight.m_DownwindEnd.xz - flight.m_CrosswindEnd.xz, -landing);
+                StartHolding(entity, ref flight, finalStart, new float3(landing.x, 0f, landing.y), downwind);
+                if (flight.m_Clearance == Clearance.Cleared)
+                {
+                    ReturnToPath(entity, ref flight);
+                }
+                else
+                {
+                    Hold(entity, ref flight);
+                }
+            }
+
+            /// <summary>
+            /// The runway end's pattern direction, set in the airport info panel and stored on the runway's edges: read from
+            /// the edge the airplane is over (or the runway's key edge) for the end it lands on.
+            /// </summary>
+            private bool IsRightHandPattern(Entity entity, Entity runway, float2 landing)
+            {
+                Entity edge = m_OwnerData.TryGetComponent(m_CurrentLaneData[entity].m_Lane, out Owner owner) ? owner.m_Owner : Entity.Null;
+                if (!m_RunwayPatternData.HasComponent(edge))
+                {
+                    edge = runway;
+                }
+                if (m_RunwayPatternData.TryGetComponent(edge, out RunwayPattern pattern) && m_CurveData.TryGetComponent(edge, out Curve curve)
+                    && pattern.TryGetRightHand(curve.m_Bezier.d.xz - curve.m_Bezier.a.xz, landing, out bool rightHand))
+                {
+                    return rightHand;
+                }
+                // Not set in the panel: right-hand when a parallel runway lies to the left, so the pattern stays outside.
+                return HasParallelRunwayOnSide(runway, landing, MathUtils.Left(landing));
+            }
+
+            /// <summary>Whether another runway runs parallel within the pattern width on the given side of this one.</summary>
+            private bool HasParallelRunwayOnSide(Entity runway, float2 landing, float2 side)
+            {
+                if (!m_RunwayGeometry.TryGetValue(runway, out RunwayGeometry ours))
+                {
+                    return false;
+                }
+                foreach (var pair in m_RunwayGeometry)
+                {
+                    if (pair.Key != runway && RunwayGeometry.IsParallelOnSide(ours, pair.Value, landing, side, m_Settings.m_PatternWidth))
+                    {
+                        return true;
+                    }
+                }
+                return false;
             }
 
             /// <summary>Flies the holding pattern instead of the path the game planned.</summary>
@@ -1749,9 +2042,28 @@ namespace RealisticAviation
                 return math.length(m_MovingData[entity].m_Velocity);
             }
 
+            /// <summary>
+            /// Speed for holding and the traffic pattern. The move system keeps the nose at least at
+            /// lerp(-climb angle, slow pitch angle, (1 - f)^2), where f is how far the speed is between the minimum and maximum
+            /// flying speed: near the minimum the airplane flies nose-up like in the landing flare. So fly at least fast
+            /// enough for that minimum pitch to be level or below.
+            /// </summary>
             private static float GetHoldingSpeed(AirplaneData airplaneData)
             {
-                return math.min(airplaneData.m_FlyingSpeed.x * kHoldingSpeedFactor, airplaneData.m_FlyingSpeed.y);
+                float2 range = airplaneData.m_FlyingSpeed;
+                float climb = math.max(airplaneData.m_ClimbAngle, 0f);
+                float slow = math.max(airplaneData.m_SlowPitchAngle, 0f);
+                float level = climb + slow > 0.0001f ? 1f - math.sqrt(climb / (climb + slow)) : 0f;
+                float levelSpeed = math.lerp(range.x, range.y, math.saturate(level + kLevelAttitudeMargin));
+                return math.min(math.max(range.x * kHoldingSpeedFactor, levelSpeed), range.y);
+            }
+
+            /// <summary>Practice go-around: still in the air, below 100 ft above the runway, on short final.</summary>
+            private bool IsBelowGoAroundHeight(Entity entity, in Flight flight)
+            {
+                float3 position = m_TransformData[entity].m_Position;
+                return position.y - flight.m_EntryPosition.y < kPracticeGoAroundHeight
+                    && math.distancesq(position.xz, flight.m_EntryPosition.xz) < kPracticeGoAroundDistance * kPracticeGoAroundDistance;
             }
 
             private byte TakeStackLevel(Entity runway)

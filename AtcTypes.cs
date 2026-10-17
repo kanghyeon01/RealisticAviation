@@ -58,7 +58,22 @@ namespace RealisticAviation
 
         public float3 m_ResumeDirection;
 
-        /// <summary>Where a ground airplane's path enters the runway and the direction it then rolls (from the last tick).</summary>
+        /// <summary>The airplane is flying the traffic pattern after a go-around (see <see cref="CircuitLeg"/>).</summary>
+        public bool m_InCircuit;
+
+        /// <summary>This arrival has already gone around once (the practice go-around only happens once).</summary>
+        public bool m_WentAround;
+
+        public CircuitLeg m_CircuitLeg;
+
+        /// <summary>Pattern waypoints: end of upwind, end of crosswind, end of downwind; y is the pattern altitude.</summary>
+        public float3 m_UpwindEnd;
+
+        public float3 m_CrosswindEnd;
+
+        public float3 m_DownwindEnd;
+
+        /// <summary>Where the airplane's path enters its runway and the direction it then travels (from the last tick).</summary>
         public float3 m_EntryPosition;
 
         public float2 m_EntryDirection;
@@ -123,10 +138,20 @@ namespace RealisticAviation
 
         public bool m_Pushback;
 
+        /// <summary>In metres (the options themselves are in nautical miles).</summary>
+        public float m_PatternWidth;
+
+        public float m_FinalLength;
+
+        public bool m_PracticeGoAround;
+
         public AtcSettings(Setting setting)
         {
             m_TaxiSpacing = setting.TaxiSpacing;
             m_Pushback = setting.EnablePushback;
+            m_PatternWidth = setting.PatternWidthNm * Setting.kMetersPerNauticalMile;
+            m_FinalLength = setting.FinalLengthNm * Setting.kMetersPerNauticalMile;
+            m_PracticeGoAround = setting.PracticeGoAround;
             m_DepartureGapSeconds = setting.DepartureGapSeconds;
             m_ContactDistance = setting.ContactDistanceNm * Setting.kMetersPerNauticalMile;
             m_HoldingLegLength = setting.HoldingLegNm * Setting.kMetersPerNauticalMile;
@@ -160,6 +185,80 @@ namespace RealisticAviation
 
         /// <summary>A new path is being searched, so the path buffers can't be trusted this tick.</summary>
         public bool m_PathUnknown;
+    }
+
+    /// <summary>A runway as the airport info panel lists it (main thread only).</summary>
+    public sealed class RunwayInfo
+    {
+        public RunwayInfo(Entity key, Entity airport, RunwayGeometry geometry)
+        {
+            Key = key;
+            Airport = airport;
+            Geometry = geometry;
+        }
+
+        public Entity Key { get; }
+
+        public Entity Airport { get; }
+
+        /// <summary>Centerline, extent and the directions it is used in.</summary>
+        public RunwayGeometry Geometry { get; }
+
+        public System.Collections.Generic.List<Entity> Edges { get; } = new System.Collections.Generic.List<Entity>();
+    }
+
+    /// <summary>A runway's centerline in the horizontal plane: an axis and the extent of the runway along it.</summary>
+    public struct RunwayGeometry
+    {
+        public float2 m_Origin;
+
+        public float2 m_Direction;
+
+        public float m_Min;
+
+        public float m_Max;
+
+        /// <summary>Directions airplanes land and take off on it: <see cref="kAlong"/> and/or <see cref="kAgainst"/> the axis.</summary>
+        public byte m_Landings;
+
+        public const byte kAlong = 1;
+        public const byte kAgainst = 2;
+
+        // A runway within this cosine of parallel, whose middle lies less than the pattern width plus the margin to one
+        // side, puts that side off limits for the traffic pattern.
+        private const float kParallelDot = 0.98f;
+        private const float kParallelMargin = 1000f;
+
+        public static bool IsParallelOnSide(in RunwayGeometry ours, in RunwayGeometry other, float2 landing, float2 side, float patternWidth)
+        {
+            if (math.abs(math.dot(other.m_Direction, landing)) < kParallelDot)
+            {
+                return false;
+            }
+            float offset = math.dot(other.Middle - ours.Middle, side);
+            return offset > 0f && offset < patternWidth + kParallelMargin;
+        }
+
+        public void Include(float2 point)
+        {
+            float along = math.dot(point - m_Origin, m_Direction);
+            m_Min = math.min(m_Min, along);
+            m_Max = math.max(m_Max, along);
+        }
+
+        public float2 Middle => m_Origin + m_Direction * (0.5f * (m_Min + m_Max));
+    }
+
+    public enum CircuitLeg : byte
+    {
+        /// <summary>Climbing straight ahead over the runway after the go-around.</summary>
+        Upwind,
+
+        /// <summary>Turned towards the pattern side, flying across.</summary>
+        Crosswind,
+
+        /// <summary>Parallel to the runway, opposite to the landing direction, abeam until the base turn.</summary>
+        Downwind,
     }
 
     public enum PushbackPhase : byte

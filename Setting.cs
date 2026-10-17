@@ -6,13 +6,14 @@ using Game.UI;
 namespace RealisticAviation
 {
     [FileLocation("ModsSettings/" + Mod.kName + "/" + Mod.kName)]
-    [SettingsUIGroupOrder(kArrivalGroup, kGroundGroup)]
-    [SettingsUIShowGroupName(kArrivalGroup, kGroundGroup)]
+    [SettingsUIGroupOrder(kArrivalGroup, kPatternGroup, kGroundGroup)]
+    [SettingsUIShowGroupName(kArrivalGroup, kPatternGroup, kGroundGroup)]
     public sealed class Setting : ModSetting
     {
         public const string kSection = "Main";
         public const string kArrivalGroup = "Arrivals";
         public const string kGroundGroup = "Ground";
+        public const string kPatternGroup = "Pattern";
 
         public Setting(IMod mod) : base(mod)
         {
@@ -37,6 +38,20 @@ namespace RealisticAviation
         [SettingsUISlider(min = 0, max = 150, step = 5, unit = Unit.kLength)]
         public int HoldShortSetback { get; set; }
 
+        /// <summary>Distance between the runway centerline and the downwind leg, in nautical miles.</summary>
+        [SettingsUISection(kSection, kPatternGroup)]
+        [SettingsUISlider(min = 0.5f, max = 4f, step = 0.5f, unit = Unit.kFloatSingleFraction)]
+        public float PatternWidthNm { get; set; }
+
+        /// <summary>Length of the final approach after the base turn, in nautical miles.</summary>
+        [SettingsUISection(kSection, kPatternGroup)]
+        [SettingsUISlider(min = 1f, max = 5f, step = 0.5f, unit = Unit.kFloatSingleFraction)]
+        public float FinalLengthNm { get; set; }
+
+        /// <summary>Testing aid: every arrival goes around once at short final and flies the traffic pattern.</summary>
+        [SettingsUISection(kSection, kPatternGroup)]
+        public bool PracticeGoAround { get; set; }
+
         /// <summary>Airplanes leaving a nose-in gate are pushed back instead of turning around on the spot.</summary>
         [SettingsUISection(kSection, kGroundGroup)]
         public bool EnablePushback { get; set; }
@@ -56,6 +71,9 @@ namespace RealisticAviation
             DepartureGapSeconds = 90;
             TaxiSpacing = 40;
             EnablePushback = true;
+            PatternWidthNm = 1.5f;
+            FinalLengthNm = 2f;
+            PracticeGoAround = false;
             ContactDistanceNm = 5.5f;
             HoldingLegNm = 1.5f;
             HoldShortSetback = 30;

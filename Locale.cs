@@ -36,6 +36,30 @@ namespace RealisticAviation
             { m_Setting.GetOptionTabLocaleID(Setting.kSection), "Main" },
             { m_Setting.GetOptionGroupLocaleID(Setting.kArrivalGroup), "Arrivals" },
             { m_Setting.GetOptionGroupLocaleID(Setting.kGroundGroup), "Ground" },
+            { m_Setting.GetOptionGroupLocaleID(Setting.kPatternGroup), "Traffic pattern" },
+
+            { "RealisticAviation.RightHand.Label", "right-hand pattern" },
+            {
+                "RealisticAviation.RightHand.Tooltip",
+                "After a go-around, airplanes landing on this runway end fly the traffic pattern with right turns instead of the " +
+                "standard left turns. Where a parallel runway lies on the pattern side, the other side is used automatically."
+            },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.PatternWidthNm)), "Pattern width (NM)" },
+            {
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.PatternWidthNm)),
+                "Distance between the runway centerline and the downwind leg. The pattern is flown 1,500 ft above the runway."
+            },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.FinalLengthNm)), "Final length (NM)" },
+            {
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.FinalLengthNm)),
+                "How far before the runway the base turn puts the airplane on final."
+            },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.PracticeGoAround)), "Practice go-around (testing)" },
+            {
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.PracticeGoAround)),
+                "Testing aid: every arriving airplane goes around once, 100 ft above the runway, and flies the traffic pattern " +
+                "before landing. Leave it off for normal play."
+            },
 
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.ContactDistanceNm)), "Tower contact distance (NM)" },
             {
@@ -92,6 +116,30 @@ namespace RealisticAviation
             { m_Setting.GetOptionTabLocaleID(Setting.kSection), "메인" },
             { m_Setting.GetOptionGroupLocaleID(Setting.kArrivalGroup), "도착" },
             { m_Setting.GetOptionGroupLocaleID(Setting.kGroundGroup), "지상" },
+            { m_Setting.GetOptionGroupLocaleID(Setting.kPatternGroup), "장주 (Traffic Pattern)" },
+
+            { "RealisticAviation.RightHand.Label", "우선회 장주" },
+            {
+                "RealisticAviation.RightHand.Tooltip",
+                "이 활주로 방향으로 착륙하다 Go-around 한 비행기가 표준인 좌선회 대신 우선회로 장주를 돕니다. " +
+                "장주 쪽에 평행 활주로가 있으면 자동으로 반대쪽에서 돕니다."
+            },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.PatternWidthNm)), "장주 폭 (NM)" },
+            {
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.PatternWidthNm)),
+                "활주로 중심선과 Downwind 구간 사이의 거리입니다. 장주는 활주로보다 1,500ft 높은 고도에서 돕니다."
+            },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.FinalLengthNm)), "Final 길이 (NM)" },
+            {
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.FinalLengthNm)),
+                "Base 선회 후 Final에 들어서는 지점이 활주로에서 얼마나 떨어져 있는지입니다."
+            },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.PracticeGoAround)), "연습 Go-around (테스트용)" },
+            {
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.PracticeGoAround)),
+                "테스트용 기능입니다. 모든 도착기가 활주로 위 100ft에서 한 번 Go-around 하고 장주를 돈 뒤 착륙합니다. " +
+                "평소에는 꺼 두세요."
+            },
 
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.ContactDistanceNm)), "관제탑 교신 거리 (NM)" },
             {

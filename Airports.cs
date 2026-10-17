@@ -5,6 +5,7 @@ using Game.Routes;
 using Game.Tools;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 
 namespace RealisticAviation
 {
@@ -14,6 +15,48 @@ namespace RealisticAviation
     /// </summary>
     public struct LineUpAndWaitAirport : IComponentData, IQueryTypeParameter, IEmptySerializable
     {
+    }
+
+    /// <summary>
+    /// Traffic pattern direction per runway end, set in the airport info panel and stored on every edge of the runway.
+    /// Bit <see cref="kWithCurve"/> is the end landing in the edge curve's own direction, <see cref="kAgainstCurve"/> the
+    /// other end; the low bits say right-hand, the same bits shifted by <see cref="kSetShift"/> say the player chose it.
+    /// An end the player never set uses the default (right-hand only when a parallel runway lies to its left). Saved with
+    /// the city; an edge that is rebuilt (runway redrawn or split) goes back to the default.
+    /// </summary>
+    public struct RunwayPattern : IComponentData, IQueryTypeParameter, ISerializable
+    {
+        public const byte kWithCurve = 1;
+        public const byte kAgainstCurve = 2;
+        public const int kSetShift = 2;
+
+        public byte m_RightHand;
+
+        public static byte EndBit(float2 edgeDirection, float2 landing) => math.dot(edgeDirection, landing) >= 0f ? kWithCurve : kAgainstCurve;
+
+        /// <summary>The player's choice for the end landing along <paramref name="landing"/>, if one was made.</summary>
+        public bool TryGetRightHand(float2 edgeDirection, float2 landing, out bool rightHand)
+        {
+            byte bit = EndBit(edgeDirection, landing);
+            rightHand = (m_RightHand & bit) != 0;
+            return (m_RightHand & (bit << kSetShift)) != 0;
+        }
+
+        public void SetRightHand(float2 edgeDirection, float2 landing, bool rightHand)
+        {
+            byte bit = EndBit(edgeDirection, landing);
+            m_RightHand = (byte)((rightHand ? m_RightHand | bit : m_RightHand & ~bit) | (bit << kSetShift));
+        }
+
+        public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
+        {
+            writer.Write(m_RightHand);
+        }
+
+        public void Deserialize<TReader>(TReader reader) where TReader : IReader
+        {
+            reader.Read(out m_RightHand);
+        }
     }
 
     /// <summary>An airport is a top-level building that owns airplane stops (gates), outside connections excluded.</summary>
