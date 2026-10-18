@@ -20,12 +20,12 @@ The per-airport choices are saved with the city. Removing the mod is safe: the s
 
 Made with AI: this mod was vibe-coded with Claude by Anthropic. Claude (Claude Code) wrote all the code; Boing787 directed the work and tested it in-game.
 
-Source code (MIT): https://github.com/kanghyeon01/RealisticAviation</LongDescription>
+Source code (MIT): https://github.com/kanghyeon01/realistic-aviation</LongDescription>
   <Thumbnail Value="Properties/Thumbnail.png" />
   <Tag Value="Code Mod" />
   <ModVersion Value="1.0.0" />
   <GameVersion Value="1.6.*" />
   <!-- Private while testing; change to Public and run the Update command to release. -->
   <AccessLevel Value="Private" />
-  <ExternalLink Type="github" Url="https://github.com/kanghyeon01/RealisticAviation" />
+  <ExternalLink Type="github" Url="https://github.com/kanghyeon01/realistic-aviation" />
 </Publish>
