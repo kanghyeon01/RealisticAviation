@@ -1,6 +1,6 @@
 <Publish>
   <!-- Filled in after the first Publish ("Mod published with Id=...") so NewVersion/Update can find the mod. -->
-  <ModId Value="" />
+  <ModId Value="163873" />
   <DisplayName Value="Realistic Aviation" />
   <ShortDescription Value="A control tower for your airports: one airplane per runway, holding, line up and wait, pushback, airspace and radio." />
   <LongDescription>Realistic Aviation gives every airport a control tower that runs its runways the way real ones do.
