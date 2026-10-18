@@ -84,7 +84,7 @@ Before: one cleared arrival owned the runway from about 5 NM, about one arrival 
   runway is closed or has an occupant. A ground holder or lined-up airplane not yet on the runway is revoked to
   hold short instead.
 - Closure (`UpdateClosures`, each tick): an active `WeatherPhenomenon` (Duration start ≤ frame < end) whose
-  radius + 1 km reaches the runway segment, or `InDanger` (end frame not passed) on the airport building. Effects
+  radius + 1 NM (1,852 m; was 1 km until 2026-10-19) reaches the runway segment, or `InDanger` (end frame not passed) on the airport building. Effects
   (`CancelForClosure`): no grants or line-up releases; airborne cleared arrivals on the runway lane go around (then hold
   at the end of downwind, since nothing is cleared), other airborne ones revert to Waiting (hold); ground clearances not
   yet on the runway are revoked (hold short); a departure on the runway with a takeoff clearance that is not rolling
@@ -346,9 +346,8 @@ Research 2026-10-19 (TransportAircraftAISystem):
   - Divert after holding worked (8 of 9), but most lines run between a city airport and an outside connection, so the
     "next stop" is off the map and the airplanes just flew away, which looked wrong and gained little.
   - Without it nothing gets stuck: during a closure arrivals hold and land when the airport reopens.
-  - Seen in the same test: a storm at the edge of the closure distance made the closure flicker (closed, reopened,
-    cleared to land, closed again: four go-arounds for one airplane). A minimum closure time after reopening would fix
-    it if it bothers.
+  - In the same test one airplane went around four times for "airport closed": the author had started the test disaster
+    several times in a row (not a flickering closure).
 
 Proposed by the author on 2026-10-17. An option that can be turned on or off: after N go-arounds (an option) the
 airplane diverts. Mechanism (not verified yet): set a new `Target` and mark the path obsolete so the game repaths.

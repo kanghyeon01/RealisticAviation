@@ -1079,8 +1079,8 @@ namespace RealisticAviation
             private const float kPushbackApprovalTimeout = 60f;
             private const float kEngineStartSeconds = 10f;
 
-            // A runway closes while a storm, hail or tornado comes within this distance of it beyond the phenomenon radius.
-            private const float kClosureMargin = 1000f;
+            // A runway closes while a storm, hail or tornado comes within this distance of it beyond the phenomenon radius (1 NM).
+            private const float kClosureMargin = Setting.kMetersPerNauticalMile;
 
             // Taxi spacing looks this much further than the gap plus the stopping distance.
             private const float kTaxiScanMargin = 20f;

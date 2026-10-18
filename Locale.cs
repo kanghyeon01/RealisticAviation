@@ -41,12 +41,12 @@ namespace RealisticAviation
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.CloseForTornado)), "Close for tornadoes" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.CloseForTornado)),
-                "An active tornado that reaches within 1 km of a runway, or puts the airport building in danger, closes the airport."
+                "An active tornado that reaches within 1 NM (1,852 m) of a runway, or puts the airport building in danger, closes the airport."
             },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.CloseForHail)), "Close for hail storms" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.CloseForHail)),
-                "An active hail storm that reaches within 1 km of a runway, or puts the airport building in danger, closes the airport."
+                "An active hail storm that reaches within 1 NM (1,852 m) of a runway, or puts the airport building in danger, closes the airport."
             },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.CloseForOtherDisasters)), "Close for other disasters" },
             {
@@ -185,12 +185,12 @@ namespace RealisticAviation
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.CloseForTornado)), "토네이도 시 폐쇄" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.CloseForTornado)),
-                "진행 중인 토네이도가 활주로 1km 안까지 다가오거나 공항 건물이 위험 상태가 되면 공항을 폐쇄합니다."
+                "진행 중인 토네이도가 활주로 1NM(1,852m) 안까지 다가오거나 공항 건물이 위험 상태가 되면 공항을 폐쇄합니다."
             },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.CloseForHail)), "우박 시 폐쇄" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.CloseForHail)),
-                "진행 중인 우박 폭풍이 활주로 1km 안까지 다가오거나 공항 건물이 위험 상태가 되면 공항을 폐쇄합니다."
+                "진행 중인 우박 폭풍이 활주로 1NM(1,852m) 안까지 다가오거나 공항 건물이 위험 상태가 되면 공항을 폐쇄합니다."
             },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.CloseForOtherDisasters)), "기타 재난 시 폐쇄" },
             {

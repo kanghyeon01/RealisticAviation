@@ -31,7 +31,7 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
 - **Departures ahead of arrivals.** A ground airplane may take off or cross when the next cleared arrival is still
   far enough out (the departure gap). When ground traffic has waited longer (by response ratio), no new arrival is
   added to the sequence until it has gone.
-- **Airport closure (phase 4).** While an active storm, hail or tornado comes within its radius plus 1 km of a runway,
+- **Airport closure (phase 4).** While an active storm, hail or tornado comes within its radius plus 1 NM (1,852 m) of a runway,
   or the airport building is in danger, the airport is closed: no clearances, departures hold short, gate airplanes
   are not cleared to push back, arrivals on final go around and then hold, airborne ones hold, and landed airplanes
   taxi in as usual. The airport info panel shows "Airport closed" with the event's name. Which disasters close
