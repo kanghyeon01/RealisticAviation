@@ -15,7 +15,7 @@ Status as of 2026-10-17. Game version 1.6.2f1. Author: Boing787 (kanghyeon01).
 | 4-4 | Departure and climb procedure | **Dropped** (the steep climb is the game's 20 degree climb angle for every airplane; the author prefers not to touch game defaults) |
 | 4-5 | Ground flow control: when too many airplanes taxi or wait on the ground at an airport (not counting ones at gates), approach stops clearing new arrivals (they hold, "expect further clearance, ground delay") and departures go first; threshold an option (fixed count, or from the gate count if it can be found) | Implemented 2026-10-18 (per-airport limit in the airport panel, default 1.5 per gate, hysteresis 2), testing in game |
 | 5 | Divert (base mod option, on) after 3–5 go-arounds (default 4) or after holding longer than a limit (10–60 game min, default 30; a closure still means holding first): proceed to the next stop of the line | Dropped 2026-10-19 after a trial (see Phase 5 below) |
-| 6 | Compass add-on: a standalone compass mod (map north, optional on-screen compass), detected by RA for runway designators | Agreed 2026-10-18, not started |
+| 6 | Compass add-on: a standalone compass mod (map north, optional on-screen compass), detected by RA for runway designators | Map Compass built as a standalone mod; RA does not depend on it (2026-10-19) |
 | – | Snow-free runways | **Dropped** (snow is a GPU snow-map shader effect; too hard) |
 
 Possible extra: an "ATC" section in the vehicle info panel showing each airplane's tower status, plus phraseology
@@ -111,7 +111,8 @@ Before: one cleared arrival owned the runway from about 5 NM, about one arrival 
   can't fit behind the sequence yet (others don't join, so the sequence drains); otherwise a go-around airplane near
   the runway would starve. Its ETA follows the remaining pattern legs, or the final-approach start while holding.
 - Temporary testing aid (`DisasterTestSystem`, options group "Testing"): starts a chosen weather event at the selected
-  airport (or the first one), like the developer panel's "Start event". Remove before release.
+  airport (or the first one), like the developer panel's "Start event". Removed 2026-10-19 (release cleanup; in git
+  history before that date if a test needs it again).
 
 ## Phase 4-2 – ATC radio text (implemented 2026-10-17)
 
@@ -214,7 +215,7 @@ Before: one cleared arrival owned the runway from about 5 NM, about one arrival 
   skip any airplane with a flight. And "taxi to the gate" no longer counts as a taxi clearance for a route that takes
   off (`HasTaxiClearance`): a boarded departure asked for the runway before its pushback; it still does for a crossing
   on the way in.
-- Gate parking diagnostics (2026-10-19, `WatchStands` / `LogParking`, remove before release): all 66 boardings stood
+- Gate parking diagnostics (2026-10-19, `WatchStands` / `LogParking`, removed again the same day): all 66 boardings stood
   exactly on the stand point with the stand lane's heading, also with no mod intervention since landing; the askew
   parking at the international airport is the game's stand geometry (stops 78754/78755 end their lane at curve pos 0,
   driven in reverse), not the mod. Left as the game does it.
@@ -391,7 +392,7 @@ real decision-height check in phase 4-1.) Pattern and holding speed: at least th
 system's minimum pitch, lerp(-climb, slowPitch, (1-f)^2), is level. Near the minimum flying speed the airplane would
 otherwise fly nose-up like in the flare (the author reported this).
 
-## Phase 6 – compass add-on (agreed 2026-10-18, not started)
+## Phase 6 – compass add-on (agreed 2026-10-18, implemented 2026-10-19)
 
 - A separate, standalone compass mod: the player sets which way map north is (optionally a magnetic variation), with
   an on-screen compass that can be turned on and off. It knows nothing about Realistic Aviation and exposes one public
@@ -401,3 +402,23 @@ otherwise fly nose-up like in the flare (the author reported this).
   radio all follow; without it, map +z stays north as now. Only the names change, not any behaviour.
 - Chosen over the compass mod detecting RA: the dependency points the natural way (RA uses a generic north), the
   compass stays reusable by other mods, and the designator rules stay in one place.
+- Implemented 2026-10-19 (untested) as the separate mod "Map Compass" (repo ../MapCompass): options map north (0–359°,
+  clockwise from the game's north), magnetic variation (−30..30°, east +), show compass; an on-screen rose in the top
+  right that turns with the camera (`CompassUISystem` from `CameraUpdateSystem.direction`). API `MapCompass.CompassApi`
+  (`TrueHeading`, `MagneticHeading` of a map x/z direction). RA: `RunwayNames.Heading` finds `MagneticHeading` by
+  reflection once and uses it for the designators; without the mod, map +z stays north.
+- Changed the same day (author): Map Compass has no north or variation options any more (only "show compass star",
+  now a four-pointed star); north is always the game's. Without Map Compass RA numbers every runway 10, with L/C/R by
+  position when an airport has several (`RunwayNames.NameWithoutCompass`); one runway used in both directions is
+  "10" both ways.
+- Final decision the same day (author): Map Compass stays a standalone mod (the "4"-shaped north sign only) and RA
+  does not look for it: RA numbers runways from their map heading itself, with the game's north, as before. The
+  reflection lookup and the "10 without the compass" rule were removed again.
+- Runway designators, FAA style (2026-10-19, AC 150/5340-1): the whole number nearest a tenth of the heading (1–36,
+  north 36; a heading ending in 5 may go either way, the code rounds half to even); written with two digits as
+  ICAO does ("09", spoken "zero niner"; the author preferred it to the FAA's "9", 2026-10-19); parallels L/R or L/C/R; four or five parallels are two groups, the next-nearest
+  number for the two ends on a fixed side (heading 327°: 32L, 32R, 33L, 33R) so the ends stay reciprocal; more are
+  numbered. One rule (`RunwayNames.Name`) for the panel and the radio.
+- The game's own north (research 2026-10-19): `PlanetarySystem` places the sun with `TopocentricCoordinates.
+  ToLocalCoordinates` = (sin az, cos alt, cos az) with the azimuth from north towards east (SunCalc + pi), so map +z is
+  north and +x east: the sun rises towards +x. RA's map north was already the same.

@@ -1,15 +1,14 @@
 using Colossal.IO.AssetDatabase;
 using Game;
 using Game.Modding;
-using Game.SceneFlow;
 using Game.Settings;
 using Game.UI;
 
 namespace RealisticAviation
 {
     [FileLocation("ModsSettings/" + Mod.kName + "/" + Mod.kName)]
-    [SettingsUIGroupOrder(kArrivalGroup, kPatternGroup, kGroundGroup, kClosureGroup, kTestGroup)]
-    [SettingsUIShowGroupName(kArrivalGroup, kPatternGroup, kGroundGroup, kClosureGroup, kTestGroup)]
+    [SettingsUIGroupOrder(kArrivalGroup, kPatternGroup, kGroundGroup, kClosureGroup)]
+    [SettingsUIShowGroupName(kArrivalGroup, kPatternGroup, kGroundGroup, kClosureGroup)]
     public sealed class Setting : ModSetting
     {
         public const string kSection = "Main";
@@ -17,7 +16,6 @@ namespace RealisticAviation
         public const string kGroundGroup = "Ground";
         public const string kPatternGroup = "Pattern";
         public const string kClosureGroup = "Closure";
-        public const string kTestGroup = "Testing";
 
         public Setting(IMod mod) : base(mod)
         {
@@ -97,23 +95,6 @@ namespace RealisticAviation
 
         public bool IsClosureTimeUnlimited() => !LimitClosureTime;
 
-        /// <summary>Testing aid (temporary): the weather event the button below starts at an airport.</summary>
-        [SettingsUISection(kSection, kTestGroup)]
-        [SettingsUIDropdown(typeof(DisasterTestSystem), nameof(DisasterTestSystem.GetEventItems))]
-        [SettingsUIValueVersion(typeof(DisasterTestSystem), nameof(DisasterTestSystem.GetEventItemsVersion))]
-        public string TestDisaster { get; set; }
-
-        /// <summary>Starts <see cref="TestDisaster"/> at the selected airport (or the first one), to test the airport closure.</summary>
-        [SettingsUISection(kSection, kTestGroup)]
-        [SettingsUIButton]
-        [SettingsUIDisableByCondition(typeof(Setting), nameof(IsNotInGame))]
-        public bool StartTestDisaster
-        {
-            set => DisasterTestSystem.Request(TestDisaster);
-        }
-
-        public bool IsNotInGame() => !GameManager.instance.gameMode.IsGame();
-
         public override void SetDefaults()
         {
             DepartureGapSeconds = 30;
@@ -130,7 +111,6 @@ namespace RealisticAviation
             CloseForOtherDisasters = true;
             LimitClosureTime = false;
             MaxClosureMinutes = 30;
-            TestDisaster = string.Empty;
         }
     }
 }

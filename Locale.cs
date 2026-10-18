@@ -63,18 +63,6 @@ namespace RealisticAviation
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.MaxClosureMinutes)),
                 "With the closure time limit on, the airport reopens after this many in-game minutes."
             },
-            { m_Setting.GetOptionGroupLocaleID(Setting.kTestGroup), "Testing (temporary)" },
-            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.TestDisaster)), "Test disaster" },
-            {
-                m_Setting.GetOptionDescLocaleID(nameof(Setting.TestDisaster)),
-                "Weather event the button below starts, to test the airport closure."
-            },
-            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.StartTestDisaster)), "Start test disaster at airport" },
-            {
-                m_Setting.GetOptionDescLocaleID(nameof(Setting.StartTestDisaster)),
-                "Starts the chosen weather event centered on the selected airport (or, with none selected, the first airport). " +
-                "It is a real disaster and damages the city: use a test save."
-            },
 
             { "RealisticAviation.RightHand.Label", "right-hand pattern" },
             {
@@ -206,18 +194,6 @@ namespace RealisticAviation
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.MaxClosureMinutes)),
                 "폐쇄 시간 제한을 켰을 때, 게임 시간으로 이 시간(분)이 지나면 공항을 다시 엽니다."
-            },
-            { m_Setting.GetOptionGroupLocaleID(Setting.kTestGroup), "테스트 (임시)" },
-            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.TestDisaster)), "테스트 재난" },
-            {
-                m_Setting.GetOptionDescLocaleID(nameof(Setting.TestDisaster)),
-                "공항 폐쇄를 시험하려고 아래 버튼으로 일으킬 기상 재난입니다."
-            },
-            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.StartTestDisaster)), "공항에 테스트 재난 일으키기" },
-            {
-                m_Setting.GetOptionDescLocaleID(nameof(Setting.StartTestDisaster)),
-                "고른 기상 재난을 선택된 공항(선택된 공항이 없으면 첫 번째 공항)을 중심으로 일으킵니다. " +
-                "실제 재난이라 도시에 피해가 생기니 테스트용 저장 파일에서 사용하세요."
             },
 
             { "RealisticAviation.RightHand.Label", "우선회 장주" },

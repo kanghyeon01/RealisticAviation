@@ -20,7 +20,7 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
   the queue is the one cleared.
 - **Line up and wait (per airport).** A checkbox in each airport's info panel. The same panel lists every runway end in use
   (game runways are usually one-way) with a right-hand traffic pattern checkbox, ticked by default when a parallel
-  runway lies to its left so that the pattern stays on the outside. Parallel runways are named L/R (or L/C/R), e.g. RWY 07L. When on, the next departure may enter
+  runway lies to its left so that the pattern stays on the outside. Parallel runways are named L/R (or L/C/R), e.g. RWY 07L (ICAO style, two digits; four or five parallels as 32L, 32R, 33L, 33R). When on, the next departure may enter
   the runway and wait lined up as soon as the landing airplane has touched down, or the departing airplane has started
   its takeoff roll, and passed its entry point; it takes off the moment the runway is clear. When off, it holds short until then.
 - **Arrival sequencing (phase 4).** Several arrivals may be cleared to land one behind the other, the arrival spacing
@@ -39,6 +39,9 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
 - **Tower radio (phase 4-2).** The airplane info panel shows the tower's latest instruction and the pilot's readback in
   standard English phraseology, e.g. "ATC: Line102, runway 07, cleared for takeoff." The callsign is the route name plus
   the airplane's number on that route (assigned by the mod). The airport info panel shows the last few exchanges.
+- **Runway numbers** come from each runway's heading on the map, with the game's own north (the north of its sky:
+  the sun rises in the east). A north sign for the screen is the separate Map Compass mod; Realistic Aviation does not
+  need it.
 - **Ground delay (per airport).** Off by default; turn it on in the airport info panel. Then when as many airplanes move on the ground as the limit
   (default 1.5 per gate), new arrivals hold and departures go first, until two fewer remain.
 - **Airspace (phase 4-3).** Each airport gets a class from its size (2+ runways or 16+ gates: B, 8+ gates: C, else D;

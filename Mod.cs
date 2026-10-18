@@ -37,9 +37,6 @@ namespace RealisticAviation
             AirspaceOverlaySystem.CreateInfoview(updateSystem.World.GetOrCreateSystemManaged<PrefabSystem>());
             updateSystem.UpdateAt<AirspaceOverlaySystem>(SystemUpdatePhase.Rendering);
 
-            // Testing aid (temporary): starts a weather disaster at an airport when asked from the options page.
-            updateSystem.UpdateAt<DisasterTestSystem>(SystemUpdatePhase.GameSimulation);
-
             // Info panel sections aren't scheduled; the selected-info system updates the ones it knows about.
             updateSystem.World.GetOrCreateSystemManaged<AirportSection>();
             updateSystem.World.GetOrCreateSystemManaged<AirportClosedSection>();

@@ -109,9 +109,6 @@ namespace RealisticAviation
         private NativeParallelHashMap<Entity, Entity> m_GateHolds;
         private NativeParallelHashMap<Entity, DeadlockRelease> m_Released;
 
-        // Diagnostics: what the mod did to each taxiing airplane since it landed, logged when it starts boarding at a gate.
-        private NativeParallelHashMap<Entity, StandWatch> m_StandWatch;
-
         /// <summary>Airplanes moving on each airport's ground this tick, and the airports under a ground delay (phase 4-5).</summary>
         private NativeParallelHashMap<Entity, int> m_GroundCounts;
         private NativeParallelHashMap<Entity, int> m_GroundDelays;
@@ -369,7 +366,6 @@ namespace RealisticAviation
             m_Zones = new NativeParallelHashMap<Entity, ZoneState>(32, Allocator.Persistent);
             m_GateHolds = new NativeParallelHashMap<Entity, Entity>(8, Allocator.Persistent);
             m_Released = new NativeParallelHashMap<Entity, DeadlockRelease>(8, Allocator.Persistent);
-            m_StandWatch = new NativeParallelHashMap<Entity, StandWatch>(32, Allocator.Persistent);
             m_GroundCounts = new NativeParallelHashMap<Entity, int>(4, Allocator.Persistent);
             m_GroundDelays = new NativeParallelHashMap<Entity, int>(4, Allocator.Persistent);
             m_GateCounts = new NativeParallelHashMap<Entity, int>(4, Allocator.Persistent);
@@ -399,7 +395,6 @@ namespace RealisticAviation
             m_Zones.Dispose();
             m_GateHolds.Dispose();
             m_Released.Dispose();
-            m_StandWatch.Dispose();
             m_GroundCounts.Dispose();
             m_GroundDelays.Dispose();
             m_GateCounts.Dispose();
@@ -428,7 +423,6 @@ namespace RealisticAviation
             m_GateCounts.Clear();
             m_Airspaces.Clear();
             m_AirportClosures.Clear();
-            m_StandWatch.Clear();
             m_Pushbacks.Clear();
             // Everything keyed by airplane: entities of the city before could match airplanes of this one.
             m_Zones.Clear();
@@ -518,7 +512,6 @@ namespace RealisticAviation
                 m_Zones = m_Zones,
                 m_GateHolds = m_GateHolds,
                 m_Released = m_Released,
-                m_StandWatch = m_StandWatch,
                 m_GroundCounts = m_GroundCounts,
                 m_GroundDelays = m_GroundDelays,
                 m_LastMessages = m_LastMessages,
@@ -1149,7 +1142,6 @@ namespace RealisticAviation
             public NativeParallelHashMap<Entity, ZoneState> m_Zones;
             public NativeParallelHashMap<Entity, Entity> m_GateHolds;
             public NativeParallelHashMap<Entity, DeadlockRelease> m_Released;
-            public NativeParallelHashMap<Entity, StandWatch> m_StandWatch;
             public NativeParallelHashMap<Entity, int> m_GroundCounts;
             public NativeParallelHashMap<Entity, int> m_GroundDelays;
             public NativeParallelHashMap<Entity, AtcMessage> m_LastMessages;
@@ -1202,7 +1194,6 @@ namespace RealisticAviation
                         Apply(scans[i], pushbackAreas);
                     }
                     pushbackAreas.Dispose();
-                    WatchStands(scans);
                     scans.Dispose();
                     EndPushbackTick();
                     EndTaxiHoldTick();
@@ -2249,91 +2240,6 @@ namespace RealisticAviation
                 }
                 return $"{entity} ({Describe(flight)}, ETA {flight.m_LastEta:F0} s, on runway: {flight.m_SeenOnRunway}, " +
                     $"cleared {(m_Frame - flight.m_ClearedFrame) / 60} s ago, holding: {flight.m_Holding}{DescribeBlocker(entity)})";
-            }
-
-            /// <summary>
-            /// Diagnostics for airplanes parked askew at gates: collects what the mod did to each ground airplane after it
-            /// landed, and when one starts boarding logs where it stands against its stand (the stop's route lane end):
-            /// distance, heading against the lane, its current lane, and those interventions. Airplanes in the air start over.
-            /// </summary>
-            private void WatchStands(NativeArray<FlightScan> scans)
-            {
-                for (int i = 0; i < scans.Length; i++)
-                {
-                    FlightScan scan = scans[i];
-                    if (scan.m_Flying)
-                    {
-                        continue;
-                    }
-                    Entity entity = scan.m_Entity;
-                    m_StandWatch.TryGetValue(entity, out StandWatch watch);
-                    watch.m_Tick = m_Tick;
-                    bool boarding = IsBoarding(entity, out Entity waypoint, out Entity stop);
-                    if (!boarding)
-                    {
-                        watch.m_Boarding = false;
-                        if (m_Pushbacks.ContainsKey(entity)) watch.m_Touched |= StandWatch.kPushback;
-                        if (m_HeldBehind.ContainsKey(entity)) watch.m_Touched |= StandWatch.kTaxiHold;
-                        if (m_GateHolds.ContainsKey(entity)) watch.m_Touched |= StandWatch.kGateHold;
-                        if (IsReleased(entity)) watch.m_Touched |= StandWatch.kDeadlockPass;
-                        if (m_FreeSpeeds.ContainsKey(entity)) watch.m_Touched |= StandWatch.kBlockerPass;
-                    }
-                    else if (!watch.m_Boarding)
-                    {
-                        LogParking(entity, waypoint, stop, watch.m_Touched);
-                        watch.m_Boarding = true;
-                        watch.m_Touched = 0;
-                    }
-                    m_StandWatch[entity] = watch;
-                }
-                // Forget airplanes that took off or are gone.
-                NativeList<Entity> old = new NativeList<Entity>(Allocator.Temp);
-                foreach (var pair in m_StandWatch)
-                {
-                    if (pair.Value.m_Tick != m_Tick)
-                    {
-                        old.Add(pair.Key);
-                    }
-                }
-                for (int i = 0; i < old.Length; i++)
-                {
-                    m_StandWatch.Remove(old[i]);
-                }
-                old.Dispose();
-            }
-
-            /// <summary>The airplane is the one boarding at the stop of its current target waypoint.</summary>
-            private bool IsBoarding(Entity entity, out Entity waypoint, out Entity stop)
-            {
-                waypoint = m_TargetData.TryGetComponent(entity, out Game.Common.Target target) ? target.m_Target : Entity.Null;
-                stop = m_ConnectedData.TryGetComponent(waypoint, out Game.Routes.Connected connected) ? connected.m_Connected : Entity.Null;
-                return m_BoardingVehicleData.TryGetComponent(stop, out Game.Routes.BoardingVehicle boarding) && boarding.m_Vehicle == entity;
-            }
-
-            private void LogParking(Entity entity, Entity waypoint, Entity stop, byte touched)
-            {
-                Transform transform = m_TransformData[entity];
-                float2 forward = math.normalizesafe(math.forward(transform.m_Rotation).xz);
-                string stand = "no stand lane";
-                if (m_RouteLaneData.TryGetComponent(waypoint, out Game.Routes.RouteLane routeLane) && m_CurveData.TryGetComponent(routeLane.m_EndLane, out Curve curve))
-                {
-                    float3 point = MathUtils.Position(curve.m_Bezier, routeLane.m_EndCurvePos);
-                    float2 tangent = math.normalizesafe(MathUtils.Tangent(curve.m_Bezier, routeLane.m_EndCurvePos).xz);
-                    float angle = math.degrees(math.acos(math.clamp(math.dot(forward, tangent), -1f, 1f)));
-                    stand = $"{math.distance(transform.m_Position.xz, point.xz):F1} m from stand point, heading {angle:F0} deg from stand lane {routeLane.m_EndLane}@{routeLane.m_EndCurvePos:F2}";
-                }
-                string stopOffset = m_TransformData.TryGetComponent(stop, out Transform stopTransform)
-                    ? $", {math.distance(transform.m_Position.xz, stopTransform.m_Position.xz):F1} m from stop" : string.Empty;
-                AircraftCurrentLane currentLane = m_CurrentLaneData[entity];
-                System.Text.StringBuilder mod = new System.Text.StringBuilder();
-                if ((touched & StandWatch.kPushback) != 0) mod.Append(" pushback");
-                if ((touched & StandWatch.kTaxiHold) != 0) mod.Append(" taxi-hold");
-                if ((touched & StandWatch.kGateHold) != 0) mod.Append(" gate-hold");
-                if ((touched & StandWatch.kDeadlockPass) != 0) mod.Append(" deadlock-pass");
-                if ((touched & StandWatch.kBlockerPass) != 0) mod.Append(" blocker-pass");
-                if (mod.Length == 0) mod.Append(" none");
-                m_PrefabNames.TryGetValue(m_PrefabRefData[entity].m_Prefab, out FixedString128Bytes name);
-                Mod.Log.Info($"{entity} [{name}] boarding at stop {stop}: {stand}{stopOffset}, on lane {currentLane.m_Lane}@{currentLane.m_CurvePosition.x:F2}; mod since landing:{mod}");
             }
 
             /// <summary>

@@ -552,23 +552,6 @@ namespace RealisticAviation
         public uint m_Cycle;
     }
 
-    /// <summary>
-    /// Diagnostics for odd parking at gates (AtcSystem.WatchStands): what the mod did to a ground airplane since it landed
-    /// (<see cref="StandWatch"/> flags), and whether it is boarding at its stop already.
-    /// </summary>
-    internal struct StandWatch
-    {
-        public const byte kPushback = 1;
-        public const byte kTaxiHold = 2;
-        public const byte kGateHold = 4;
-        public const byte kDeadlockPass = 8;
-        public const byte kBlockerPass = 16;
-
-        public byte m_Touched;
-        public bool m_Boarding;
-        public uint m_Tick;
-    }
-
     /// <summary>A ground airplane's last navigation speed that no airborne airplane limited (see AtcSystem.PassAirborneBlocker).</summary>
     internal struct FreeSpeed
     {

@@ -115,8 +115,8 @@ namespace RealisticAviation
                     AddEnd(runways[i], -geometry.m_Direction);
                 }
             }
+            // Named as on the radio (RunwayNames), then listed by number and left to right.
             m_RunwayEnds.Sort((a, b) => a.m_Designator != b.m_Designator ? a.m_Designator.CompareTo(b.m_Designator) : a.m_Lateral.CompareTo(b.m_Lateral));
-            NameParallelRunways();
 
             m_TowerRadio.Fill(m_AtcSystem, EntityManager, m_NameSystem, m_PrefabSystem, m_Airport, AtcFrequency.Tower, kRadioExchanges, Entity.Null);
             m_GroundRadio.Fill(m_AtcSystem, EntityManager, m_NameSystem, m_PrefabSystem, m_Airport, AtcFrequency.Ground, kRadioExchanges, Entity.Null);
@@ -128,38 +128,15 @@ namespace RealisticAviation
             }
         }
 
-        /// <summary>
-        /// Parallel runways share a number; as at real airports they are told apart by position, seen in the landing
-        /// direction: L and R, or L, C and R for three (beyond that they are numbered). The list is sorted left to right.
-        /// </summary>
-        private void NameParallelRunways()
-        {
-            int start = 0;
-            while (start < m_RunwayEnds.Count)
-            {
-                int end = start + 1;
-                while (end < m_RunwayEnds.Count && m_RunwayEnds[end].m_Designator == m_RunwayEnds[start].m_Designator)
-                {
-                    end++;
-                }
-                int count = end - start;
-                for (int i = start; i < end; i++)
-                {
-                    RunwayEnd runwayEnd = m_RunwayEnds[i];
-                    runwayEnd.m_Name = runwayEnd.m_Designator.ToString("00") + RunwayNames.Suffix(i - start, count);
-                    m_RunwayEnds[i] = runwayEnd;
-                }
-                start = end;
-            }
-        }
-
         private void AddEnd(RunwayInfo runway, float2 landing)
         {
+            string name = RunwayNames.Name(m_AtcSystem.RunwayList, runway.Key, landing, out int number);
             m_RunwayEnds.Add(new RunwayEnd
             {
                 m_Runway = runway,
                 m_Landing = landing,
-                m_Designator = RunwayNames.Designator(landing),
+                m_Designator = number,
+                m_Name = name,
                 m_Lateral = RunwayNames.Lateral(runway.Geometry, landing),
                 m_RightHand = IsRightHand(runway, landing),
             });
