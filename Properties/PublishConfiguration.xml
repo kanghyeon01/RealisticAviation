@@ -24,6 +24,7 @@ Source code (MIT): https://github.com/kanghyeon01/RealisticAviation</LongDescrip
   <Thumbnail Value="Properties/Thumbnail.png" />
   <Tag Value="Code Mod" />
   <ModVersion Value="1.0.0" />
+  <ChangeLog>Initial release.</ChangeLog>
   <GameVersion Value="1.6.*" />
   <!-- Private while testing; change to Public and run the Update command to release. -->
   <AccessLevel Value="Private" />
