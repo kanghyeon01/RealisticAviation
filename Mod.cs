@@ -2,6 +2,7 @@ using Colossal.IO.AssetDatabase;
 using Colossal.Logging;
 using Game;
 using Game.Modding;
+using Game.Prefabs;
 using Game.SceneFlow;
 using Game.Simulation;
 
@@ -32,6 +33,10 @@ namespace RealisticAviation
             // every navigation update: one right before it, one between it and AircraftMoveSystem.
             updateSystem.UpdateBefore<AtcPreNavigationSystem, AircraftNavigationSystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAfter<AtcSystem, AircraftNavigationSystem>(SystemUpdatePhase.GameSimulation);
+            // Airspace infoview (phase 4-3): the button in the infoview menu, and the rings it draws on the map.
+            AirspaceOverlaySystem.CreateInfoview(updateSystem.World.GetOrCreateSystemManaged<PrefabSystem>());
+            updateSystem.UpdateAt<AirspaceOverlaySystem>(SystemUpdatePhase.Rendering);
+
             // Testing aid (temporary): starts a weather disaster at an airport when asked from the options page.
             updateSystem.UpdateAt<DisasterTestSystem>(SystemUpdatePhase.GameSimulation);
 

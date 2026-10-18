@@ -11,10 +11,11 @@ Status as of 2026-10-17. Game version 1.6.2f1. Author: Boing787 (kanghyeon01).
 | 3 | Traffic pattern (upwind, crosswind, downwind, base, final) | **Done, tested in game** |
 | 4-1 | Go-around at decision height, arrival sequencing, disaster closure | Implemented 2026-10-17, testing in game |
 | 4-2 | ATC radio text (callsign, instruction, readback) in the info panels | Implemented 2026-10-17, testing in game |
-| 4-3 | Airspace: control zone per airport, split where zones overlap; no holds in another airport's zone; contact on zone entry | Proposed |
+| 4-3 | Airspace: automatic class B/C/D per airport, contact on zone entry, holds separated by altitude per class, class D without approach control, pattern side away from neighbours | Implemented 2026-10-18, testing in game |
 | 4-4 | Departure and climb procedure | **Dropped** (the steep climb is the game's 20 degree climb angle for every airplane; the author prefers not to touch game defaults) |
 | 4-5 | Ground flow control: when too many airplanes taxi or wait on the ground at an airport (not counting ones at gates), approach stops clearing new arrivals (they hold, "expect further clearance, ground delay") and departures go first; threshold an option (fixed count, or from the gate count if it can be found) | Implemented 2026-10-18 (per-airport limit in the airport panel, default 1.5 per gate, hysteresis 2), testing in game |
-| 5 | Alternate airport (optional, toggle) | Idea |
+| 5 | Divert (base mod option, on) after 3–5 go-arounds (default 4) or after holding longer than a limit (10–60 game min, default 30; a closure still means holding first): proceed to the next stop of the line | Agreed 2026-10-19, not started |
+| 6 | Compass add-on: a standalone compass mod (map north, optional on-screen compass), detected by RA for runway designators | Agreed 2026-10-18, not started |
 | – | Snow-free runways | **Dropped** (snow is a GPU snow-map shader effect; too hard) |
 
 Possible extra: an "ATC" section in the vehicle info panel showing each airplane's tower status, plus phraseology
@@ -86,7 +87,11 @@ Before: one cleared arrival owned the runway from about 5 NM, about one arrival 
   radius + 1 km reaches the runway segment, or `InDanger` (end frame not passed) on the airport building. Effects
   (`CancelForClosure`): no grants or line-up releases; airborne cleared arrivals on the runway lane go around (then hold
   at the end of downwind, since nothing is cleared), other airborne ones revert to Waiting (hold); ground clearances not
-  yet on the runway are revoked (hold short); pushback approval waits (`IsAtClosedAirport`, lane owner root = airport).
+  yet on the runway are revoked (hold short); a departure on the runway with a takeoff clearance that is not rolling
+  yet (not in the TakingOff state with wheels rolling above 5 km/h, so also one still entering) gets "cancel takeoff clearance,
+  line up and wait": it goes back to the line-up clearance, waits lined up and is released as usual when the airport
+  reopens (only if another airplane holds the line-up slot does it hold in position) (fix
+  2026-10-19: it used to take off during the closure); pushback approval waits (`IsAtClosedAirport`, lane owner root = airport).
   Options (group "Airport closure"): close for tornadoes / hail / other disasters (kind from the event prefab name via
   `RefreshHazardKinds`; InDanger events are filtered the same way), and an optional closure time limit (toggle, off by default = until over; 30 game
   minutes when on): an event that has closed a runway that long is waived (`RunwayState.m_WaivedBy`).
@@ -158,6 +163,93 @@ Before: one cleared arrival owned the runway from about 5 NM, about one arrival 
   <cs>, going around." then "<cs>, roger, climb and maintain 1,500, make left traffic runway 07.").
 - All airplane prefabs have a 20 degree climb angle: the steep departures are the game's. Left alone (4-4 dropped).
 
+## Phase 4-3 – airspace (implemented 2026-10-18)
+
+- Airplane airways are one grid for the whole map (AirwaySystem: 14 x 14 cells of ~989 m at 1,000 m), shared by every
+  airport; airplanes ride it and then the airport's own approach lanes. There is no airspace boundary in the game.
+- Simple design (author: maps are small, keep it rough): each point belongs to the nearest airport (centre of its
+  runways), so neighbouring zones split on the bisector without a radius option. A hold that would start in another
+  airport's zone is moved back across the boundary into the airplane's own; the default pattern side turns away from a
+  neighbouring airport (a side the player set stays). Contact distance unchanged. One airport: no change.
+- Agreed refinement (2026-10-18, not implemented yet): airspace class per airport, B / C / D, chosen in the airport
+  panel; default from gates (8+ B, 4+ C, else D). Zone radius by class, scaled for small maps (proposal: B 5 NM, C
+  3.5 NM, D 2.5 NM). A point belongs to the airport with the smallest distance / radius (higher classes reach further
+  into overlaps). The tower contact distance option is removed: an arrival calls once it is inside its own airport's
+  zone plus 0.5 NM, and holds there if not cleared. Class D has no approach control: holds, sequencing and approach
+  messages are on the tower frequency ("continue approach runway 07" instead of "cleared ILS approach, contact
+  tower"), and the panel shows no APP box. Hold relocation out of other zones and the pattern side rule stay.
+- Final 4-3 design (2026-10-18, after the author's test map: 14 km map, 5 airports 3.8–5 km apart, the middle one
+  with two parallel runways): class is automatic (2+ runways or 8+ gates: B, 4+ gates: C, else D), shown in the
+  airport panel. Contact = inside the own airport's radius + 0.5 NM, whatever the overlaps (it must come before the
+  2 NM final). Overlaps are split by distance / radius but only used for the pattern side. Horizontal hold relocation
+  is dropped (zones of ~2 km can't hold a 1–1.5 NM racetrack): holds are separated by altitude instead, one band per
+  class with B highest (as in reality: satellite airports' traffic stays under the hub's). Class D has no approach
+  control. A summary log (class, radius, runways, distances between airports) comes with it.
+- Implemented as designed: `AirportSpace` / `RefreshAirspaces` (with the runway map; logs "Airspace of airport ..."),
+  `IsWithinContact` (air scan reaches 20 km along the path; the contact distance option is gone), hold altitude =
+  runway + class base (D 2,000, C 4,000, B 6,000 ft) + 1,000 ft per stack level, `FrequencyAt` (approach messages on
+  the tower frequency at class D, "continue approach runway 07"), `AirspaceRules.IsNeighbourOnLeft` (nearest other
+  airport within 8 km; used by the tower and the airport panel).
+- Fix 2026-10-18: `RefreshAirspaces` ran before the runway list was rebuilt, so after loading a city no airport had an
+  airspace (no "Airspace of airport" log lines); it now runs right after "Found N runways".
+- Airspace infoview (2026-10-18, `AirspaceOverlaySystem`): an InfoviewPrefab created in Mod.OnLoad (group 100, the
+  game's airplane icon; an infoview needs an infomode, so it highlights airplane stops). While it is active the rings are
+  drawn with OverlayRenderSystem, projected on the terrain, VFR-sectional style: B solid blue (inner surface ring at half
+  the radius + outer ring), C the same in magenta, D one dashed blue ring. Esc / another infoview closes it.
+- Airspace entry and handoffs (2026-10-18): an arrival's first call on entering its zone is pilot first
+  ("Portland Approach, <cs>, level 5,000." (altitude above the field, climbing/descending through when changing)" / "<cs>, Portland Approach, radar contact, cleared into the Class B
+  airspace, expect runway 07"; C without the clearance, D to the tower). Ground hands a departure to the tower when it
+  asks for the runway ("contact tower 118.300"), the tower hands a landed airplane to ground ("contact ground ...")
+  before "taxi to the gate", and a departure to departure control after takeoff ("contact departure ...", or
+  "frequency change approved" at class D). Approach to tower was already in the approach clearance.
+- Radio phrasing pass (2026-10-19, untested): readbacks of every frequency change end "good day"; first calls report
+  the altitude above the field instead of "with you"; after takeoff the pilot checks in with departure (B: DEP, C: APP,
+  "<Airport> Departure, <cs>, climbing through 1,200" / "radar contact"); after the approach clearance (B, C) the pilot
+  checks in with the tower ("ILS runway 36L" / "runway 36L, continue"); taxi is "taxi to runway 36L". Fix: an arrival
+  handed over by a class B departure frequency was logged on APP, so the DEP box stayed empty.
+  Fix (same day): check-ins said "level 0" because a departure called departure and the next airport the moment it
+  left the runway; it now waits until 1,000 ft above its field (`ZoneState.m_Climbing`, 20 s fallback), then checks in
+  ("climbing through 1,000") and only then may request the next airport.
+  Also: a departure lifting off (still the tower's flight) got a "TransitContact" at 0 ft from `UpdateZone`; zones now
+  skip any airplane with a flight. And "taxi to the gate" no longer counts as a taxi clearance for a route that takes
+  off (`HasTaxiClearance`): a boarded departure asked for the runway before its pushback; it still does for a crossing
+  on the way in.
+- Gate parking diagnostics (2026-10-19, `WatchStands` / `LogParking`, remove before release): all 66 boardings stood
+  exactly on the stand point with the stand lane's heading, also with no mod intervention since landing; the askew
+  parking at the international airport is the game's stand geometry (stops 78754/78755 end their lane at curve pos 0,
+  driven in reverse), not the mod. Left as the game does it.
+- Overlap at a hold-short line (2026-10-19): a departure released from a deadlock with an arrival drove into the
+  departure already holding short (released airplanes ignored every blocker for 30 s), and after the reopen the later
+  one was cleared first (same distance, no tie-break). Now a release passes only the airplanes of the same cycle
+  (`DeadlockRelease.m_Cycle`, `IsReleasedFrom`), and departures at the same spot (5 m) go in request order.
+- Cleared departure that never moved (2026-10-19, RiverPort): taxi spacing held it behind an arrival 8 km out on
+  approach (airborne airplanes are listed on the runway's lanes), so the whole runway queue waited 500+ s. Taxi
+  spacing (`FindTailAhead`) now skips airplanes whose current lane is flying.
+- Handoffs between airspaces (2026-10-18, `UpdateZone`): an airborne airplane is with the controller of the zone it
+  is in (`ZoneOwner`: a higher class's inner surface area first, else the smallest distance / radius; it stays with
+  its controller while still inside that zone). Crossing into another zone: "<cs>, contact Portland Approach 125.350"
+  (or Tower at class D) then the pilot's altitude check-in and "radar contact" (B: "cleared through the Class B airspace";
+  D tower: "transition approved"); leaving the last zone: "contact <city> Center 132.450" (outside every airport zone is class A under
+  the en-route center; radio only, flight altitudes stay the game's). An
+  arrival is handed to its destination when it first calls it and stays there; a departure is with its own airport
+  after "contact departure" (silent at class D after "frequency change approved").
+- Departure control (2026-10-19): a class B airport has its own DEP frequency (`AtcFrequency.Departure`); after
+  "contact departure 126.850" its departures talk on DEP until they leave its zone (`ZoneState.m_Departing`), and the
+  airport panel shows a DEP box. Class C approach also works the departures (same APP frequency); class D has none.
+- Class override (2026-10-18): Auto / B / C / D buttons in the airport panel, stored as `AirspaceClassSetting` on the
+  airport building (saved). Crash fix 2026-10-19: applying it inside the UI trigger (add component + rebuild the
+  airspaces) crashed the game natively in cohtml `TypeEnd` while the info panel was written; the button now only queues
+  the change (`RequestAirspaceClass`) and `AirspaceOverlaySystem` applies it on the next frame in the rendering phase
+  (`ApplyAirspaceClassRequests`, works while paused), then refreshes the panel. Also: `display: inline-block` is not
+  supported by the game UI (flex instead). That alone did not fix it: the crash (in v8, called from cohtml `TypeEnd`)
+  came from the section writing a different property set after the class changed (the APP box appeared). Every
+  info-section write now has the same properties, with `hasApproach` / `hasDeparture` flags (fix 2, confirmed in game 2026-10-19).
+- Class thresholds raised (2026-10-18): 2+ runways or 16+ gates B, 8+ gates C, else D, so one-runway regional
+  airports are D (with 4+ gates they had all become C).
+  Clipping as on a chart (2026-10-18): no line inside a higher class's surface area (inner ring); zones of the same class
+  keep the part nearer their own airport and are split by the chord through the ring crossings. Lower classes under a
+  higher class's outer shelf stay drawn. Rings are 128 straight pieces (dashed: every other piece).
+
 ## Phase 4-5 – ground flow control (implemented 2026-10-18)
 
 - `CountGroundTraffic`: each tick, airplanes on the ground with a route (navigation lanes) count towards their
@@ -167,7 +259,7 @@ Before: one cleared arrival owned the runway from about 5 NM, about one arrival 
   default is 1.5 per gate (airplane stops counted in `RefreshGateCounts`; 4 gates: 6). No global option; both are broadcast
   ("ground delay in effect, arrivals expect holding" / "ground delay ended"). While delayed, `GrantRunways` clears no
   new arrivals at that airport (already cleared ones land), so departures get the runway.
-- Airport panel: amber "Ground delay" banner with the count, under the red closure banner (`AirportClosedSection`).
+- Airport panel: amber "Ground delay" banner with the count, under the red closure banner (`AirportClosedSection`). Off by default (2026-10-19); KO name "지상 항공교통 관리".
 
 ## Gate blocks (researched 2026-10-17, implemented 2026-10-18)
 
@@ -219,6 +311,32 @@ Idea (author): an arrival does not enter the apron while its gate is occupied, s
 
 ## Phase 5 – alternate airport (optional, idea)
 
+Decision 2026-10-18 (author): build it as a separate add-on mod ("expansion") that depends on Realistic Aviation, not
+inside the base mod. The base mod then exposes a small public API: per-airplane state (go-around count, controlling
+airport), per-airport airspace data (class, centre, closure, ground delay), and a way to add radio messages (e.g.
+"diverting to ..."). The add-on references RealisticAviation.dll and lists the base mod as a required dependency on
+Paradox Mods; it changes the airplane's destination/path, and the base tower follows the new runway as usual.
+
+Research 2026-10-19 (TransportAircraftAISystem):
+- A line airplane's `Target.m_Target` is a route waypoint; `VehicleUtils.SetTarget` changes it and marks the path
+  obsolete, so the game re-paths from where the airplane is (in the air too). The base tower then sees a new runway.
+- At the end of its path the AI boards at the waypoint's stop; if the target is not a waypoint of its route it calls
+  `ReturnToDepot` (drops the route, flies to its owner depot). So a line airplane can't simply be sent to an airport
+  that is not on its line: it would leave the line.
+- The game itself skips a waypoint (`SetNextWaypointTarget`, used when a stop can't take it): passengers stay aboard
+  and ride on; that is the low-risk "divert" (proceed to the next stop of the line).
+- A real alternate landing (land at an off-line airport, wait, fly back to the destination) needs the add-on to own
+  the airplane between those points and keep the AI from returning it to the depot: higher risk, later.
+- Dummy traffic (DummyTraffic flag, no passengers) is deleted at its path end, so it can be sent to any airport.
+- Later decision 2026-10-19: with only the low-risk divert it goes into the base mod after all, as an option (on,
+  divert after 3–5 go-arounds, default 4, or after holding longer than 10–60 game minutes, default 30; a closed
+  destination still means holding first, as agreed for 4-1). It is the first base feature
+  that changes an airplane's target, hence the toggle. No public API or add-on needed for it.
+- Decision 2026-10-19 (author): only the low-risk divert. A line airplane that gives up proceeds to the next stop of
+  its line (the game's own waypoint skip; passengers ride on), radio "unable to land, proceeding to <next airport>";
+  (dummy traffic is through traffic between outside connections and never lands, so nothing to do there). Landing at an off-line alternate and unloading passengers there was
+  considered and dropped as too risky (the AI returns off-line airplanes to their depot).
+
 Proposed by the author on 2026-10-17. An option that can be turned on or off: after N go-arounds (an option) the
 airplane diverts. Mechanism (not verified yet): set a new `Target` and mark the path obsolete so the game repaths.
 The alternate is usually an outside air connection (a diversion off the map), or another airport in the city if
@@ -260,3 +378,14 @@ runway; it re-requests (Waiting, keeping its request time for HRN). (The phase-3
 real decision-height check in phase 4-1.) Pattern and holding speed: at least the speed at which the move
 system's minimum pitch, lerp(-climb, slowPitch, (1-f)^2), is level. Near the minimum flying speed the airplane would
 otherwise fly nose-up like in the flare (the author reported this).
+
+## Phase 6 – compass add-on (agreed 2026-10-18, not started)
+
+- A separate, standalone compass mod: the player sets which way map north is (optionally a magnetic variation), with
+  an on-screen compass that can be turned on and off. It knows nothing about Realistic Aviation and exposes one public
+  value, the north bearing.
+- Realistic Aviation detects it loosely (reflection, no assembly reference, not a required dependency): when it is
+  installed, `RunwayNames.Designator` adds its north offset, so runway numbers, L/C/R names, the airport panel and the
+  radio all follow; without it, map +z stays north as now. Only the names change, not any behaviour.
+- Chosen over the compass mod detecting RA: the dependency points the natural way (RA uses a generic north), the
+  compass stays reusable by other mods, and the designator rules stay in one place.

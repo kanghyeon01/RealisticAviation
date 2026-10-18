@@ -20,6 +20,7 @@ namespace RealisticAviation
         public const string kToggleRightHandTrigger = "ToggleRunwayRightHand";
         public const string kToggleGroundDelayTrigger = "ToggleGroundDelay";
         public const string kAdjustGroundDelayTrigger = "AdjustGroundDelayLimit";
+        public const string kSetAirspaceClassTrigger = "SetAirspaceClass";
 
         private struct RunwayEnd
         {
@@ -41,7 +42,10 @@ namespace RealisticAviation
         private readonly RadioBox m_TowerRadio = new RadioBox();
         private readonly RadioBox m_GroundRadio = new RadioBox();
         private readonly RadioBox m_ApproachRadio = new RadioBox();
+        private readonly RadioBox m_DepartureRadio = new RadioBox();
         private uint m_RadioVersion;
+        private bool m_HasAirspace;
+        private AirportSpace m_Airspace;
         private AtcSystem m_AtcSystem;
         private EntityQuery m_AirplaneStopQuery;
         private Entity m_Airport;
@@ -60,6 +64,7 @@ namespace RealisticAviation
             AddBinding(new TriggerBinding<int>(Mod.kName, kToggleRightHandTrigger, ToggleRightHand));
             AddBinding(new TriggerBinding(Mod.kName, kToggleGroundDelayTrigger, ToggleGroundDelay));
             AddBinding(new TriggerBinding<int>(Mod.kName, kAdjustGroundDelayTrigger, AdjustGroundDelayLimit));
+            AddBinding(new TriggerBinding<int>(Mod.kName, kSetAirspaceClassTrigger, SetAirspaceClass));
         }
 
         protected override void OnUpdate()
@@ -85,6 +90,7 @@ namespace RealisticAviation
             m_TowerRadio.Clear();
             m_GroundRadio.Clear();
             m_ApproachRadio.Clear();
+            m_DepartureRadio.Clear();
         }
 
         protected override void OnProcess()
@@ -114,7 +120,12 @@ namespace RealisticAviation
 
             m_TowerRadio.Fill(m_AtcSystem, EntityManager, m_NameSystem, m_PrefabSystem, m_Airport, AtcFrequency.Tower, kRadioExchanges, Entity.Null);
             m_GroundRadio.Fill(m_AtcSystem, EntityManager, m_NameSystem, m_PrefabSystem, m_Airport, AtcFrequency.Ground, kRadioExchanges, Entity.Null);
+            m_HasAirspace = m_AtcSystem.TryGetAirspace(m_Airport, out m_Airspace);
             m_ApproachRadio.Fill(m_AtcSystem, EntityManager, m_NameSystem, m_PrefabSystem, m_Airport, AtcFrequency.Approach, kRadioExchanges, Entity.Null);
+            if (m_HasAirspace && m_Airspace.m_Class == AirspaceClass.B)
+            {
+                m_DepartureRadio.Fill(m_AtcSystem, EntityManager, m_NameSystem, m_PrefabSystem, m_Airport, AtcFrequency.Departure, kRadioExchanges, Entity.Null);
+            }
         }
 
         /// <summary>
@@ -169,20 +180,28 @@ namespace RealisticAviation
             return IsRightHandByDefault(runway, landing);
         }
 
-        /// <summary>Right-hand when a parallel runway lies to the left, so that the pattern stays on the outside.</summary>
+        /// <summary>Right-hand when a parallel runway lies to the left (so the pattern stays outside), or else a neighbouring airport.</summary>
         private bool IsRightHandByDefault(RunwayInfo runway, float2 landing)
         {
             float width = Mod.Setting.PatternWidthNm * Setting.kMetersPerNauticalMile;
             float2 left = Colossal.Mathematics.MathUtils.Left(landing);
+            float2 right = -left;
+            bool parallelRight = false;
             IReadOnlyList<RunwayInfo> runways = m_AtcSystem.RunwayList;
             for (int i = 0; i < runways.Count; i++)
             {
-                if (runways[i] != runway && RunwayGeometry.IsParallelOnSide(runway.Geometry, runways[i].Geometry, landing, left, width))
+                if (runways[i] == runway)
+                {
+                    continue;
+                }
+                if (RunwayGeometry.IsParallelOnSide(runway.Geometry, runways[i].Geometry, landing, left, width))
                 {
                     return true;
                 }
+                parallelRight |= RunwayGeometry.IsParallelOnSide(runway.Geometry, runways[i].Geometry, landing, right, width);
             }
-            return false;
+            // No parallel runway: away from a neighbouring airport on the left (the same rule as the tower's).
+            return !parallelRight && m_AtcSystem.IsNeighbourOnLeft(runway.Airport, runway.Geometry.Middle, landing);
         }
 
         private float2 EdgeDirection(Entity edge)
@@ -203,8 +222,23 @@ namespace RealisticAviation
             m_TowerRadio.Write(writer);
             writer.PropertyName("groundRadio");
             m_GroundRadio.Write(writer);
+            // Every write has the same properties: the UI engine keeps one object layout per type name, and a property
+            // that comes and goes (the APP box when the class changes) crashes it natively. Flags say which boxes to show:
+            // a class D airport has no approach control, and only class B has its own departure control.
+            writer.PropertyName("hasApproach");
+            writer.Write(!m_HasAirspace || m_Airspace.m_Class != AirspaceClass.D);
             writer.PropertyName("approachRadio");
             m_ApproachRadio.Write(writer);
+            writer.PropertyName("hasDeparture");
+            writer.Write(m_HasAirspace && m_Airspace.m_Class == AirspaceClass.B);
+            writer.PropertyName("departureRadio");
+            m_DepartureRadio.Write(writer);
+            writer.PropertyName("airspaceClass");
+            writer.Write(m_HasAirspace ? m_Airspace.m_Class.ToString() : string.Empty);
+            writer.PropertyName("airspaceRadius");
+            writer.Write(m_HasAirspace ? m_Airspace.m_Radius / Setting.kMetersPerNauticalMile : 0f);
+            writer.PropertyName("airspaceChosen");
+            writer.Write(m_HasAirspace && m_Airspace.m_Chosen);
             writer.PropertyName("runways");
             writer.ArrayBegin(m_RunwayEnds.Count);
             for (int i = 0; i < m_RunwayEnds.Count; i++)
@@ -269,6 +303,19 @@ namespace RealisticAviation
             GroundDelaySetting setting = GetGroundDelay();
             setting.m_Enabled = !setting.m_Enabled;
             SetGroundDelay(setting);
+        }
+
+        /// <summary>
+        /// Asks for the airport's airspace class: -1 for automatic (from its size), else an <see cref="AirspaceClass"/> value. Only
+        /// queued here: changing the airport building and rebuilding the airspaces inside the UI's trigger callback crashed the
+        /// game's UI engine (2026-10-19), so it is applied on the next frame outside the UI update (AirspaceOverlaySystem).
+        /// </summary>
+        private void SetAirspaceClass(int value)
+        {
+            if (m_Airport != Entity.Null)
+            {
+                m_AtcSystem.RequestAirspaceClass(m_Airport, value);
+            }
         }
 
         /// <summary>Raises or lowers the limit by <paramref name="delta"/> airplanes, within the allowed range.</summary>

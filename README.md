@@ -39,8 +39,12 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
 - **Tower radio (phase 4-2).** The airplane info panel shows the tower's latest instruction and the pilot's readback in
   standard English phraseology, e.g. "ATC: Line102, runway 07, cleared for takeoff." The callsign is the route name plus
   the airplane's number on that route (assigned by the mod). The airport info panel shows the last few exchanges.
-- **Ground delay (per airport).** In the airport info panel: when as many airplanes move on the ground as the limit
+- **Ground delay (per airport).** Off by default; turn it on in the airport info panel. Then when as many airplanes move on the ground as the limit
   (default 1.5 per gate), new arrivals hold and departures go first, until two fewer remain.
+- **Airspace (phase 4-3).** Each airport gets a class from its size (2+ runways or 16+ gates: B, 8+ gates: C, else D;
+  radius 5 / 3.5 / 2.5 NM), shown in its panel. Arrivals call when within the radius + 0.5 NM; holds are stacked by
+  class (B highest, from 6,000 / 4,000 / 2,000 ft); a class D airport has no approach control (its tower says "continue
+  approach"); the default pattern side turns away from a neighbouring airport.
 - **Gate hold.** An airplane taxiing in to a gate that another airplane still uses waits 100 m before the stand,
   clear of the pushback area ("hold position, gate occupied").
 - **Pushback (phase 2).** An airplane leaving a nose-in gate is pushed back a short way (about half its length,
@@ -61,7 +65,6 @@ harmlessly if the mod is removed); the tower rebuilds everything else after a sa
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| Tower contact distance | 5.5 NM | Path distance before the runway at which an arrival asks to land |
 | Holding leg length | 1.5 NM | Straight-leg length of the holding pattern |
 | Arrival spacing | 45 s | Minimum time between two arrivals cleared to the same runway |
 | Weather go-arounds | On | In rain or snow an arrival sometimes goes around at 100 ft (0.5–5% by intensity) |

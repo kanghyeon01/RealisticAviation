@@ -105,7 +105,8 @@ const Checkbox = getGameModule("game-ui/common/input/toggle/checkbox/checkbox.ts
 
 // "[-] value [+]" for a small number setting; dimmed (still clickable) while the setting is off.
 const STEPPER_BUTTON_STYLE = {
-    display: "inline-block",
+    display: "flex",
+    justifyContent: "center",
     width: "22rem",
     textAlign: "center",
     margin: "0 6rem",
@@ -113,6 +114,19 @@ const STEPPER_BUTTON_STYLE = {
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     cursor: "pointer",
 };
+
+const AIRSPACE_CLASS_VALUES = { D: 0, C: 1, B: 2 };
+
+// A row of small buttons, one per option; the selected one is lit.
+function segmented(options, selected, onSelect) {
+    return React.createElement("div", { style: { display: "flex", alignItems: "center" } },
+        ...options.map((option) => React.createElement("div", {
+            key: option.value,
+            style: Object.assign({}, STEPPER_BUTTON_STYLE, { width: "auto", padding: "0 6rem", margin: "0 2rem" },
+                option.value === selected ? { backgroundColor: "rgba(130, 200, 255, 0.6)" } : null),
+            onClick: () => onSelect(option.value),
+        }, option.label)));
+}
 
 function stepper(value, onDown, onUp, dimmed) {
     return React.createElement("div", { style: { display: "flex", alignItems: "center", opacity: dimmed ? 0.5 : 1 } },
@@ -135,6 +149,22 @@ function checkboxRow(key, label, checked, onChange, tooltip) {
 function AirportSection(props) {
     const { translate } = l10n.useLocalization();
     const rows = [
+        props.airspaceClass ? React.createElement(InfoRow, {
+            key: "airspace",
+            left: translate("RealisticAviation.Airspace.Label", "Airspace"),
+            right: translate("RealisticAviation.Airspace.Value", "Class {CLASS}, {RADIUS} NM").replace("{CLASS}", props.airspaceClass).replace("{RADIUS}", Number(props.airspaceRadius).toFixed(1)),
+            uppercase: true,
+            tooltip: translate("RealisticAviation.Airspace.Tooltip", ""),
+        }) : null,
+        props.airspaceClass ? React.createElement(InfoRow, {
+            key: "airspaceClass",
+            left: translate("RealisticAviation.Airspace.Choose", "Airspace class"),
+            right: segmented([
+                { label: translate("RealisticAviation.Airspace.Auto", "Auto"), value: -1 },
+                { label: "B", value: 2 }, { label: "C", value: 1 }, { label: "D", value: 0 },
+            ], props.airspaceChosen ? AIRSPACE_CLASS_VALUES[props.airspaceClass] : -1, (value) => api.trigger(GROUP, "SetAirspaceClass", value)),
+            uppercase: true,
+        }) : null,
         checkboxRow("lineUp", translate("RealisticAviation.LineUp.Label", "Line up and wait"), props.lineUp,
             () => api.trigger(GROUP, "ToggleLineUpAndWait"), translate("RealisticAviation.LineUp.Tooltip", "")),
         checkboxRow("groundDelay", translate("RealisticAviation.GroundDelay.Toggle", "Ground delay"), props.groundDelay,
@@ -155,7 +185,12 @@ function AirportSection(props) {
         rows.push(checkboxRow("rwy" + i, "RWY " + runways[i].name + " " + rightHand, runways[i].rightHand,
             () => api.trigger(GROUP, "ToggleRunwayRightHand", index), rightHandTooltip));
     }
-    rows.push(...radioRows("approachRadio", props.approachRadio, translate));
+    if (props.hasApproach) {
+        rows.push(...radioRows("approachRadio", props.approachRadio, translate));
+    }
+    if (props.hasDeparture) {
+        rows.push(...radioRows("departureRadio", props.departureRadio, translate));
+    }
     rows.push(...radioRows("towerRadio", props.towerRadio, translate));
     rows.push(...radioRows("groundRadio", props.groundRadio, translate));
     return React.createElement(InfoSection, { disableFocus: true }, ...rows);

@@ -62,7 +62,7 @@ namespace RealisticAviation
     /// <summary>
     /// Ground flow control setting of one airport (phase 4-5), set in the airport info panel and stored on the airport
     /// building: whether it is on and the number of airplanes moving on its ground at which the delay starts. An airport
-    /// without it uses <see cref="Default"/> (on, 1.5 airplanes per gate). Saved with the city.
+    /// without it has it off (<see cref="Default"/>: limit 1.5 airplanes per gate once turned on). Saved with the city.
     /// </summary>
     public struct GroundDelaySetting : IComponentData, IQueryTypeParameter, ISerializable
     {
@@ -84,8 +84,8 @@ namespace RealisticAviation
             return gates <= 0 ? kDefaultLimit : math.clamp((int)math.round(gates * kLimitPerGate), kMinLimit, kMaxLimit);
         }
 
-        /// <summary>The setting of an airport the player hasn't changed: on, with the default limit for its gates.</summary>
-        public static GroundDelaySetting Default(int gates) => new GroundDelaySetting { m_Limit = (byte)DefaultLimit(gates), m_Enabled = true };
+        /// <summary>The setting of an airport the player hasn't changed: off, with the default limit for its gates ready.</summary>
+        public static GroundDelaySetting Default(int gates) => new GroundDelaySetting { m_Limit = (byte)DefaultLimit(gates), m_Enabled = false };
 
         /// <summary>The limit in force: 0 when off.</summary>
         public int ActiveLimit => m_Enabled ? m_Limit : 0;
@@ -100,6 +100,25 @@ namespace RealisticAviation
         {
             reader.Read(out m_Limit);
             reader.Read(out m_Enabled);
+        }
+    }
+
+    /// <summary>
+    /// Airspace class the player chose for an airport in its info panel (phase 4-3), overriding the automatic one; an airport
+    /// without it uses the class from its size. Holds the <see cref="AirspaceClass"/> value. Saved with the city.
+    /// </summary>
+    public struct AirspaceClassSetting : IComponentData, IQueryTypeParameter, ISerializable
+    {
+        public byte m_Class;
+
+        public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
+        {
+            writer.Write(m_Class);
+        }
+
+        public void Deserialize<TReader>(TReader reader) where TReader : IReader
+        {
+            reader.Read(out m_Class);
         }
     }
 

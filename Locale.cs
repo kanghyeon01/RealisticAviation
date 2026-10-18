@@ -93,13 +93,6 @@ namespace RealisticAviation
                 "How far before the runway the base turn puts the airplane on final."
             },
 
-            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.ContactDistanceNm)), "Tower contact distance (NM)" },
-            {
-                m_Setting.GetOptionDescLocaleID(nameof(Setting.ContactDistanceNm)),
-                "How far before the runway (along its flight path) an arriving airplane asks the tower to land. " +
-                "If the runway is not free by then, the airplane holds where it is (on its arrival path) until it is cleared. " +
-                "A smaller distance puts the holds closer to the airport. Airplanes holding at the same runway are stacked 1,000 ft apart."
-            },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.HoldingLegNm)), "Holding leg length (NM)" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.HoldingLegNm)),
@@ -131,6 +124,18 @@ namespace RealisticAviation
             { "RealisticAviation.GroundDelay.Count", "{COUNT} airplanes moving on the ground" },
             { "RealisticAviation.Closed.Label", "Airport closed" },
             { "RealisticAviation.Radio.Label", "Tower radio" },
+            { "RealisticAviation.Airspace.Label", "Airspace" },
+            { "RealisticAviation.Airspace.Choose", "Airspace class" },
+            { "RealisticAviation.Airspace.Auto", "Auto" },
+            { "Infoviews.INFOVIEW[" + AirspaceOverlaySystem.kInfoviewName + "]", "Airspace" },
+            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kInfomodeName + "]", "Airplane stops" },
+            { "RealisticAviation.Airspace.Value", "Class {CLASS}, {RADIUS} NM" },
+            {
+                "RealisticAviation.Airspace.Tooltip",
+                "Set from the airport's size unless chosen below: two or more runways or 16 gates make class B, 8 gates class C, else class D. " +
+                "Arrivals call when they are within the radius plus 0.5 NM. Holds are stacked by class (B highest). " +
+                "A class D airport has no approach control: its tower handles the arrivals."
+            },
             { "RealisticAviation.Radio.Empty", "No recent transmissions" },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.HoldShortSetback)), "Hold short setback" },
             {
@@ -232,13 +237,6 @@ namespace RealisticAviation
                 "Base 선회 후 Final에 들어서는 지점이 활주로에서 얼마나 떨어져 있는지입니다."
             },
 
-            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.ContactDistanceNm)), "관제탑 교신 거리 (NM)" },
-            {
-                m_Setting.GetOptionDescLocaleID(nameof(Setting.ContactDistanceNm)),
-                "도착하는 비행기가 활주로까지 비행 경로상 이 거리만큼 남았을 때 관제탑에 착륙을 요청합니다. " +
-                "그때 활주로가 비어 있지 않으면, 착륙 허가가 날 때까지 그 자리(도착 경로 위)에서 Holding합니다. " +
-                "값을 줄이면 Holding 위치가 공항에 더 가까워집니다. 같은 활주로를 기다리는 비행기들은 1,000ft 간격으로 고도를 나눕니다."
-            },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.HoldingLegNm)), "Holding 직선 구간 길이 (NM)" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.HoldingLegNm)),
@@ -256,19 +254,31 @@ namespace RealisticAviation
                 "비나 눈이 오면 조종사가 활주로를 보지 못해 100ft에서 가끔 Go-around 합니다. " +
                 "약한 비 0.5%에서 강한 비 3%까지, 눈은 그 1.5배(최대 5%)입니다. 맑은 날에는 일어나지 않습니다."
             },
-            { "RealisticAviation.GroundDelay.Toggle", "지상 지연" },
+            { "RealisticAviation.GroundDelay.Toggle", "지상 항공교통 관리" },
             {
                 "RealisticAviation.GroundDelay.Tooltip",
-                "이 공항 지상에서 움직이는 비행기(택싱, 활주로·게이트 대기, Pushback 중. 게이트에서 탑승 중인 비행기는 제외)가 너무 많으면, " +
+                "켜 두면, 이 공항 지상에서 움직이는 비행기(택싱, 활주로·게이트 대기, Pushback 중. 게이트에서 탑승 중인 비행기는 제외)가 너무 많으면, " +
                 "접근관제가 새 도착기에 접근 허가를 주지 않고 Holding 시키며 출발기를 먼저 내보냅니다. " +
                 "지상 비행기가 기준보다 2대 적어지면 해제합니다."
             },
-            { "RealisticAviation.GroundDelay.Limit", "지상 지연 기준" },
+            { "RealisticAviation.GroundDelay.Limit", "관리 시작 기준" },
             { "RealisticAviation.GroundDelay.LimitValue", "{COUNT}대" },
-            { "RealisticAviation.GroundDelay.Label", "지상 지연" },
+            { "RealisticAviation.GroundDelay.Label", "지상 항공교통 관리 중" },
             { "RealisticAviation.GroundDelay.Count", "지상 이동 중 {COUNT}대" },
             { "RealisticAviation.Closed.Label", "공항 폐쇄" },
             { "RealisticAviation.Radio.Label", "관제 교신" },
+            { "RealisticAviation.Airspace.Label", "관제공역" },
+            { "RealisticAviation.Airspace.Choose", "공역 등급" },
+            { "RealisticAviation.Airspace.Auto", "자동" },
+            { "Infoviews.INFOVIEW[" + AirspaceOverlaySystem.kInfoviewName + "]", "관제공역" },
+            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kInfomodeName + "]", "비행기 정류장" },
+            { "RealisticAviation.Airspace.Value", "Class {CLASS}, 반경 {RADIUS}NM" },
+            {
+                "RealisticAviation.Airspace.Tooltip",
+                "아래에서 직접 고르지 않으면 공항 규모로 자동 결정됩니다. 활주로 2개 이상 또는 게이트 16개 이상이면 B, 게이트 8개 이상이면 C, 그 밖은 D입니다. " +
+                "도착기는 반경 + 0.5NM 안에 들어오면 교신을 시작합니다. Holding 고도는 등급별로 나뉘며 B가 가장 높습니다. " +
+                "D 공항은 접근관제가 없어 관제탑이 도착기를 직접 처리합니다."
+            },
             { "RealisticAviation.Radio.Empty", "최근 교신 없음" },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.HoldShortSetback)), "Hold Short 정지 여유 거리" },
             {

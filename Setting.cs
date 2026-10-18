@@ -30,11 +30,6 @@ namespace RealisticAviation
         /// <summary>Simulation frames per in-game minute (a game day is 262,144 frames).</summary>
         public const float kFramesPerGameMinute = 262144f / 1440f;
 
-        /// <summary>Path distance to the runway, in nautical miles, at which an arriving airplane calls the tower.</summary>
-        [SettingsUISection(kSection, kArrivalGroup)]
-        [SettingsUISlider(min = 2f, max = 12f, step = 0.5f, unit = Unit.kFloatSingleFraction)]
-        public float ContactDistanceNm { get; set; }
-
         /// <summary>Length of the straight legs of the holding pattern, in nautical miles (as in DME/RNAV holds).</summary>
         [SettingsUISection(kSection, kArrivalGroup)]
         [SettingsUISlider(min = 0.5f, max = 4f, step = 0.5f, unit = Unit.kFloatSingleFraction)]
@@ -128,7 +123,6 @@ namespace RealisticAviation
             FinalLengthNm = 2f;
             ArrivalSpacingSeconds = 45;
             WeatherGoArounds = true;
-            ContactDistanceNm = 5.5f;
             HoldingLegNm = 1.5f;
             HoldShortSetback = 30;
             CloseForTornado = true;

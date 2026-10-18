@@ -103,10 +103,14 @@ namespace RealisticAviation
         private NativeParallelHashMap<Entity, Entity> m_HeldBehind;
         private NativeParallelHashMap<Entity, TaxiHold> m_TaxiHolds;
         private NativeParallelHashMap<Entity, FreeSpeed> m_FreeSpeeds;
+        private NativeParallelHashMap<Entity, ZoneState> m_Zones;
 
         /// <summary>Who each airplane waiting for its gate waits for (last tick), and airplanes released from a deadlock (until frame).</summary>
         private NativeParallelHashMap<Entity, Entity> m_GateHolds;
-        private NativeParallelHashMap<Entity, uint> m_Released;
+        private NativeParallelHashMap<Entity, DeadlockRelease> m_Released;
+
+        // Diagnostics: what the mod did to each taxiing airplane since it landed, logged when it starts boarding at a gate.
+        private NativeParallelHashMap<Entity, StandWatch> m_StandWatch;
 
         /// <summary>Airplanes moving on each airport's ground this tick, and the airports under a ground delay (phase 4-5).</summary>
         private NativeParallelHashMap<Entity, int> m_GroundCounts;
@@ -114,6 +118,9 @@ namespace RealisticAviation
 
         /// <summary>Gates (airplane stops) of each airport, for the default ground delay limit; rebuilt with the runway map.</summary>
         private NativeParallelHashMap<Entity, int> m_GateCounts;
+
+        /// <summary>Each airport's airspace (phase 4-3); rebuilt with the runway map.</summary>
+        private NativeParallelHashMap<Entity, AirportSpace> m_Airspaces;
         private NativeParallelHashMap<Entity, AtcMessage> m_LastMessages;
         private NativeList<AtcMessage> m_RadioLog;
         private NativeReference<uint> m_RadioVersion;
@@ -149,6 +156,71 @@ namespace RealisticAviation
             return m_GroundDelays.ContainsKey(airport);
         }
 
+        /// <summary>The nearest neighbouring airport lies left of <paramref name="landing"/> seen from <paramref name="from"/> (pattern side default).</summary>
+        internal bool IsNeighbourOnLeft(Entity airport, float2 from, float2 landing)
+        {
+            return AirspaceRules.IsNeighbourOnLeft(m_Airspaces, airport, from, landing);
+        }
+
+        /// <summary>The airport's airspace (class, radius), if it has runways.</summary>
+        private readonly List<(Entity m_Airport, int m_Value)> m_AirspaceClassRequests = new List<(Entity, int)>();
+
+        /// <summary>Queues a class change chosen in the airport panel (-1: automatic); see <see cref="ApplyAirspaceClassRequests"/>.</summary>
+        internal void RequestAirspaceClass(Entity airport, int value)
+        {
+            m_AirspaceClassRequests.Add((airport, value));
+        }
+
+        /// <summary>
+        /// Applies queued class changes: stores the choice on the airport building and rebuilds the airspaces, so radius, hold
+        /// altitudes, approach control and the map follow. Called every frame outside the UI update, also while paused.
+        /// Returns true when something changed (the info panel should refresh).
+        /// </summary>
+        internal bool ApplyAirspaceClassRequests()
+        {
+            if (m_AirspaceClassRequests.Count == 0)
+            {
+                return false;
+            }
+            m_JobHandle.Complete();
+            for (int i = 0; i < m_AirspaceClassRequests.Count; i++)
+            {
+                (Entity airport, int value) = m_AirspaceClassRequests[i];
+                if (!EntityManager.Exists(airport))
+                {
+                    continue;
+                }
+                if (value < 0)
+                {
+                    if (EntityManager.HasComponent<AirspaceClassSetting>(airport))
+                    {
+                        EntityManager.RemoveComponent<AirspaceClassSetting>(airport);
+                    }
+                }
+                else
+                {
+                    AirspaceClassSetting setting = new AirspaceClassSetting { m_Class = (byte)math.clamp(value, (int)AirspaceClass.D, (int)AirspaceClass.B) };
+                    if (EntityManager.HasComponent<AirspaceClassSetting>(airport))
+                    {
+                        EntityManager.SetComponentData(airport, setting);
+                    }
+                    else
+                    {
+                        EntityManager.AddComponentData(airport, setting);
+                    }
+                }
+                Mod.Log.Info($"Airspace class at airport {airport}: {(value < 0 ? "automatic" : ((AirspaceClass)value).ToString())}");
+            }
+            m_AirspaceClassRequests.Clear();
+            RefreshAirspaces();
+            return true;
+        }
+
+        internal bool TryGetAirspace(Entity airport, out AirportSpace airspace)
+        {
+            return m_Airspaces.TryGetValue(airport, out airspace);
+        }
+
         /// <summary>The airport's gates (airplane stops), for the default ground delay limit.</summary>
         internal int GetGateCount(Entity airport)
         {
@@ -163,6 +235,9 @@ namespace RealisticAviation
         }
 
         internal AtcRadio Radio => m_Radio;
+
+        /// <summary>Each airport's airspace, for the airspace infoview (read on the main thread; the tower job only reads it too).</summary>
+        internal NativeParallelHashMap<Entity, AirportSpace> Airspaces => m_Airspaces;
 
         /// <summary>
         /// Counts transmissions, so that an open info panel can refresh as soon as there is a new one (the panel otherwise
@@ -291,11 +366,14 @@ namespace RealisticAviation
             m_HeldBehind = new NativeParallelHashMap<Entity, Entity>(32, Allocator.Persistent);
             m_TaxiHolds = new NativeParallelHashMap<Entity, TaxiHold>(32, Allocator.Persistent);
             m_FreeSpeeds = new NativeParallelHashMap<Entity, FreeSpeed>(8, Allocator.Persistent);
+            m_Zones = new NativeParallelHashMap<Entity, ZoneState>(32, Allocator.Persistent);
             m_GateHolds = new NativeParallelHashMap<Entity, Entity>(8, Allocator.Persistent);
-            m_Released = new NativeParallelHashMap<Entity, uint>(8, Allocator.Persistent);
+            m_Released = new NativeParallelHashMap<Entity, DeadlockRelease>(8, Allocator.Persistent);
+            m_StandWatch = new NativeParallelHashMap<Entity, StandWatch>(32, Allocator.Persistent);
             m_GroundCounts = new NativeParallelHashMap<Entity, int>(4, Allocator.Persistent);
             m_GroundDelays = new NativeParallelHashMap<Entity, int>(4, Allocator.Persistent);
             m_GateCounts = new NativeParallelHashMap<Entity, int>(4, Allocator.Persistent);
+            m_Airspaces = new NativeParallelHashMap<Entity, AirportSpace>(4, Allocator.Persistent);
             m_LastMessages = new NativeParallelHashMap<Entity, AtcMessage>(64, Allocator.Persistent);
             m_RadioLog = new NativeList<AtcMessage>(64, Allocator.Persistent);
             m_RadioVersion = new NativeReference<uint>(0, Allocator.Persistent);
@@ -318,11 +396,14 @@ namespace RealisticAviation
             m_HeldBehind.Dispose();
             m_TaxiHolds.Dispose();
             m_FreeSpeeds.Dispose();
+            m_Zones.Dispose();
             m_GateHolds.Dispose();
             m_Released.Dispose();
+            m_StandWatch.Dispose();
             m_GroundCounts.Dispose();
             m_GroundDelays.Dispose();
             m_GateCounts.Dispose();
+            m_Airspaces.Dispose();
             m_LastMessages.Dispose();
             m_RadioLog.Dispose();
             m_RadioVersion.Dispose();
@@ -345,8 +426,18 @@ namespace RealisticAviation
             m_GroundCounts.Clear();
             m_GroundDelays.Clear();
             m_GateCounts.Clear();
+            m_Airspaces.Clear();
             m_AirportClosures.Clear();
+            m_StandWatch.Clear();
             m_Pushbacks.Clear();
+            // Everything keyed by airplane: entities of the city before could match airplanes of this one.
+            m_Zones.Clear();
+            m_TaxiHolds.Clear();
+            m_FreeSpeeds.Clear();
+            m_HeldBehind.Clear();
+            m_GateHolds.Clear();
+            m_Released.Clear();
+            m_AirspaceClassRequests.Clear();
             m_TaxiwayVersion = -1;
             m_AirportVersion = -1;
             m_RunwaySignature = 0;
@@ -424,8 +515,10 @@ namespace RealisticAviation
                 m_HeldBehind = m_HeldBehind,
                 m_TaxiHolds = m_TaxiHolds,
                 m_FreeSpeeds = m_FreeSpeeds,
+                m_Zones = m_Zones,
                 m_GateHolds = m_GateHolds,
                 m_Released = m_Released,
+                m_StandWatch = m_StandWatch,
                 m_GroundCounts = m_GroundCounts,
                 m_GroundDelays = m_GroundDelays,
                 m_LastMessages = m_LastMessages,
@@ -441,6 +534,7 @@ namespace RealisticAviation
                 m_Sequence = m_Sequence,
                 m_PrefabNames = m_PrefabNames,
                 m_GateCounts = m_GateCounts,
+                m_Airspaces = m_Airspaces,
                 m_Settings = GetSettings(),
                 m_Tick = m_Tick,
                 m_Frame = m_SimulationSystem.frameIndex,
@@ -513,6 +607,65 @@ namespace RealisticAviation
                 m_GateCounts[airport] = gates + 1;
             }
             stops.Dispose();
+        }
+
+        /// <summary>
+        /// Sets up each airport's airspace from its runways and gates (class, centre, radius) and logs a summary with the
+        /// distances between airports. Only after airport edits, right after the gate count.
+        /// </summary>
+        private void RefreshAirspaces()
+        {
+            m_Airspaces.Clear();
+            NativeParallelHashMap<Entity, float3> sums = new NativeParallelHashMap<Entity, float3>(4, Allocator.Temp);
+            NativeParallelHashMap<Entity, float> heights = new NativeParallelHashMap<Entity, float>(4, Allocator.Temp);
+            for (int i = 0; i < m_RunwayList.Count; i++)
+            {
+                RunwayInfo runway = m_RunwayList[i];
+                if (runway.Airport == Entity.Null)
+                {
+                    continue;
+                }
+                sums.TryGetValue(runway.Airport, out float3 sum);
+                sums[runway.Airport] = sum + new float3(runway.Geometry.Middle, 1f);
+                if (!heights.ContainsKey(runway.Airport) && runway.Edges.Count != 0 && EntityManager.HasComponent<Curve>(runway.Edges[0]))
+                {
+                    heights[runway.Airport] = EntityManager.GetComponentData<Curve>(runway.Edges[0]).m_Bezier.a.y;
+                }
+            }
+            foreach (var pair in sums)
+            {
+                int runways = (int)pair.Value.z;
+                int gates = GetGateCount(pair.Key);
+                bool chosen = EntityManager.HasComponent<AirspaceClassSetting>(pair.Key);
+                AirspaceClass airspaceClass = chosen
+                    ? (AirspaceClass)math.min((int)EntityManager.GetComponentData<AirspaceClassSetting>(pair.Key).m_Class, (int)AirspaceClass.B)
+                    : AirportSpace.Classify(runways, gates);
+                m_Airspaces[pair.Key] = new AirportSpace
+                {
+                    m_Center = pair.Value.xy / runways,
+                    m_Height = heights.TryGetValue(pair.Key, out float height) ? height : 0f,
+                    m_Radius = AirportSpace.RadiusOf(airspaceClass),
+                    m_Class = airspaceClass,
+                    m_Runways = (byte)math.min(runways, 255),
+                    m_Gates = (short)math.min(gates, short.MaxValue),
+                    m_Chosen = chosen,
+                };
+            }
+            sums.Dispose();
+            heights.Dispose();
+            foreach (var pair in m_Airspaces)
+            {
+                AirportSpace space = pair.Value;
+                System.Text.StringBuilder distances = new System.Text.StringBuilder();
+                foreach (var other in m_Airspaces)
+                {
+                    if (other.Key != pair.Key)
+                    {
+                        distances.Append(' ').Append(other.Key).Append('=').Append((math.distance(space.m_Center, other.Value.m_Center) / 1000f).ToString("F1")).Append("km");
+                    }
+                }
+                Mod.Log.Info($"Airspace of airport {pair.Key}: class {space.m_Class}, radius {space.m_Radius / Setting.kMetersPerNauticalMile:F1} NM, {space.m_Runways} runways, {space.m_Gates} gates; to other airports:{distances}");
+            }
         }
 
         /// <summary>Diagnostics: caches airplane prefab names whenever the set of airplane prefabs changes.</summary>
@@ -657,6 +810,8 @@ namespace RealisticAviation
                 }
                 airports.Dispose();
                 Mod.Log.Info($"Found {m_Runways.Count()} runways.");
+                // After the runway list is rebuilt: the airspaces are made from it.
+                RefreshAirspaces();
             }
             finally
             {
@@ -809,6 +964,20 @@ namespace RealisticAviation
             // An airplane acts on a clearance this many frames (one simulation second) after it is given, the time of the readback.
             private const uint kResponseFrames = 60;
 
+            // Check-in altitudes: feet, and the vertical speed (m/s, about 300 ft/min) beyond which the pilot reports climbing
+            // or descending instead of level.
+            private const float kMetersPerFoot = 0.3048f;
+            private const float kLevelClimbRate = 1.5f;
+
+            // A departure checks in with departure control (and may call the next airport) once this high above its field
+            // (1,000 ft), or this many frames (20 simulation seconds) after takeoff if it stays lower.
+            private const float kCheckInHeight = 1000f * kMetersPerFoot;
+            private const uint kCheckInTimeoutFrames = 60 * 20;
+
+            // A departure whose wheels are rolling (faster than this, m/s, about 5 km/h) is on its takeoff roll and is not
+            // stopped for a closure (there are no V1/VR/V2 speeds to judge it by).
+            private const float kRollingSpeed = 1.4f;
+
             // Last resort only: the mod's taxi holds give up after this many frames behind the same airplane (three simulation
             // minutes), when a deadlock clearly won't clear by itself; the airplanes may then overlap as in the base game.
             private const uint kTaxiHoldTimeout = 60 * 60 * 3;
@@ -824,7 +993,13 @@ namespace RealisticAviation
             // Airplanes caught in a wait-for cycle ignore all taxi holds and blockers for this many frames (half a simulation
             // minute), enough to drive past each other; cycles are followed at most this many links.
             private const uint kDeadlockReleaseFrames = 60 * 30;
+
+            // Two departures this close (metres of path to the runway) stand at the same spot: the earlier request goes first.
+            private const float kSameSpotDistance = 5f;
             private const int kMaxDeadlockChain = 8;
+
+            // The inner surface area of class B and C zones (as drawn by the airspace infoview), as a share of the radius.
+            private const float kInnerZoneFactor = 0.5f;
 
             // A clearance is only taken back from a taxiing airplane that can still stop short (speed slack in m/s).
             private const float kHoldShortSpeedSlack = 0.5f;
@@ -850,6 +1025,9 @@ namespace RealisticAviation
 
             // Ground airplanes ask for the runway at least this far before it, plus their stopping distance.
             private const float kMinGroundRequestDistance = 200f;
+
+            // How far along its path an airborne airplane looks for its runway (well beyond the largest zone).
+            private const float kAirScanDistance = 20000f;
             private const float kGroundRequestMargin = 50f;
 
             // Traffic pattern: 1,500 ft above the runway (FAA pattern altitude for large and turbine airplanes); upwind runs at
@@ -962,13 +1140,16 @@ namespace RealisticAviation
             public NativeReference<uint> m_Sequence;
             [ReadOnly] public NativeParallelHashMap<Entity, FixedString128Bytes> m_PrefabNames;
             [ReadOnly] public NativeParallelHashMap<Entity, int> m_GateCounts;
+            [ReadOnly] public NativeParallelHashMap<Entity, AirportSpace> m_Airspaces;
             public NativeParallelHashMap<Entity, Entity> m_AirportClosures;
             /// <summary>Diagnostics: what the taxi spacing or a pushback held each ground airplane behind, last tick.</summary>
             public NativeParallelHashMap<Entity, Entity> m_HeldBehind;
             public NativeParallelHashMap<Entity, TaxiHold> m_TaxiHolds;
             public NativeParallelHashMap<Entity, FreeSpeed> m_FreeSpeeds;
+            public NativeParallelHashMap<Entity, ZoneState> m_Zones;
             public NativeParallelHashMap<Entity, Entity> m_GateHolds;
-            public NativeParallelHashMap<Entity, uint> m_Released;
+            public NativeParallelHashMap<Entity, DeadlockRelease> m_Released;
+            public NativeParallelHashMap<Entity, StandWatch> m_StandWatch;
             public NativeParallelHashMap<Entity, int> m_GroundCounts;
             public NativeParallelHashMap<Entity, int> m_GroundDelays;
             public NativeParallelHashMap<Entity, AtcMessage> m_LastMessages;
@@ -1003,6 +1184,7 @@ namespace RealisticAviation
                         {
                             touched++;
                         }
+                        UpdateZone(scan);
                         scans[i] = scan;
                     }
                     if (touched != m_Flights.Count())
@@ -1020,10 +1202,12 @@ namespace RealisticAviation
                         Apply(scans[i], pushbackAreas);
                     }
                     pushbackAreas.Dispose();
+                    WatchStands(scans);
                     scans.Dispose();
                     EndPushbackTick();
                     EndTaxiHoldTick();
                     EndFreeSpeedTick();
+                    EndZoneTick();
                     EndReleaseTick();
                     if (m_Tick % kDiagnosticInterval == 0)
                     {
@@ -1223,14 +1407,15 @@ namespace RealisticAviation
                 delayed.Dispose();
             }
 
-            /// <summary>The airport's ground delay limit: set in its info panel, else 1.5 per gate; 0 when it is off there.</summary>
+            /// <summary>The airport's ground delay limit as set in its info panel; 0 when it is off there (the default).</summary>
             private int GetGroundDelayLimit(Entity airport)
             {
                 if (m_GroundDelayData.TryGetComponent(airport, out GroundDelaySetting setting))
                 {
                     return setting.ActiveLimit;
                 }
-                return GroundDelaySetting.DefaultLimit(m_GateCounts.TryGetValue(airport, out int gates) ? gates : 0);
+                // Off until the player turns it on for this airport.
+                return 0;
             }
 
             /// <summary>The airplane stands at a closed airport (its lane belongs to the airport's buildings or nets).</summary>
@@ -1265,7 +1450,9 @@ namespace RealisticAviation
 
                 if (scan.m_Flying)
                 {
-                    scan.m_RequestDistance = m_Settings.m_ContactDistance;
+                    // Far enough along the path to find the runway before the airplane enters the largest zone (B, 5 NM + margin);
+                    // whether it calls is decided by its straight distance to its airport (IsWithinContact).
+                    scan.m_RequestDistance = kAirScanDistance;
                 }
                 else
                 {
@@ -1479,9 +1666,30 @@ namespace RealisticAviation
                             LogEvent(entity, flight.m_SeenOnRunway ? "vacated runway" : "no longer heading for runway", flight.m_Runway);
                             if (flight.m_TouchedDown)
                             {
+                                // Off the runway: the tower hands it to ground, which clears it to its gate.
+                                Say(entity, AtcMessageKind.ContactGround, flight);
                                 Say(entity, AtcMessageKind.TaxiToGate, flight);
                                 m_Runways.TryGetValue(flight.m_Runway, out RunwayState landedOn);
                                 LogPathToGate(entity, landedOn.m_Airport);
+                            }
+                            else if (flight.m_SeenOnRunway && scan.m_Flying)
+                            {
+                                // Airborne after takeoff: on to departure control, or off the frequency at a class D airport.
+                                // Value: 2 = its own departure frequency (class B), 1 = approach works departures too, 0 = none (class D).
+                                AirspaceClass departedClass = GetAirspaceClass(flight.m_Runway);
+                                int departureControl = departedClass == AirspaceClass.B ? 2 : departedClass == AirspaceClass.C ? 1 : 0;
+                                Say(entity, AtcMessageKind.ContactDeparture, flight, departureControl);
+                                m_Runways.TryGetValue(flight.m_Runway, out RunwayState departedFrom);
+                                m_Zones[entity] = new ZoneState
+                                {
+                                    m_Airport = departedFrom.m_Airport,
+                                    m_Silent = departedClass == AirspaceClass.D,
+                                    m_Departing = departedClass == AirspaceClass.B,
+                                    m_Climbing = true,
+                                    m_DepartureControl = (byte)departureControl,
+                                    m_TakeoffFrame = m_Frame,
+                                    m_Tick = m_Tick,
+                                };
                             }
                             DropFlight(entity, flight);
                             return TryRequest(ref scan);
@@ -1573,10 +1781,24 @@ namespace RealisticAviation
                 m_Runways[flight.m_Runway] = state;
             }
 
+            /// <summary>
+            /// An arrival calls once it is inside its airport's zone plus a margin (phase 4-3), measured straight to the airport,
+            /// whatever other zones overlap there. An airport without airspace data uses the B-to-D middle value.
+            /// </summary>
+            private bool IsWithinContact(in FlightScan scan)
+            {
+                float2 position = m_TransformData[scan.m_Entity].m_Position.xz;
+                if (m_Runways.TryGetValue(scan.m_Upcoming, out RunwayState state) && m_Airspaces.TryGetValue(state.m_Airport, out AirportSpace space))
+                {
+                    return math.distancesq(position, space.m_Center) <= space.ContactDistance * space.ContactDistance;
+                }
+                return scan.m_Distance <= AirportSpace.RadiusOf(AirspaceClass.C) + AirportSpace.kContactMargin;
+            }
+
             private bool TryRequest(ref FlightScan scan)
             {
-                if (scan.m_PathUnknown || scan.m_Upcoming == Entity.Null || scan.m_Distance > scan.m_RequestDistance
-                    || (!scan.m_Flying && !HasTaxiClearance(scan.m_Entity)))
+                if (scan.m_PathUnknown || scan.m_Upcoming == Entity.Null
+                    || (scan.m_Flying ? !IsWithinContact(scan) || IsClimbingOut(scan.m_Entity) : scan.m_Distance > scan.m_RequestDistance || !HasTaxiClearance(scan.m_Entity)))
                 {
                     return false;
                 }
@@ -1597,6 +1819,25 @@ namespace RealisticAviation
                     m_Arrival = scan.m_Flying,
                 };
                 m_Flights.Add(scan.m_Entity, flight);
+                if (scan.m_Flying)
+                {
+                    // First call in the airspace: approach (or the tower at a class D airport) identifies it.
+                    // Coming from another airport's airspace, that controller hands it over first; from now on its own airport
+                    // keeps it (UpdateZone).
+                    Entity destination = m_Runways.TryGetValue(flight.m_Runway, out RunwayState destinationState) ? destinationState.m_Airport : Entity.Null;
+                    if (m_Zones.TryGetValue(scan.m_Entity, out ZoneState zone) && zone.m_Airport != destination && zone.m_Airport != Entity.Null && !zone.m_Silent)
+                    {
+                        SayAt(scan.m_Entity, AtcMessageKind.HandoffTo, zone.m_Airport, Entity.Null, default, (int)GetAirspaceClass(flight.m_Runway), destination,
+                            DepartureFrequency(zone));
+                    }
+                    m_Zones[scan.m_Entity] = new ZoneState { m_Airport = destination, m_Tick = m_Tick };
+                    Say(scan.m_Entity, AtcMessageKind.InitialContact, flight, (int)GetAirspaceClass(flight.m_Runway));
+                }
+                else
+                {
+                    // Ready for the runway: ground hands the departure over to the tower.
+                    Say(scan.m_Entity, AtcMessageKind.ContactTower, flight);
+                }
                 m_PrefabNames.TryGetValue(m_PrefabRefData[scan.m_Entity].m_Prefab, out FixedString128Bytes name);
                 LogEvent(scan.m_Entity, $"[{name}] asks (#{flight.m_Sequence}, {Describe(flight)}) for runway", flight.m_Runway);
                 return true;
@@ -1634,6 +1875,13 @@ namespace RealisticAviation
             private void Say(Entity airplane, AtcMessageKind kind, Entity runway, float2 direction, int value = 0, Entity hazard = default)
             {
                 Entity airport = m_Runways.TryGetValue(runway, out RunwayState state) ? state.m_Airport : GetAirportOf(airplane);
+                SayAt(airplane, kind, airport, runway, direction, value, hazard);
+            }
+
+            /// <summary>A transmission by the given airport's controller (<paramref name="hazard"/>: the disaster, or for a handoff the next airport).</summary>
+            private void SayAt(Entity airplane, AtcMessageKind kind, Entity airport, Entity runway, float2 direction, int value, Entity hazard,
+                AtcFrequency? frequency = null)
+            {
                 AtcMessage message = new AtcMessage
                 {
                     m_Airplane = airplane,
@@ -1644,8 +1892,16 @@ namespace RealisticAviation
                     m_Value = value,
                     m_Frame = m_Frame,
                     m_Kind = kind,
-                    m_Frequency = AtcMessage.FrequencyOf(kind),
+                    m_Frequency = frequency ?? FrequencyAt(airport, kind),
                 };
+                if (airplane != Entity.Null && m_TransformData.TryGetComponent(airplane, out Transform transform))
+                {
+                    // Height above the airport (as the hold altitudes), for the pilot's check-in.
+                    float fieldHeight = m_Airspaces.TryGetValue(airport, out AirportSpace space) ? space.m_Height : 0f;
+                    message.m_Altitude = math.max(0, (int)math.round((transform.m_Position.y - fieldHeight) / (100f * kMetersPerFoot)) * 100);
+                    float climb = m_MovingData.TryGetComponent(airplane, out Moving moving) ? moving.m_Velocity.y : 0f;
+                    message.m_Vertical = (sbyte)(climb > kLevelClimbRate ? 1 : climb < -kLevelClimbRate ? -1 : 0);
+                }
                 m_LastMessages[airplane] = message;
                 AddToRadioLog(message);
             }
@@ -1704,21 +1960,32 @@ namespace RealisticAviation
                     LogEvent(entity, "cleared to taxi to runway", nextRunway);
                     return;
                 }
-                // Leaving its stand: always cleared, so that it can ask for the runway; without a runway in sight of the path
-                // scan, just "taxi to the runway".
-                FindTakeoffRunway(entity, out Entity runway, out float2 direction);
+                // No message yet: leaving its stand, or (right after loading a city, when nobody has heard anything) already
+                // taxiing. One taxiing in to a gate here is told so; anyone else is cleared to the runway, so that it can ask
+                // for it (without a runway in sight of the path scan, just "taxi to the runway").
+                if (!FindTakeoffRunway(entity, out Entity runway, out float2 direction) && IsTaxiingToGate(entity))
+                {
+                    Say(entity, AtcMessageKind.TaxiToGate, Entity.Null, default);
+                    return;
+                }
                 Say(entity, AtcMessageKind.TaxiToRunway, runway, direction);
                 LogEvent(entity, "cleared to taxi to runway", runway);
             }
 
             /// <summary>
             /// A ground airplane may ask the tower for a runway only after ground control cleared it to taxi (or to taxi in
-            /// after landing) and its pushback is over.
+            /// after landing, for a crossing on the way to its gate) and its pushback is over. "Taxi to the gate" doesn't
+            /// clear a route that takes off: that airplane has boarded and waits for its pushback and "taxi to runway".
             /// </summary>
             private bool HasTaxiClearance(Entity entity)
             {
-                return !m_Pushbacks.ContainsKey(entity) && m_LastMessages.TryGetValue(entity, out AtcMessage last)
-                    && last.m_Kind != AtcMessageKind.PushbackApproved;
+                if (m_Pushbacks.ContainsKey(entity) || !m_LastMessages.TryGetValue(entity, out AtcMessage last)
+                    || last.m_Kind == AtcMessageKind.PushbackApproved)
+                {
+                    return false;
+                }
+                return (last.m_Kind != AtcMessageKind.TaxiToGate && last.m_Kind != AtcMessageKind.HoldForGate)
+                    || !FindTakeoffRunway(entity, out _, out _);
             }
 
             /// <summary>The first runway the route takes off from (a lane of the runway proper, not a crossing), and the roll direction.</summary>
@@ -1760,6 +2027,170 @@ namespace RealisticAviation
                 float2 tangent = MathUtils.Tangent(curve.m_Bezier, delta.x).xz;
                 direction = math.normalizesafe(math.select(tangent, -tangent, delta.y < delta.x));
                 return runway != Entity.Null;
+            }
+
+            /// <summary>
+            /// Handoffs between airspaces (phase 4-3): an airborne airplane is with the controller of the zone it is in. An
+            /// arrival stays with its destination once it has called it; anyone else crossing into another zone is handed over
+            /// ("contact Portland Approach ...") and calls the next controller, and leaving the last zone ends radar service.
+            /// </summary>
+            private void UpdateZone(in FlightScan scan)
+            {
+                if (!scan.m_Flying || m_Airspaces.IsEmpty)
+                {
+                    return;
+                }
+                Entity entity = scan.m_Entity;
+                m_Zones.TryGetValue(entity, out ZoneState zone);
+                if (zone.m_Climbing)
+                {
+                    // Just took off: it checks in with departure control once it has climbed, then is handed on as usual.
+                    float fieldHeight = m_Airspaces.TryGetValue(zone.m_Airport, out AirportSpace field) ? field.m_Height : 0f;
+                    zone.m_Tick = m_Tick;
+                    if (m_TransformData[entity].m_Position.y - fieldHeight < kCheckInHeight && m_Frame - zone.m_TakeoffFrame < kCheckInTimeoutFrames)
+                    {
+                        m_Zones[entity] = zone;
+                        return;
+                    }
+                    zone.m_Climbing = false;
+                    m_Zones[entity] = zone;
+                    if (zone.m_DepartureControl != 0)
+                    {
+                        SayAt(entity, AtcMessageKind.DepartureCheckIn, zone.m_Airport, Entity.Null, default, zone.m_DepartureControl, Entity.Null,
+                            zone.m_DepartureControl == 2 ? AtcFrequency.Departure : AtcFrequency.Approach);
+                    }
+                }
+                if (m_Flights.TryGetValue(entity, out Flight flight))
+                {
+                    // An arrival stays with its destination; a departure lifting off is still the tower's until it leaves the
+                    // runway ("contact departure").
+                    if (flight.m_Arrival)
+                    {
+                        zone.m_Tick = m_Tick;
+                        m_Zones[entity] = zone;
+                    }
+                    return;
+                }
+                float2 position = m_TransformData[entity].m_Position.xz;
+                Entity owner = ZoneOwner(position);
+                // It stays with its controller while still inside that zone (no ping-pong along a boundary), unless it entered a
+                // higher class's inner surface area.
+                if (owner != zone.m_Airport && zone.m_Airport != Entity.Null && m_Airspaces.TryGetValue(zone.m_Airport, out AirportSpace current)
+                    && math.distancesq(position, current.m_Center) <= current.m_Radius * current.m_Radius
+                    && !(owner != Entity.Null && m_Airspaces[owner].m_Class > current.m_Class
+                        && math.distance(position, m_Airspaces[owner].m_Center) < m_Airspaces[owner].m_Radius * kInnerZoneFactor))
+                {
+                    owner = zone.m_Airport;
+                }
+                if (owner == zone.m_Airport)
+                {
+                    if (owner != Entity.Null)
+                    {
+                        zone.m_Tick = m_Tick;
+                        m_Zones[entity] = zone;
+                    }
+                    return;
+                }
+                if (zone.m_Airport != Entity.Null && !zone.m_Silent)
+                {
+                    if (owner != Entity.Null)
+                    {
+                        SayAt(entity, AtcMessageKind.HandoffTo, zone.m_Airport, Entity.Null, default, (int)m_Airspaces[owner].m_Class, owner, DepartureFrequency(zone));
+                    }
+                    else
+                    {
+                        SayAt(entity, AtcMessageKind.ContactCenter, zone.m_Airport, Entity.Null, default, 0, Entity.Null, DepartureFrequency(zone));
+                    }
+                }
+                if (owner == Entity.Null)
+                {
+                    m_Zones.Remove(entity);
+                    return;
+                }
+                SayAt(entity, AtcMessageKind.TransitContact, owner, Entity.Null, default, (int)m_Airspaces[owner].m_Class, Entity.Null);
+                m_Zones[entity] = new ZoneState { m_Airport = owner, m_Tick = m_Tick };
+            }
+
+            /// <summary>Just took off and not yet checked in with departure: it doesn't call the next airport yet.</summary>
+            private bool IsClimbingOut(Entity entity)
+            {
+                return m_Zones.TryGetValue(entity, out ZoneState zone) && zone.m_Climbing;
+            }
+
+            /// <summary>A class B departure still with its own airport is on that airport's departure frequency; else the usual one.</summary>
+            private static AtcFrequency? DepartureFrequency(in ZoneState zone)
+            {
+                return zone.m_Departing ? AtcFrequency.Departure : (AtcFrequency?)null;
+            }
+
+            /// <summary>
+            /// The airport whose airspace a point is in, as the airspace infoview draws it: a higher class's inner surface area
+            /// first, else the zone the point is relatively deepest in (distance / radius); Entity.Null outside every zone.
+            /// </summary>
+            private Entity ZoneOwner(float2 point)
+            {
+                Entity owner = Entity.Null;
+                float best = float.MaxValue;
+                foreach (var pair in m_Airspaces)
+                {
+                    AirportSpace space = pair.Value;
+                    float depth = math.distance(point, space.m_Center) / space.m_Radius;
+                    if (depth > 1f)
+                    {
+                        continue;
+                    }
+                    if (space.m_Class != AirspaceClass.D && depth < kInnerZoneFactor)
+                    {
+                        depth -= 10f * (int)space.m_Class;
+                    }
+                    if (depth < best)
+                    {
+                        best = depth;
+                        owner = pair.Key;
+                    }
+                }
+                return owner;
+            }
+
+            /// <summary>Forgets airplanes that landed or are gone (not airborne for a while).</summary>
+            private void EndZoneTick()
+            {
+                if (m_Zones.IsEmpty || m_Tick % kDiagnosticInterval != 0)
+                {
+                    return;
+                }
+                NativeList<Entity> stale = new NativeList<Entity>(Allocator.Temp);
+                foreach (var pair in m_Zones)
+                {
+                    if (m_Tick - pair.Value.m_Tick > kDiagnosticInterval)
+                    {
+                        stale.Add(pair.Key);
+                    }
+                }
+                for (int i = 0; i < stale.Length; i++)
+                {
+                    m_Zones.Remove(stale[i]);
+                }
+                stale.Dispose();
+            }
+
+            /// <summary>The airspace class of a runway's airport (C when unknown).</summary>
+            private AirspaceClass GetAirspaceClass(Entity runway)
+            {
+                return m_Runways.TryGetValue(runway, out RunwayState state) && m_Airspaces.TryGetValue(state.m_Airport, out AirportSpace space)
+                    ? space.m_Class
+                    : AirspaceClass.C;
+            }
+
+            private bool HasApproachControl(Entity runway) => GetAirspaceClass(runway) != AirspaceClass.D;
+
+            /// <summary>The frequency of a message at this airport: a class D airport has no approach control, so its tower says it.</summary>
+            private AtcFrequency FrequencyAt(Entity airport, AtcMessageKind kind)
+            {
+                AtcFrequency frequency = AtcMessage.FrequencyOf(kind);
+                return frequency == AtcFrequency.Approach && m_Airspaces.TryGetValue(airport, out AirportSpace space) && space.m_Class == AirspaceClass.D
+                    ? AtcFrequency.Tower
+                    : frequency;
             }
 
             /// <summary>The disaster closing this runway this tick, or Entity.Null.</summary>
@@ -1818,6 +2249,91 @@ namespace RealisticAviation
                 }
                 return $"{entity} ({Describe(flight)}, ETA {flight.m_LastEta:F0} s, on runway: {flight.m_SeenOnRunway}, " +
                     $"cleared {(m_Frame - flight.m_ClearedFrame) / 60} s ago, holding: {flight.m_Holding}{DescribeBlocker(entity)})";
+            }
+
+            /// <summary>
+            /// Diagnostics for airplanes parked askew at gates: collects what the mod did to each ground airplane after it
+            /// landed, and when one starts boarding logs where it stands against its stand (the stop's route lane end):
+            /// distance, heading against the lane, its current lane, and those interventions. Airplanes in the air start over.
+            /// </summary>
+            private void WatchStands(NativeArray<FlightScan> scans)
+            {
+                for (int i = 0; i < scans.Length; i++)
+                {
+                    FlightScan scan = scans[i];
+                    if (scan.m_Flying)
+                    {
+                        continue;
+                    }
+                    Entity entity = scan.m_Entity;
+                    m_StandWatch.TryGetValue(entity, out StandWatch watch);
+                    watch.m_Tick = m_Tick;
+                    bool boarding = IsBoarding(entity, out Entity waypoint, out Entity stop);
+                    if (!boarding)
+                    {
+                        watch.m_Boarding = false;
+                        if (m_Pushbacks.ContainsKey(entity)) watch.m_Touched |= StandWatch.kPushback;
+                        if (m_HeldBehind.ContainsKey(entity)) watch.m_Touched |= StandWatch.kTaxiHold;
+                        if (m_GateHolds.ContainsKey(entity)) watch.m_Touched |= StandWatch.kGateHold;
+                        if (IsReleased(entity)) watch.m_Touched |= StandWatch.kDeadlockPass;
+                        if (m_FreeSpeeds.ContainsKey(entity)) watch.m_Touched |= StandWatch.kBlockerPass;
+                    }
+                    else if (!watch.m_Boarding)
+                    {
+                        LogParking(entity, waypoint, stop, watch.m_Touched);
+                        watch.m_Boarding = true;
+                        watch.m_Touched = 0;
+                    }
+                    m_StandWatch[entity] = watch;
+                }
+                // Forget airplanes that took off or are gone.
+                NativeList<Entity> old = new NativeList<Entity>(Allocator.Temp);
+                foreach (var pair in m_StandWatch)
+                {
+                    if (pair.Value.m_Tick != m_Tick)
+                    {
+                        old.Add(pair.Key);
+                    }
+                }
+                for (int i = 0; i < old.Length; i++)
+                {
+                    m_StandWatch.Remove(old[i]);
+                }
+                old.Dispose();
+            }
+
+            /// <summary>The airplane is the one boarding at the stop of its current target waypoint.</summary>
+            private bool IsBoarding(Entity entity, out Entity waypoint, out Entity stop)
+            {
+                waypoint = m_TargetData.TryGetComponent(entity, out Game.Common.Target target) ? target.m_Target : Entity.Null;
+                stop = m_ConnectedData.TryGetComponent(waypoint, out Game.Routes.Connected connected) ? connected.m_Connected : Entity.Null;
+                return m_BoardingVehicleData.TryGetComponent(stop, out Game.Routes.BoardingVehicle boarding) && boarding.m_Vehicle == entity;
+            }
+
+            private void LogParking(Entity entity, Entity waypoint, Entity stop, byte touched)
+            {
+                Transform transform = m_TransformData[entity];
+                float2 forward = math.normalizesafe(math.forward(transform.m_Rotation).xz);
+                string stand = "no stand lane";
+                if (m_RouteLaneData.TryGetComponent(waypoint, out Game.Routes.RouteLane routeLane) && m_CurveData.TryGetComponent(routeLane.m_EndLane, out Curve curve))
+                {
+                    float3 point = MathUtils.Position(curve.m_Bezier, routeLane.m_EndCurvePos);
+                    float2 tangent = math.normalizesafe(MathUtils.Tangent(curve.m_Bezier, routeLane.m_EndCurvePos).xz);
+                    float angle = math.degrees(math.acos(math.clamp(math.dot(forward, tangent), -1f, 1f)));
+                    stand = $"{math.distance(transform.m_Position.xz, point.xz):F1} m from stand point, heading {angle:F0} deg from stand lane {routeLane.m_EndLane}@{routeLane.m_EndCurvePos:F2}";
+                }
+                string stopOffset = m_TransformData.TryGetComponent(stop, out Transform stopTransform)
+                    ? $", {math.distance(transform.m_Position.xz, stopTransform.m_Position.xz):F1} m from stop" : string.Empty;
+                AircraftCurrentLane currentLane = m_CurrentLaneData[entity];
+                System.Text.StringBuilder mod = new System.Text.StringBuilder();
+                if ((touched & StandWatch.kPushback) != 0) mod.Append(" pushback");
+                if ((touched & StandWatch.kTaxiHold) != 0) mod.Append(" taxi-hold");
+                if ((touched & StandWatch.kGateHold) != 0) mod.Append(" gate-hold");
+                if ((touched & StandWatch.kDeadlockPass) != 0) mod.Append(" deadlock-pass");
+                if ((touched & StandWatch.kBlockerPass) != 0) mod.Append(" blocker-pass");
+                if (mod.Length == 0) mod.Append(" none");
+                m_PrefabNames.TryGetValue(m_PrefabRefData[entity].m_Prefab, out FixedString128Bytes name);
+                Mod.Log.Info($"{entity} [{name}] boarding at stop {stop}: {stand}{stopOffset}, on lane {currentLane.m_Lane}@{currentLane.m_CurvePosition.x:F2}; mod since landing:{mod}");
             }
 
             /// <summary>
@@ -2017,10 +2533,14 @@ namespace RealisticAviation
                         {
                             candidates.m_OldestGroundRequestFrame = flight.m_RequestFrame;
                         }
-                        if (candidates.m_Ground == Entity.Null || flight.m_LastDistance < candidates.m_GroundDistance)
+                        // The nearest goes first; at the same spot (e.g. both at the hold-short line) the one that asked first.
+                        if (candidates.m_Ground == Entity.Null || flight.m_LastDistance < candidates.m_GroundDistance - kSameSpotDistance
+                            || (flight.m_LastDistance <= candidates.m_GroundDistance + kSameSpotDistance
+                                && (int)(flight.m_RequestFrame - candidates.m_GroundRequestFrame) < 0))
                         {
                             candidates.m_Ground = pair.Key;
                             candidates.m_GroundDistance = flight.m_LastDistance;
+                            candidates.m_GroundRequestFrame = flight.m_RequestFrame;
                         }
                     }
                     next[flight.m_Runway] = candidates;
@@ -2239,6 +2759,11 @@ namespace RealisticAviation
                     {
                         m_Runways.TryGetValue(runway, out RunwayState state);
                         Say(entity, AtcMessageKind.ClearedApproach, flight, state.m_ArrivalTick == m_Tick ? math.max(1, state.m_ArrivalCount) : 1);
+                        if (HasApproachControl(runway))
+                        {
+                            // Handed to the tower: the pilot checks in on the tower frequency.
+                            Say(entity, AtcMessageKind.TowerCheckIn, flight);
+                        }
                     }
                 }
                 else
@@ -2293,6 +2818,16 @@ namespace RealisticAviation
                     && math.lengthsq(m_MovingData[entity].m_Velocity) < kPushbackStartSpeed * kPushbackStartSpeed)
                 {
                     // A standing airplane reads the clearance back before it moves (it is not shown starting its roll first).
+                    StandStill(entity);
+                    return;
+                }
+                if (flight.m_Told && flight.m_Clearance == Clearance.Cleared && !flight.m_Arrival && !scan.m_Flying && scan.m_Occupied == flight.m_Runway)
+                {
+                    // Its takeoff clearance was cancelled for a closure that is now over: cleared again (moving a second later).
+                    flight.m_Told = false;
+                    flight.m_ClearedFrame = m_Frame;
+                    m_Flights[entity] = flight;
+                    Say(entity, AtcMessageKind.ClearedForTakeoff, flight);
                     StandStill(entity);
                     return;
                 }
@@ -2381,6 +2916,39 @@ namespace RealisticAviation
                     if (!flight.m_SeenOnRunway)
                     {
                         RevokeGroundClearance(entity, ref flight, AtcMessageKind.HoldShortClosed);
+                        return false;
+                    }
+                    // On the runway with a takeoff clearance but not on its takeoff roll yet (still entering, or standing lined up):
+                    // the tower cancels it and the airplane holds in position until the airport reopens. Only one on its takeoff
+                    // roll (the game's TakingOff state, wheels rolling) carries on; speed alone can't tell entering from rolling.
+                    bool rolling = scan.m_TakingOff && math.lengthsq(m_MovingData[entity].m_Velocity) >= kRollingSpeed * kRollingSpeed;
+                    if (flight.m_Clearance == Clearance.Cleared && !flight.m_Arrival && scan.m_Occupied == flight.m_Runway && !rolling)
+                    {
+                        // Back to "line up and wait": it goes on to the line-up point and waits there lined up (rather than stopping
+                        // half on the runway), and the usual release clears it for takeoff when the airport reopens.
+                        if (m_Runways.TryGetValue(flight.m_Runway, out RunwayState lineUpState) && (lineUpState.m_LineUp == Entity.Null || lineUpState.m_LineUp == entity))
+                        {
+                            ReleaseRunway(entity, flight.m_Runway);
+                            lineUpState = m_Runways[flight.m_Runway];
+                            lineUpState.m_LineUp = entity;
+                            m_Runways[flight.m_Runway] = lineUpState;
+                            flight.m_Clearance = Clearance.LineUp;
+                            m_Flights[entity] = flight;
+                            LogEvent(entity, "takeoff clearance cancelled (airport closed), lining up and waiting on runway", flight.m_Runway);
+                            Say(entity, AtcMessageKind.CancelTakeoff, flight, 1, ClosedBy(flight.m_Runway));
+                            HoldAtLineUpPoint(entity, scan);
+                            return true;
+                        }
+                        // Someone else is lined up already (rare): it holds where it is until the airport reopens.
+                        StandStill(entity);
+                        if (!flight.m_Told)
+                        {
+                            flight.m_Told = true;
+                            m_Flights[entity] = flight;
+                            LogEvent(entity, "takeoff clearance cancelled (airport closed), holding in position on runway", flight.m_Runway);
+                            Say(entity, AtcMessageKind.CancelTakeoff, flight, 0, ClosedBy(flight.m_Runway));
+                        }
+                        return true;
                     }
                     return false;
                 }
@@ -2796,10 +3364,6 @@ namespace RealisticAviation
             }
 
             /// <summary>
-            /// On taxiways the game lets an airplane roll up almost to the tail of the one ahead. This keeps the configured
-            /// gap between its nose and the nearest tail ahead on its path, the way real taxiing aircraft keep their distance.
-            /// </summary>
-            /// <summary>
             /// Gate hold: an airplane taxiing to a gate that another airplane still uses (boarding there, or standing on the
             /// stand lanes, e.g. pushing back) stops kGateHoldDistance before the stand, clear of the pushback area, so the
             /// one leaving can always get out. Ground control tells it to hold, and to taxi on once the gate is free.
@@ -2826,7 +3390,7 @@ namespace RealisticAviation
                 m_GateHolds[entity] = occupant;
                 Entity prefab = m_PrefabRefData[entity].m_Prefab;
                 float stopDistance = distance - GetNoseLength(prefab) - kGateHoldDistance;
-                if (stopDistance <= 0f || IsReleased(entity))
+                if (stopDistance <= 0f || IsReleasedFrom(entity, occupant))
                 {
                     return;
                 }
@@ -2841,6 +3405,18 @@ namespace RealisticAviation
                 {
                     Say(entity, AtcMessageKind.HoldForGate, Entity.Null, default);
                 }
+            }
+
+            /// <summary>The airplane's next stop is a gate whose stand its route reaches within the look-ahead (taxiing in here).</summary>
+            private bool IsTaxiingToGate(Entity entity)
+            {
+                if (!m_TargetData.TryGetComponent(entity, out Game.Common.Target target)
+                    || !m_RouteLaneData.TryGetComponent(target.m_Target, out Game.Routes.RouteLane stand))
+                {
+                    return false;
+                }
+                float distance = DistanceToLane(entity, stand.m_StartLane);
+                return distance >= 0f && distance <= kGateLookAhead;
             }
 
             /// <summary>The airplane's next stop is a gate that another airplane is boarding at or still standing on.</summary>
@@ -2937,7 +3513,7 @@ namespace RealisticAviation
                 // Airborne blockers are always passed; any blocker when the airplane was released from a deadlock.
                 if (!m_BlockerData.TryGetComponent(entity, out Blocker blocker) || blocker.m_Blocker == Entity.Null
                     || !m_CurrentLaneData.TryGetComponent(blocker.m_Blocker, out AircraftCurrentLane blockerLane)
-                    || ((blockerLane.m_LaneFlags & AircraftLaneFlags.Flying) == 0 && !IsReleased(entity)))
+                    || ((blockerLane.m_LaneFlags & AircraftLaneFlags.Flying) == 0 && !IsReleasedFrom(entity, blocker.m_Blocker)))
                 {
                     m_FreeSpeeds[entity] = new FreeSpeed { m_MaxSpeed = navigation.m_MaxSpeed, m_Speed = speed, m_Tick = m_Tick };
                     return;
@@ -2961,7 +3537,7 @@ namespace RealisticAviation
             /// Deadlock detection: each ground airplane waits for at most one other: the airplane the mod's taxi hold keeps it
             /// behind, the airplane on its gate, or else the game's own blocker. Following those links back to the start is a
             /// cycle that won't clear by itself, so everyone on it is released at once for kDeadlockReleaseFrames and drives
-            /// through, overlapping if it must. Runway hold-short is never released.
+            /// through the others on that cycle (only them), overlapping if it must. Runway hold-short is never released.
             /// </summary>
             private void DetectDeadlocks(NativeArray<FlightScan> scans)
             {
@@ -2998,11 +3574,14 @@ namespace RealisticAviation
                     {
                         continue;
                     }
+                    // Everyone on this cycle passes the others on it (only them: an airplane ahead in a queue still holds it).
+                    // The cycle is named by its first airplane, which is not released yet, so no other active cycle shares it.
+                    uint cycle = (uint)start.Index;
                     System.Text.StringBuilder chain = new System.Text.StringBuilder();
                     Entity node = start;
                     do
                     {
-                        m_Released[node] = m_Frame + kDeadlockReleaseFrames;
+                        m_Released[node] = new DeadlockRelease { m_Until = m_Frame + kDeadlockReleaseFrames, m_Cycle = cycle };
                         chain.Append(node).Append(" -> ");
                         node = waitsFor[node];
                     }
@@ -3015,7 +3594,14 @@ namespace RealisticAviation
             /// <summary>Released from a deadlock: no taxi holds and no blockers until the release runs out.</summary>
             private bool IsReleased(Entity entity)
             {
-                return !m_Released.IsEmpty && m_Released.TryGetValue(entity, out uint until) && (int)(until - m_Frame) > 0;
+                return !m_Released.IsEmpty && m_Released.TryGetValue(entity, out DeadlockRelease release) && (int)(release.m_Until - m_Frame) > 0;
+            }
+
+            /// <summary>Released from a deadlock together with <paramref name="other"/>: it may drive through that airplane.</summary>
+            private bool IsReleasedFrom(Entity entity, Entity other)
+            {
+                return !m_Released.IsEmpty && m_Released.TryGetValue(entity, out DeadlockRelease release) && (int)(release.m_Until - m_Frame) > 0
+                    && m_Released.TryGetValue(other, out DeadlockRelease otherRelease) && otherRelease.m_Cycle == release.m_Cycle;
             }
 
             private void EndReleaseTick()
@@ -3027,7 +3613,7 @@ namespace RealisticAviation
                 NativeList<Entity> expired = new NativeList<Entity>(Allocator.Temp);
                 foreach (var pair in m_Released)
                 {
-                    if ((int)(pair.Value - m_Frame) <= 0)
+                    if ((int)(pair.Value.m_Until - m_Frame) <= 0)
                     {
                         expired.Add(pair.Key);
                     }
@@ -3067,7 +3653,7 @@ namespace RealisticAviation
             /// </summary>
             private bool MayHoldBehind(Entity entity, Entity ahead)
             {
-                if (IsReleased(entity))
+                if (IsReleasedFrom(entity, ahead))
                 {
                     return false;
                 }
@@ -3108,6 +3694,10 @@ namespace RealisticAviation
                 stale.Dispose();
             }
 
+            /// <summary>
+            /// On taxiways the game lets an airplane roll up almost to the tail of the one ahead. This keeps the configured
+            /// gap between its nose and the nearest tail ahead on its path, the way real taxiing aircraft keep their distance.
+            /// </summary>
             private void KeepTaxiSpacing(Entity entity)
             {
                 Entity prefab = m_PrefabRefData[entity].m_Prefab;
@@ -3163,6 +3753,13 @@ namespace RealisticAviation
                         LaneObject laneObject = laneObjects[i];
                         float along = (laneObject.m_CurvePosition.x - delta.x) * direction;
                         if (laneObject.m_LaneObject == entity || along <= 0f || along > math.abs(span))
+                        {
+                            continue;
+                        }
+                        // An airplane in the air (an arrival on approach is listed on the runway's lanes) is the tower's
+                        // business, not taxi spacing: holding behind it kept a cleared departure from ever moving.
+                        if (m_CurrentLaneData.TryGetComponent(laneObject.m_LaneObject, out AircraftCurrentLane otherLane)
+                            && (otherLane.m_LaneFlags & AircraftLaneFlags.Flying) != 0)
                         {
                             continue;
                         }
@@ -3242,7 +3839,6 @@ namespace RealisticAviation
                 }
             }
 
-            /// <summary>Lowers the speed so the airplane stops with its nose the setback distance before the runway.</summary>
             /// <summary>Highest speed from which the airplane still stops at its hold-short point, given its distance to the runway.</summary>
             private float GetHoldShortSpeed(Entity entity, float distance)
             {
@@ -3264,6 +3860,7 @@ namespace RealisticAviation
                 m_NavigationData[entity] = navigation;
             }
 
+            /// <summary>Lowers the speed so the airplane stops with its nose the setback distance before the runway.</summary>
             private void HoldShort(Entity entity, in FlightScan scan)
             {
                 float maxSpeed = GetHoldShortSpeed(entity, scan.m_Distance);
@@ -3305,7 +3902,11 @@ namespace RealisticAviation
                 float3 fix = m_TransformData[entity].m_Position;
                 if (stacked)
                 {
-                    fix.y += flight.m_StackLevel * kStackSpacing;
+                    // Holds of different airports are separated by altitude: each class has its own band above its runway, B highest
+                    // (phase 4-3); without airspace data, the stack starts where the airplane is.
+                    fix.y = m_Runways.TryGetValue(flight.m_Runway, out RunwayState runwayState) && m_Airspaces.TryGetValue(runwayState.m_Airport, out AirportSpace space)
+                        ? flight.m_EntryPosition.y + space.HoldBase + flight.m_StackLevel * kStackSpacing
+                        : fix.y + flight.m_StackLevel * kStackSpacing;
                     if (!flight.m_Told)
                     {
                         // Not when the reason was just given (closure): that transmission already said to hold.
@@ -3479,8 +4080,18 @@ namespace RealisticAviation
                 {
                     return rightHand;
                 }
-                // Not set in the panel: right-hand when a parallel runway lies to the left, so the pattern stays outside.
-                return HasParallelRunwayOnSide(runway, landing, MathUtils.Left(landing));
+                // Not set in the panel: right-hand when a parallel runway lies to the left, so the pattern stays outside; with no
+                // parallel runway, away from a neighbouring airport on the left (phase 4-3).
+                if (HasParallelRunwayOnSide(runway, landing, MathUtils.Left(landing)))
+                {
+                    return true;
+                }
+                if (HasParallelRunwayOnSide(runway, landing, MathUtils.Right(landing)))
+                {
+                    return false;
+                }
+                return m_RunwayGeometry.TryGetValue(runway, out RunwayGeometry geometry) && m_Runways.TryGetValue(runway, out RunwayState state)
+                    && AirspaceRules.IsNeighbourOnLeft(m_Airspaces, state.m_Airport, geometry.Middle, landing);
             }
 
             /// <summary>Whether another runway runs parallel within the pattern width on the given side of this one.</summary>

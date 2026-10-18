@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using Colossal.Entities;
 using Colossal.Localization;
+using Game.City;
 using Game.Prefabs;
 using Game.Routes;
 using Game.SceneFlow;
@@ -31,14 +32,38 @@ namespace RealisticAviation
         /// <summary>The extended downwind is used up and the runway still isn't free: the tower holds the airplane there.</summary>
         HoldInPattern,
         LandingClearanceCancelled,
+
+        /// <summary>A departure on the runway, not rolling yet, when the airport closes: hold in position.</summary>
+        CancelTakeoff,
         ClearedApproach,
         ApproachClearanceCancelled,
         PushbackApproved,
+
+        /// <summary>An arrival's first call on entering the airspace (pilot first); the value is the <see cref="AirspaceClass"/>.</summary>
+        InitialContact,
+
+        // Handoffs between frequencies: ground to tower (departure asking for the runway), tower to ground (after
+        // landing), tower to departure (after takeoff; the value is 0 at an airport without approach control).
+        ContactTower,
+        ContactGround,
+        ContactDeparture,
+
+        // Through the airspaces: the controller hands the airplane to the next airport (the message's Event is that airport),
+        // the airplane calls that one (value: its class), or leaves the last one for Center: outside every airport's
+        // zone an airliner is in class A airspace under the en-route center.
+        HandoffTo,
+        TransitContact,
+        ContactCenter,
         TaxiToRunway,
         TaxiToGate,
 
         /// <summary>Taxiing in to a gate another airplane still uses: wait clear of it until it is free.</summary>
         HoldForGate,
+
+        // Pilot check-ins on the new frequency (pilot first): an arrival calling the tower after approach cleared it for the
+        // approach, and a departure calling departure control (value 2) or approach (value 1) after takeoff.
+        TowerCheckIn,
+        DepartureCheckIn,
 
         // To all aircraft of an airport (no airplane, no readback).
         AirportClosed,
@@ -56,6 +81,9 @@ namespace RealisticAviation
         Tower,
         Ground,
         Approach,
+
+        /// <summary>Departure control, separate from approach at a class B airport only.</summary>
+        Departure,
     }
 
     /// <summary>One tower transmission, as recorded by the tower job.</summary>
@@ -75,6 +103,12 @@ namespace RealisticAviation
         /// <summary>Altitude in feet (hold), position in the landing sequence (cleared to land), or 1 for right-hand traffic (go-around).</summary>
         public int m_Value;
 
+        /// <summary>The airplane's height above the airport, in feet rounded to 100, when the message was said (for check-ins).</summary>
+        public int m_Altitude;
+
+        /// <summary>Climbing (1), descending (-1) or level (0) when the message was said.</summary>
+        public sbyte m_Vertical;
+
         public uint m_Frame;
         public AtcMessageKind m_Kind;
 
@@ -89,9 +123,14 @@ namespace RealisticAviation
                 case AtcMessageKind.TaxiToRunway:
                 case AtcMessageKind.TaxiToGate:
                 case AtcMessageKind.HoldForGate:
+                case AtcMessageKind.ContactTower:
                     return AtcFrequency.Ground;
                 case AtcMessageKind.HoldAtPresentPosition:
                 case AtcMessageKind.ClearedApproach:
+                case AtcMessageKind.InitialContact:
+                case AtcMessageKind.HandoffTo:
+                case AtcMessageKind.TransitContact:
+                case AtcMessageKind.ContactCenter:
                 case AtcMessageKind.ApproachClearanceCancelled:
                     return AtcFrequency.Approach;
                 default:
@@ -183,14 +222,16 @@ namespace RealisticAviation
         /// <summary>The frequency as labelled in the panel, e.g. "TWR 118.300".</summary>
         public static string FrequencyLabel(Entity airport, AtcFrequency frequency)
         {
-            string name = frequency == AtcFrequency.Ground ? "GND" : frequency == AtcFrequency.Approach ? "APP" : "TWR";
+            string name = frequency == AtcFrequency.Ground ? "GND" : frequency == AtcFrequency.Approach ? "APP"
+                : frequency == AtcFrequency.Departure ? "DEP" : "TWR";
             return name + " " + FrequencyNumber(airport, frequency);
         }
 
         /// <summary>The controller's name on the radio: "Ground", "Tower" or "Approach".</summary>
         private static string FacilityName(AtcFrequency frequency)
         {
-            return frequency == AtcFrequency.Ground ? "Ground" : frequency == AtcFrequency.Approach ? "Approach" : "Tower";
+            return frequency == AtcFrequency.Ground ? "Ground" : frequency == AtcFrequency.Approach ? "Approach"
+                : frequency == AtcFrequency.Departure ? "Departure" : "Tower";
         }
 
         /// <summary>
@@ -203,8 +244,28 @@ namespace RealisticAviation
             uint hash = math.hash(new int2(airport.Index, airport.Version));
             float megahertz = frequency == AtcFrequency.Ground ? 121.6f + hash % 13u * 0.025f
                 : frequency == AtcFrequency.Approach ? 124f + (hash >> 8) % 160u * 0.025f
+                : frequency == AtcFrequency.Departure ? 124f + ((hash >> 8) % 160u + 40u) % 160u * 0.025f
                 : 118f + hash % 137u * 0.025f;
             return megahertz.ToString("F3", CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>The en-route center is named after the city (outside every airport zone is class A, phase 4-3).</summary>
+        private static string CenterName()
+        {
+            string city = World.DefaultGameObjectInjectionWorld?.GetExistingSystemManaged<CityConfigurationSystem>()?.cityName;
+            return string.IsNullOrWhiteSpace(city) ? "Area" : city;
+        }
+
+        /// <summary>The center's frequency, made up from its name in the en-route range (128.000–134.975, 25 kHz).</summary>
+        private static string CenterFrequency(string center)
+        {
+            // A stable hash (string.GetHashCode may differ between runs), so the frequency stays the same.
+            uint hash = 2166136261u;
+            for (int i = 0; i < center.Length; i++)
+            {
+                hash = (hash ^ center[i]) * 16777619u;
+            }
+            return (128f + hash % 280u * 0.025f).ToString("F3", CultureInfo.InvariantCulture);
         }
 
         /// <summary>Clears the numbering (a different city was loaded).</summary>
@@ -221,7 +282,10 @@ namespace RealisticAviation
             in AtcMessage message, AtcFrequency frequency, out string tower, out string pilot, out bool pilotFirst)
         {
             pilotFirst = false;
-            string eventName = GetEventName(entityManager, prefabSystem, message.m_Event);
+            // For a handoff the "event" is the next airport, named as the player sees it.
+            string eventName = message.m_Kind == AtcMessageKind.HandoffTo
+                ? nameSystem.GetRenderedLabelName(message.m_Event)
+                : GetEventName(entityManager, prefabSystem, message.m_Event);
             if (message.m_Airplane == Entity.Null)
             {
                 // FAA all-stations broadcast: "Attention all aircraft, <facility>, <message>." Nobody reads it back. It is heard on
@@ -237,16 +301,27 @@ namespace RealisticAviation
             }
             string callsign = GetCallsign(entityManager, nameSystem, prefabSystem, message.m_Airplane);
             string runway = message.m_Runway != Entity.Null ? RunwayNames.Name(runways, message.m_Runway, message.m_Direction) : string.Empty;
-            Phrase(message, callsign, runway, eventName, FrequencyNumber(message.m_Airport, AtcFrequency.Tower), out tower, out pilot);
+            Phrase(message, callsign, runway, eventName, nameSystem.GetRenderedLabelName(message.m_Airport), out tower, out pilot);
             // As written in a radio transcript: who is speaking, then what was said.
             tower = "ATC: " + tower;
             pilot = callsign + ": " + pilot;
-            if (message.m_Kind == AtcMessageKind.GoingAround)
+            if (message.m_Kind == AtcMessageKind.GoingAround || message.m_Kind == AtcMessageKind.InitialContact
+                || message.m_Kind == AtcMessageKind.TransitContact || message.m_Kind == AtcMessageKind.TowerCheckIn
+                || message.m_Kind == AtcMessageKind.DepartureCheckIn)
             {
                 // The pilot speaks first; "tower" and "pilot" are then the first and second line.
                 pilotFirst = true;
                 (tower, pilot) = (pilot, tower);
             }
+        }
+
+        /// <summary>An IFR check-in's altitude: "level 5,000", "climbing through 2,300" or "descending through 3,400".</summary>
+        private static string AltitudeReport(in AtcMessage message)
+        {
+            string altitude = message.m_Altitude.ToString("N0", CultureInfo.InvariantCulture);
+            return message.m_Vertical > 0 ? $"climbing through {altitude}"
+                : message.m_Vertical < 0 ? $"descending through {altitude}"
+                : $"level {altitude}";
         }
 
         /// <summary>The disaster's display name in the game's language, or empty.</summary>
@@ -261,9 +336,10 @@ namespace RealisticAviation
         }
 
         /// <summary>The tower's words and the pilot's readback for one message.</summary>
-        public static void Phrase(in AtcMessage message, string callsign, string runway, string eventName, string towerFrequency,
+        public static void Phrase(in AtcMessage message, string callsign, string runway, string eventName, string airportName,
             out string tower, out string pilot)
         {
+            string towerFrequency = FrequencyNumber(message.m_Airport, AtcFrequency.Tower);
             string closed = ClosedPhrase(eventName);
             switch (message.m_Kind)
             {
@@ -297,8 +373,15 @@ namespace RealisticAviation
                     break;
                 case AtcMessageKind.ClearedApproach:
                     string number = message.m_Value > 1 ? $"number {NumberWord(message.m_Value)}, " : string.Empty;
+                    if (message.m_Frequency == AtcFrequency.Tower)
+                    {
+                        // No approach control (class D): the tower sequences the arrival itself and clears it to land on final.
+                        tower = $"{callsign}, {number}continue approach runway {runway}.";
+                        pilot = $"Continue approach runway {runway}, {callsign}.";
+                        break;
+                    }
                     tower = $"{callsign}, {number}cleared ILS runway {runway} approach, contact tower {towerFrequency}.";
-                    pilot = $"Cleared ILS runway {runway} approach, contact tower {towerFrequency}, {callsign}.";
+                    pilot = $"Cleared ILS runway {runway} approach, contact tower {towerFrequency}, {callsign}, good day.";
                     break;
                 case AtcMessageKind.ApproachClearanceCancelled:
                     tower = $"{callsign}, {closed}, cancel approach clearance, hold at present position.";
@@ -329,9 +412,84 @@ namespace RealisticAviation
                     tower = $"{callsign}, extend downwind, I'll call your base.";
                     pilot = $"Extend downwind, {callsign}.";
                     break;
+                case AtcMessageKind.CancelTakeoff:
+                    if (message.m_Value == 1)
+                    {
+                        // Back to line up and wait: it lines up and waits for the airport to reopen.
+                        tower = $"{callsign}, cancel takeoff clearance, line up and wait, {closed}.";
+                        pilot = $"Cancel takeoff clearance, line up and wait, {callsign}.";
+                        break;
+                    }
+                    tower = $"{callsign}, hold position, cancel takeoff clearance, {closed}.";
+                    pilot = $"Holding position, {callsign}.";
+                    break;
                 case AtcMessageKind.LandingClearanceCancelled:
                     tower = $"{callsign}, {closed}, cancel landing clearance, hold at present position.";
                     pilot = $"Landing clearance cancelled, holding, {callsign}.";
+                    break;
+                case AtcMessageKind.InitialContact:
+                    bool viaTower = message.m_Frequency == AtcFrequency.Tower;
+                    string facility = $"{airportName} {(viaTower ? "Tower" : "Approach")}";
+                    // Approach identifies the airplane on radar; class B also needs a clearance to enter, C and D only contact.
+                    string entry = viaTower ? string.Empty
+                        : (AirspaceClass)message.m_Value == AirspaceClass.B ? "radar contact, cleared into the Class B airspace, " : "radar contact, ";
+                    string expect = string.IsNullOrEmpty(runway) ? "continue inbound" : $"expect runway {runway}";
+                    tower = $"{callsign}, {facility}, {entry}{expect}.";
+                    pilot = $"{facility}, {callsign}, {AltitudeReport(message)}{(viaTower ? ", inbound for landing" : string.Empty)}.";
+                    break;
+                case AtcMessageKind.HandoffTo:
+                    // The next airport's approach, or its tower when it is class D (the value is its class).
+                    bool nextIsTower = (AirspaceClass)message.m_Value == AirspaceClass.D;
+                    string nextFacility = $"{eventName} {(nextIsTower ? "Tower" : "Approach")}";
+                    string nextFrequency = FrequencyNumber(message.m_Event, nextIsTower ? AtcFrequency.Tower : AtcFrequency.Approach);
+                    tower = $"{callsign}, contact {nextFacility} {nextFrequency}.";
+                    pilot = $"{nextFacility} {nextFrequency}, {callsign}, good day.";
+                    break;
+                case AtcMessageKind.TransitContact:
+                    bool transitTower = message.m_Frequency == AtcFrequency.Tower;
+                    string transitFacility = $"{airportName} {(transitTower ? "Tower" : "Approach")}";
+                    string through = transitTower ? "transition approved"
+                        : (AirspaceClass)message.m_Value == AirspaceClass.B ? "radar contact, cleared through the Class B airspace" : "radar contact";
+                    tower = $"{callsign}, {transitFacility}, {through}.";
+                    pilot = $"{transitFacility}, {callsign}, {AltitudeReport(message)}.";
+                    break;
+                case AtcMessageKind.ContactCenter:
+                    string center = CenterName();
+                    string centerFrequency = CenterFrequency(center);
+                    tower = $"{callsign}, contact {center} Center {centerFrequency}.";
+                    pilot = $"{center} Center {centerFrequency}, {callsign}, good day.";
+                    break;
+                case AtcMessageKind.ContactTower:
+                    tower = $"{callsign}, contact tower {towerFrequency}.";
+                    pilot = $"Tower {towerFrequency}, {callsign}, good day.";
+                    break;
+                case AtcMessageKind.ContactGround:
+                    string groundFrequency = FrequencyNumber(message.m_Airport, AtcFrequency.Ground);
+                    tower = $"{callsign}, contact ground {groundFrequency}.";
+                    pilot = $"Ground {groundFrequency}, {callsign}, good day.";
+                    break;
+                case AtcMessageKind.ContactDeparture:
+                    if (message.m_Value == 0)
+                    {
+                        // No departure control at a class D airport: the airplane leaves the tower's frequency.
+                        tower = $"{callsign}, frequency change approved.";
+                        pilot = $"Frequency change approved, {callsign}, good day.";
+                        break;
+                    }
+                    // Value 2: a class B airport with its own departure frequency; 1: approach also works the departures.
+                    string departureFrequency = FrequencyNumber(message.m_Airport, message.m_Value == 2 ? AtcFrequency.Departure : AtcFrequency.Approach);
+                    tower = $"{callsign}, contact departure {departureFrequency}.";
+                    pilot = $"Departure {departureFrequency}, {callsign}, good day.";
+                    break;
+                case AtcMessageKind.TowerCheckIn:
+                    // Calling the tower after approach cleared it for the approach.
+                    tower = $"{callsign}, {airportName} Tower, runway {runway}, continue.";
+                    pilot = $"{airportName} Tower, {callsign}, ILS runway {runway}.";
+                    break;
+                case AtcMessageKind.DepartureCheckIn:
+                    // Calling departure control after takeoff with its altitude; radar identifies it.
+                    tower = $"{callsign}, {airportName} Departure, radar contact.";
+                    pilot = $"{airportName} Departure, {callsign}, {AltitudeReport(message)}.";
                     break;
                 case AtcMessageKind.PushbackApproved:
                     tower = $"{callsign}, pushback approved.";
@@ -345,8 +503,8 @@ namespace RealisticAviation
                     }
                     else
                     {
-                        tower = $"{callsign}, runway {runway}, taxi.";
-                        pilot = $"Runway {runway}, taxi, {callsign}.";
+                        tower = $"{callsign}, taxi to runway {runway}.";
+                        pilot = $"Taxi to runway {runway}, {callsign}.";
                     }
                     break;
                 case AtcMessageKind.HoldForGate:

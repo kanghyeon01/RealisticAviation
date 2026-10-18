@@ -1,5 +1,6 @@
 using System;
 using Game.Vehicles;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 
@@ -210,12 +211,97 @@ namespace RealisticAviation
         }
     }
 
+    /// <summary>Airspace class of an airport (phase 4-3), set automatically from its size.</summary>
+    public enum AirspaceClass : byte
+    {
+        /// <summary>A tower only: no approach control; the tower handles arrivals from the edge of its zone.</summary>
+        D,
+        C,
+        B,
+    }
+
+    /// <summary>
+    /// One airport's airspace (phase 4-3): its class, the centre of its runways and the zone radius. Real zones (B about
+    /// 20 NM) don't fit a 14 km map, so the radii are scaled down; zones may overlap, which only matters for the pattern
+    /// side. Holds are separated by altitude, one band per class with B highest, as satellite airports' traffic stays
+    /// under a hub's.
+    /// </summary>
+    public struct AirportSpace
+    {
+        public const float kContactMargin = 0.5f * Setting.kMetersPerNauticalMile;
+
+        // Lowest holding altitude of each class above the runway, in feet; stack levels go up 1,000 ft from there.
+        private const float kHoldBaseD = 2000f;
+        private const float kHoldBaseC = 4000f;
+        private const float kHoldBaseB = 6000f;
+
+        public float2 m_Center;
+
+        /// <summary>Ground height of the runways, for drawing the zone on the map.</summary>
+        public float m_Height;
+        public float m_Radius;
+        public AirspaceClass m_Class;
+        public byte m_Runways;
+        public short m_Gates;
+
+        /// <summary>The class was chosen in the airport panel rather than set from the size.</summary>
+        public bool m_Chosen;
+
+        /// <summary>Two or more runways or 16 gates: B; 8 gates: C; else D (a one-runway regional airport is D).</summary>
+        public static AirspaceClass Classify(int runways, int gates)
+        {
+            return runways >= 2 || gates >= 16 ? AirspaceClass.B : gates >= 8 ? AirspaceClass.C : AirspaceClass.D;
+        }
+
+        /// <summary>Zone radius in metres: B 5 NM, C 3.5 NM, D 2.5 NM.</summary>
+        public static float RadiusOf(AirspaceClass airspaceClass)
+        {
+            float nauticalMiles = airspaceClass == AirspaceClass.B ? 5f : airspaceClass == AirspaceClass.C ? 3.5f : 2.5f;
+            return nauticalMiles * Setting.kMetersPerNauticalMile;
+        }
+
+        /// <summary>Height above the runway of the lowest hold of this class, in metres.</summary>
+        public float HoldBase => (m_Class == AirspaceClass.B ? kHoldBaseB : m_Class == AirspaceClass.C ? kHoldBaseC : kHoldBaseD) * 0.3048f;
+
+        /// <summary>An arrival calls the tower (or approach) once it is this close to the airport.</summary>
+        public float ContactDistance => m_Radius + kContactMargin;
+    }
+
+    /// <summary>Airspace rules shared by the tower job and the airport panel (phase 4-3).</summary>
+    internal static class AirspaceRules
+    {
+        /// <summary>Other airports this close to a runway matter for its pattern side.</summary>
+        public const float kNeighbourDistance = 8000f;
+
+        /// <summary>
+        /// The nearest other airport within kNeighbourDistance of <paramref name="from"/> lies to the left of the landing
+        /// direction, i.e. on the side of a standard left-hand pattern.
+        /// </summary>
+        public static bool IsNeighbourOnLeft(NativeParallelHashMap<Entity, AirportSpace> airspaces, Entity airport, float2 from, float2 landing)
+        {
+            float nearest = kNeighbourDistance * kNeighbourDistance;
+            bool left = false;
+            foreach (var pair in airspaces)
+            {
+                if (pair.Key == airport)
+                {
+                    continue;
+                }
+                float2 offset = pair.Value.m_Center - from;
+                float distance = math.lengthsq(offset);
+                if (distance < nearest)
+                {
+                    nearest = distance;
+                    left = math.dot(offset, Colossal.Mathematics.MathUtils.Left(landing)) > 0f;
+                }
+            }
+            return left;
+        }
+    }
+
     /// <summary>The mod options, copied into a plain struct so jobs can use them.</summary>
     public struct AtcSettings
     {
-        /// <summary>In metres (the option itself is in nautical miles).</summary>
-        public float m_ContactDistance;
-
         /// <summary>Straight-leg length of the holding pattern, in metres (the option itself is in nautical miles).</summary>
         public float m_HoldingLegLength;
 
@@ -263,7 +349,6 @@ namespace RealisticAviation
                 | (setting.CloseForOtherDisasters ? HazardKinds.Other : HazardKinds.None);
             m_MaxClosureFrames = setting.LimitClosureTime ? (uint)(System.Math.Max(5, setting.MaxClosureMinutes) * Setting.kFramesPerGameMinute) : 0u;
             m_DepartureGapSeconds = setting.DepartureGapSeconds;
-            m_ContactDistance = setting.ContactDistanceNm * Setting.kMetersPerNauticalMile;
             m_HoldingLegLength = setting.HoldingLegNm * Setting.kMetersPerNauticalMile;
             m_HoldShortSetback = setting.HoldShortSetback;
         }
@@ -426,10 +511,28 @@ namespace RealisticAviation
         public uint m_LastTick;
     }
 
-    /// <summary>
-    /// The ground a pushing airplane covers this tick: a capsule from its position along the rest of its push.
-    /// Taxiing airplanes stop before entering it.
-    /// </summary>
+    /// <summary>Which airport's controller an airborne airplane is talking to (phase 4-3 handoffs).</summary>
+    internal struct ZoneState
+    {
+        public Entity m_Airport;
+
+        /// <summary>It left that airport's frequency already (frequency change approved): no handoff from it.</summary>
+        public bool m_Silent;
+
+        /// <summary>A departure with its own airport's departure control (class B): that airport speaks on DEP.</summary>
+        public bool m_Departing;
+
+        /// <summary>
+        /// Just took off and still low: it checks in with departure control (<see cref="m_DepartureControl"/>: 2 its own
+        /// departure frequency, 1 approach, 0 none) and calls the next airport only once it has climbed (AtcSystem.UpdateZone).
+        /// </summary>
+        public bool m_Climbing;
+        public byte m_DepartureControl;
+        public uint m_TakeoffFrame;
+
+        public uint m_Tick;
+    }
+
     /// <summary>How long the mod's taxi hold has kept an airplane behind the same other one (see AtcSystem.MayHoldBehind).</summary>
     internal struct TaxiHold
     {
@@ -437,6 +540,33 @@ namespace RealisticAviation
         public uint m_Since;
         public uint m_LastTick;
         public bool m_Released;
+    }
+
+    /// <summary>
+    /// An airplane released from a deadlock (AtcSystem.DetectDeadlocks): until <see cref="m_Until"/> it drives through the
+    /// other airplanes of the same cycle, and only those.
+    /// </summary>
+    internal struct DeadlockRelease
+    {
+        public uint m_Until;
+        public uint m_Cycle;
+    }
+
+    /// <summary>
+    /// Diagnostics for odd parking at gates (AtcSystem.WatchStands): what the mod did to a ground airplane since it landed
+    /// (<see cref="StandWatch"/> flags), and whether it is boarding at its stop already.
+    /// </summary>
+    internal struct StandWatch
+    {
+        public const byte kPushback = 1;
+        public const byte kTaxiHold = 2;
+        public const byte kGateHold = 4;
+        public const byte kDeadlockPass = 8;
+        public const byte kBlockerPass = 16;
+
+        public byte m_Touched;
+        public bool m_Boarding;
+        public uint m_Tick;
     }
 
     /// <summary>A ground airplane's last navigation speed that no airborne airplane limited (see AtcSystem.PassAirborneBlocker).</summary>
@@ -447,6 +577,10 @@ namespace RealisticAviation
         public uint m_Tick;
     }
 
+    /// <summary>
+    /// The ground a pushing airplane covers this tick: a capsule from its position along the rest of its push.
+    /// Taxiing airplanes stop before entering it.
+    /// </summary>
     internal struct PushbackArea
     {
         public Entity m_Entity;
@@ -475,6 +609,9 @@ namespace RealisticAviation
         public Entity m_Ground;
 
         public float m_GroundDistance;
+
+        /// <summary>When <see cref="m_Ground"/> asked: of two departures at the same spot, the earlier one goes first.</summary>
+        public uint m_GroundRequestFrame;
 
         public uint m_OldestGroundRequestFrame;
     }

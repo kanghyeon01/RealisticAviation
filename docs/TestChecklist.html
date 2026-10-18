@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Realistic Aviation 테스트 체크리스트</title>
+<style>
+  @page { size: A4; margin: 14mm 14mm 16mm 14mm; }
+  body { font-family: "Malgun Gothic", "맑은 고딕", sans-serif; font-size: 10pt; color: #1b1f24; line-height: 1.45; }
+  h1 { font-size: 17pt; margin: 0 0 2mm; }
+  .sub { color: #555; margin-bottom: 5mm; }
+  h2 { font-size: 12pt; margin: 6mm 0 2mm; padding: 1.5mm 2.5mm; background: #e8f0fb; border-left: 4px solid #3b6fd8; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: flex; gap: 2.5mm; padding: 1.4mm 0; border-bottom: 1px solid #e3e6ea; page-break-inside: avoid; }
+  .box { flex: none; width: 3.6mm; height: 3.6mm; border: 1.2px solid #444; border-radius: 0.6mm; margin-top: 0.8mm; }
+  .item b { font-weight: 700; }
+  .hint { color: #5b6470; font-size: 8.8pt; display: block; margin-top: 0.4mm; }
+  code { font-family: Consolas, monospace; font-size: 8.8pt; background: #f2f4f6; padding: 0 1mm; border-radius: 0.6mm; }
+  li.done .item { color: #7a8591; }
+  li.done .box { background: #2f9e58; border-color: #2f9e58; color: #fff; font-size: 8pt; line-height: 3.6mm; text-align: center; }
+  .new { color: #c2410c; font-weight: 700; font-size: 8pt; margin-left: 1mm; }
+  .note { margin-top: 6mm; padding: 2.5mm 3mm; border: 1px solid #d6dbe1; border-radius: 1.5mm; background: #fafbfc; font-size: 9pt; }
+</style>
+</head>
+<body>
+<h1>Realistic Aviation 테스트 체크리스트</h1>
+<div class="sub">2026-10-19 기준 · ✓ = 확인 완료 · 테스트 맵: 공항 5곳(가운데 국제공항 B, 소형 D) · 이상한 장면은 시각을 적어 두면 로그로 추적합니다.</div>
+
+<h2>1. 공역 (4-3)</h2>
+<ul>
+<li class="done"><span class="box">✓</span><span class="item">로그에 <code>Airspace of airport</code> 줄이 공항마다 나온다<span class="hint">국제공항 B, 소형 공항 D, 공항 간 거리 확인</span> <span class="hint">로그로 확인함</span></span></li>
+<li class="done"><span class="box">✓</span><span class="item">시각 정보 패널의 <b>관제공역</b> 버튼이 보이고, 누르면 링이 그려지고 ESC로 꺼진다</span></li>
+<li class="done"><span class="box">✓</span><span class="item">링 모양: B 파란 실선 2줄, C 자홍색 실선 2줄, D 파란 점선 1줄<span class="hint">B 안쪽 구역에 들어간 다른 링은 잘림, 같은 등급끼리는 경계선</span></span></li>
+<li class="done"><span class="box">✓</span><span class="item">공항 패널 <b>관제공역</b> 줄(등급·반경)과 <b>[자동][B][C][D]</b> 버튼이 동작한다<span class="hint">바꾸면 지도 링과 APP 상자 유무가 바로 바뀌는지</span></span></li>
+<li><span class="box"></span><span class="item">Holding 고도가 등급별로 다르다 (D 2,000ft / C 4,000ft / B 6,000ft부터)</span></li>
+<li class="done"><span class="box">✓</span><span class="item">평행 활주로 없는 활주로의 기본 장주가 옆 공항 반대쪽으로 돈다</span></li>
+</ul>
+
+<h2>2. 교신 흐름 (4-2, 4-3)</h2>
+<ul>
+<li class="done"><span class="box">✓</span><span class="item"><b>도착</b>: 공역 진입 첫 교신(조종사 먼저, B면 <code>cleared into the Class B airspace</code>) → 접근 허가 <code>contact tower</code> → Final에서 착륙 허가 → <code>contact ground</code> → <code>taxi to the gate</code></span></li>
+<li><span class="box"></span><span class="item"><b>출발</b>: Pushback 승인 → 택싱 허가(GND) → <code>contact tower</code> → Hold short / Line up → 이륙 허가 → <code>contact departure</code> (B는 DEP 주파수) → <code>contact ○○ Center</code><span class="hint">DEP 빼고 확인됨. DEP 상자가 비던 문제 수정함</span></span></li>
+<li class="done"><span class="box">✓</span><span class="item"><b>D 공항</b>: APP 상자 없음, 관제탑이 첫 교신·<code>continue approach</code> 처리, 이륙 후 <code>frequency change approved</code></span></li>
+<li class="done"><span class="box">✓</span><span class="item"><b>공역 간 인계</b>: 다른 공항 공역으로 넘어가면 <code>contact ○○ Approach</code> → <code>with you</code> / <code>radar contact</code><span class="hint">경계를 따라 날 때 인계가 왔다 갔다 하지 않는지</span></span></li>
+<li class="done"><span class="box">✓</span><span class="item">항공기 패널: 지금 주파수 라벨(APP/DEP/TWR/GND), 같은 주파수 교신이 다 보이고 자기 교신에 노란 막대</span></li>
+<li class="done"><span class="box">✓</span><span class="item">공항 패널: APP·DEP(B만)·TWR·GND 상자, 오래된 교신 위 · 최신 아래 강조 · 새 교신이 부드럽게 올라옴</span></li>
+<li class="done"><span class="box">✓</span><span class="item">교신이 동작보다 늦게 뜨지 않는다 (허가 후 약 1초 뒤 움직임, 패널 즉시 갱신)</span></li>
+<li class="done"><span class="box">✓</span><span class="item">이륙 직후 <code>taxi to the gate</code>가 더 이상 안 나온다</span></li>
+</ul>
+
+<h2>2-1. 새로 바뀐 교신 <span class="new">NEW</span></h2>
+<ul>
+<li><span class="box"></span><span class="item">이륙 후 DEP(B) / APP(C) 상자에 <code>○○ Departure, ○○, climbing through 1,200</code> → <code>radar contact</code></span></li>
+<li class="done"><span class="box">✓</span><span class="item">이륙기가 옆 공항으로 넘어갈 때 인계 교신이 <b>DEP 상자</b>에 나온다 (전에는 APP에 나옴) <span class="hint">로그로 확인함</span></span></li>
+<li><span class="box"></span><span class="item">주파수 바꾸는 복창 끝에 <code>good day</code> (contact tower/ground/departure/approach/center, frequency change approved)</span></li>
+<li><span class="box"></span><span class="item">첫 교신이 <code>with you</code> 대신 고도: <code>level 3,000</code> / <code>descending through 2,400</code><span class="hint">고도는 공항 기준(Holding 고도와 같은 기준)</span></span></li>
+<li><span class="box"></span><span class="item">접근 허가 후 관제탑 체크인: <code>○○ Tower, ○○, ILS runway 36L</code> → <code>runway 36L, continue</code> (B·C 공항)</span></li>
+<li><span class="box"></span><span class="item">택싱 허가가 <code>taxi to runway 36L</code>로 나온다</span></li>
+<li><span class="box"></span><span class="item">국제공항 게이트에 비스듬히·옆으로 빠져 서는 비행기가 또 보이는지 (보이면 차종과 시각)</span></li>
+</ul>
+
+<h2>3. 활주로 운영 (4-1)</h2>
+<ul>
+<li><span class="box"></span><span class="item">도착기가 Final에 줄지어 들어오고(간격 45초 + 후류), 사이에 출발기가 끼어 이륙한다</span></li>
+<li><span class="box"></span><span class="item">결심고도 Go-around: <code>go around, traffic on the runway, ...</code> (관제사 먼저)</span></li>
+<li><span class="box"></span><span class="item">Go-around 후 Downwind 끝에서 허가 없으면 <code>extend downwind</code> 직진(최대 2NM) → Base 또는 <code>hold at present position, maintain 1,500</code><span class="hint">치솟지 않는지</span></span></li>
+<li><span class="box"></span><span class="item">Line up 한 비행기가 앞이 비면 바로 이륙, 도착기가 가까우면 진입 전 Line up 취소</span></li>
+<li><span class="box"></span><span class="item">비·눈 올 때 가끔 기상 Go-around: <code>Tower, ○○, going around.</code> (조종사 먼저)</span></li>
+<li><span class="box"></span><span class="item">활주로 위 출발기가 장주 도는 Go-around 비행기 때문에 멈춰 서지 않는다</span></li>
+</ul>
+
+<h2>4. 공항 폐쇄 (4-1)</h2>
+<ul>
+<li><span class="box"></span><span class="item">옵션 "테스트 (임시)" 드롭다운에 재난 목록이 나오고, 버튼으로 공항에 재난이 생긴다</span></li>
+<li><span class="box"></span><span class="item">재난 <b>경보 시점부터</b> 폐쇄되고, 공항 패널 맨 위에 빨간 배너 + 재난 이름</span></li>
+<li><span class="box"></span><span class="item">전체 방송: <code>Attention all aircraft, ○○ Tower, airport closed due to ...</code> / 재개 시 <code>airport open</code></span></li>
+<li><span class="box"></span><span class="item">Final 도착기 Go-around 후 Holding, 공중 도착기 Holding, 지상 출발기 Hold Short, 게이트 Pushback 대기</span></li>
+<li><span class="box"></span><span class="item">정렬·진입 중 출발기: <code>cancel takeoff clearance, line up and wait</code> → 재개 후 이륙<span class="hint">이륙 활주 중(5km/h 이상)인 비행기만 그대로 이륙</span></span></li>
+<li><span class="box"></span><span class="item">재난 종류별 체크박스(토네이도·우박·기타), 폐쇄 시간 제한 체크박스와 분 슬라이더</span></li>
+</ul>
+
+<h2>5. 지상 (4-5, 교착)</h2>
+<ul>
+<li><span class="box"></span><span class="item">게이트가 차 있으면 도착기가 100m 앞에서 <code>hold position, gate occupied</code> → 비면 <code>taxi to the gate</code></span></li>
+<li class="done"><span class="box">✓</span><span class="item">교착이 생기면 로그에 <code>deadlock: A -> B -> A; passing through</code> 후 풀린다 <span class="hint">로그로 확인함</span></span></li>
+<li><span class="box"></span><span class="item">공항 패널 <b>지상 항공교통 관리</b> 체크박스(기본 꺼짐)·기준 [−][+] (기본 게이트 × 1.5)</span></li>
+<li><span class="box"></span><span class="item">지상이 붐비면 주황 배너 + <code>ground delay in effect</code> 방송, 새 도착 보류 · 출발 우선 → 해제 방송</span></li>
+<li class="done"><span class="box">✓</span><span class="item">택싱 허가가 활주로 요청보다 먼저 나온다 (게이트가 활주로 가까운 공항도) <span class="hint">로그로 확인함</span></span></li>
+</ul>
+
+<h2>6. 예전 단계에서 남은 것</h2>
+<ul>
+<li><span class="box"></span><span class="item">Pushback 승인 대기: 주변에 움직이는 비행기가 있으면 기다린다 (최대 60초)</span></li>
+<li><span class="box"></span><span class="item">평행 활주로(국제공항)에서 기본 우선회 장주, 활주로 이름 L/R</span></li>
+</ul>
+
+<div class="note"><b>테스트 끝나면</b>: 문제없으면 커밋 → 5단계 회항(Go-around 4번 또는 Holding 30분 초과 시 다음 정류장) → 6단계 나침반 모드. 출시 전 "테스트 (임시)" 옵션 삭제.</div>
+</body>
+</html>
