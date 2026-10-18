@@ -14,7 +14,7 @@ Status as of 2026-10-17. Game version 1.6.2f1. Author: Boing787 (kanghyeon01).
 | 4-3 | Airspace: automatic class B/C/D per airport, contact on zone entry, holds separated by altitude per class, class D without approach control, pattern side away from neighbours | Implemented 2026-10-18, testing in game |
 | 4-4 | Departure and climb procedure | **Dropped** (the steep climb is the game's 20 degree climb angle for every airplane; the author prefers not to touch game defaults) |
 | 4-5 | Ground flow control: when too many airplanes taxi or wait on the ground at an airport (not counting ones at gates), approach stops clearing new arrivals (they hold, "expect further clearance, ground delay") and departures go first; threshold an option (fixed count, or from the gate count if it can be found) | Implemented 2026-10-18 (per-airport limit in the airport panel, default 1.5 per gate, hysteresis 2), testing in game |
-| 5 | Divert (base mod option, on) after 3–5 go-arounds (default 4) or after holding longer than a limit (10–60 game min, default 30; a closure still means holding first): proceed to the next stop of the line | Agreed 2026-10-19, not started |
+| 5 | Divert (base mod option, on) after 3–5 go-arounds (default 4) or after holding longer than a limit (10–60 game min, default 30; a closure still means holding first): proceed to the next stop of the line | Dropped 2026-10-19 after a trial (see Phase 5 below) |
 | 6 | Compass add-on: a standalone compass mod (map north, optional on-screen compass), detected by RA for runway designators | Agreed 2026-10-18, not started |
 | – | Snow-free runways | **Dropped** (snow is a GPU snow-map shader effect; too hard) |
 
@@ -336,6 +336,19 @@ Research 2026-10-19 (TransportAircraftAISystem):
   its line (the game's own waypoint skip; passengers ride on), radio "unable to land, proceeding to <next airport>";
   (dummy traffic is through traffic between outside connections and never lands, so nothing to do there). Landing at an off-line alternate and unloading passengers there was
   considered and dropped as too risky (the AI returns off-line airplanes to their depot).
+- **Dropped 2026-10-19 (author) after a trial implementation (not committed).** It was built as planned (options,
+  go-around and holding counters, next line waypoint at another airport as the `Target` with the path marked obsolete,
+  pilot-first radio "unable to land, request diversion to <next>") and tested in game. Why it was removed:
+  - Divert after go-arounds can't be made safe: after a go-around the game keeps the airplane on the runway lane in its
+    approach/landing state until it lands. Re-pathing from that state broke the flight: one airplane was cleared to
+    land at the new airport and then flew off in a wrong direction out of the map. Blocking diverts from that state
+    leaves the go-around trigger with nothing to act on; fixing it would mean rewriting the game's lane state.
+  - Divert after holding worked (8 of 9), but most lines run between a city airport and an outside connection, so the
+    "next stop" is off the map and the airplanes just flew away, which looked wrong and gained little.
+  - Without it nothing gets stuck: during a closure arrivals hold and land when the airport reopens.
+  - Seen in the same test: a storm at the edge of the closure distance made the closure flicker (closed, reopened,
+    cleared to land, closed again: four go-arounds for one airplane). A minimum closure time after reopening would fix
+    it if it bothers.
 
 Proposed by the author on 2026-10-17. An option that can be turned on or off: after N go-arounds (an option) the
 airplane diverts. Mechanism (not verified yet): set a new `Target` and mark the path obsolete so the game repaths.
