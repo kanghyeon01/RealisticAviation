@@ -64,7 +64,7 @@ namespace RealisticAviation
         private BufferLookup<AircraftNavigationLane> m_NavigationLanes;
         private BufferLookup<PathElement> m_PathElements;
         private BufferLookup<LaneObject> m_LaneObjects;
-        private ComponentLookup<LineUpAndWaitAirport> m_LineUpAirportData;
+        private ComponentLookup<LineUpSetting> m_LineUpData;
         private ComponentLookup<RunwayPattern> m_RunwayPatternData;
         private ComponentLookup<Game.Events.WeatherPhenomenon> m_WeatherPhenomenonData;
         private ComponentLookup<Game.Events.Duration> m_DurationData;
@@ -337,7 +337,7 @@ namespace RealisticAviation
             m_NavigationLanes = GetBufferLookup<AircraftNavigationLane>(true);
             m_PathElements = GetBufferLookup<PathElement>(true);
             m_LaneObjects = GetBufferLookup<LaneObject>(true);
-            m_LineUpAirportData = GetComponentLookup<LineUpAndWaitAirport>(true);
+            m_LineUpData = GetComponentLookup<LineUpSetting>(true);
             m_RunwayPatternData = GetComponentLookup<RunwayPattern>(true);
             m_WeatherPhenomenonData = GetComponentLookup<Game.Events.WeatherPhenomenon>(true);
             m_DurationData = GetComponentLookup<Game.Events.Duration>(true);
@@ -459,7 +459,7 @@ namespace RealisticAviation
             m_NavigationLanes.Update(this);
             m_PathElements.Update(this);
             m_LaneObjects.Update(this);
-            m_LineUpAirportData.Update(this);
+            m_LineUpData.Update(this);
             m_RunwayPatternData.Update(this);
             m_WeatherPhenomenonData.Update(this);
             m_DurationData.Update(this);
@@ -491,7 +491,7 @@ namespace RealisticAviation
                 m_NavigationLanes = m_NavigationLanes,
                 m_PathElements = m_PathElements,
                 m_LaneObjects = m_LaneObjects,
-                m_LineUpAirportData = m_LineUpAirportData,
+                m_LineUpData = m_LineUpData,
                 m_RunwayPatternData = m_RunwayPatternData,
                 m_WeatherPhenomenonData = m_WeatherPhenomenonData,
                 m_DurationData = m_DurationData,
@@ -1019,6 +1019,9 @@ namespace RealisticAviation
             // Ground airplanes ask for the runway at least this far before it, plus their stopping distance.
             private const float kMinGroundRequestDistance = 200f;
 
+            // A ground airplane gets its takeoff or crossing clearance only within this far (metres) of its hold-short point.
+            private const float kGroundClearanceMargin = 100f;
+
             // How far along its path an airborne airplane looks for its runway (well beyond the largest zone).
             private const float kAirScanDistance = 20000f;
             private const float kGroundRequestMargin = 50f;
@@ -1109,7 +1112,7 @@ namespace RealisticAviation
             [ReadOnly] public BufferLookup<AircraftNavigationLane> m_NavigationLanes;
             [ReadOnly] public BufferLookup<PathElement> m_PathElements;
             [ReadOnly] public BufferLookup<LaneObject> m_LaneObjects;
-            [ReadOnly] public ComponentLookup<LineUpAndWaitAirport> m_LineUpAirportData;
+            [ReadOnly] public ComponentLookup<LineUpSetting> m_LineUpData;
             [ReadOnly] public ComponentLookup<RunwayPattern> m_RunwayPatternData;
             [ReadOnly] public ComponentLookup<Game.Events.WeatherPhenomenon> m_WeatherPhenomenonData;
             [ReadOnly] public ComponentLookup<Game.Events.Duration> m_DurationData;
@@ -1939,10 +1942,16 @@ namespace RealisticAviation
                 {
                     return;
                 }
-                if (m_LastMessages.TryGetValue(entity, out AtcMessage last) && last.m_Kind != AtcMessageKind.PushbackApproved)
+                bool heard = m_LastMessages.TryGetValue(entity, out AtcMessage last);
+                if (heard && (last.m_Kind == AtcMessageKind.TaxiToRunway || last.m_Kind == AtcMessageKind.HoldForGate))
                 {
-                    if (last.m_Kind != AtcMessageKind.TaxiToGate
-                        || math.lengthsq(m_MovingData[entity].m_Velocity) > kPushbackStartSpeed * kPushbackStartSpeed
+                    // Already cleared to taxi, or waiting for its gate.
+                    return;
+                }
+                if (heard && last.m_Kind == AtcMessageKind.TaxiToGate)
+                {
+                    // Taxied in after landing: stopped again with a route that takes off, it has boarded and is cleared out.
+                    if (math.lengthsq(m_MovingData[entity].m_Velocity) > kPushbackStartSpeed * kPushbackStartSpeed
                         || !FindTakeoffRunway(entity, out Entity nextRunway, out float2 nextDirection))
                     {
                         return;
@@ -1951,9 +1960,10 @@ namespace RealisticAviation
                     LogEvent(entity, "cleared to taxi to runway", nextRunway);
                     return;
                 }
-                // No message yet: leaving its stand, or (right after loading a city, when nobody has heard anything) already
-                // taxiing. One taxiing in to a gate here is told so; anyone else is cleared to the runway, so that it can ask
-                // for it (without a runway in sight of the path scan, just "taxi to the runway").
+                // No taxi message yet (none at all, the pushback approval, or something left over from the air or the runway):
+                // leaving its stand, or (right after loading a city, when nobody has heard anything) already taxiing. One taxiing
+                // in to a gate here is told so; anyone else is cleared to the runway, so that it can ask for it (without a runway
+                // in sight of the path scan, just "taxi to the runway").
                 if (!FindTakeoffRunway(entity, out Entity runway, out float2 direction) && IsTaxiingToGate(entity))
                 {
                     Say(entity, AtcMessageKind.TaxiToGate, Entity.Null, default);
@@ -1966,7 +1976,8 @@ namespace RealisticAviation
             /// <summary>
             /// A ground airplane may ask the tower for a runway only after ground control cleared it to taxi (or to taxi in
             /// after landing, for a crossing on the way to its gate) and its pushback is over. "Taxi to the gate" doesn't
-            /// clear a route that takes off: that airplane has boarded and waits for its pushback and "taxi to runway".
+            /// clear a route that takes off: that airplane has boarded and waits for its pushback and "taxi to runway". It calls only
+            /// once it has started taxiing.
             /// </summary>
             private bool HasTaxiClearance(Entity entity)
             {
@@ -1975,8 +1986,16 @@ namespace RealisticAviation
                 {
                     return false;
                 }
-                return (last.m_Kind != AtcMessageKind.TaxiToGate && last.m_Kind != AtcMessageKind.HoldForGate)
-                    || !FindTakeoffRunway(entity, out _, out _);
+                // Cleared to taxi: it calls the tower once it is taxiing, not from the stand (after the pushback, or while reading
+                // the clearance back).
+                if (last.m_Kind == AtcMessageKind.TaxiToRunway)
+                {
+                    return math.lengthsq(m_MovingData[entity].m_Velocity) > kPushbackStartSpeed * kPushbackStartSpeed;
+                }
+                // Taxiing in to its gate: only for a crossing on the way. Anything else (a message left over from the air, e.g.)
+                // is no taxi clearance: ground clears it first (ClearToTaxi).
+                return (last.m_Kind == AtcMessageKind.TaxiToGate || last.m_Kind == AtcMessageKind.HoldForGate)
+                    && !FindTakeoffRunway(entity, out _, out _);
             }
 
             /// <summary>The first runway the route takes off from (a lane of the runway proper, not a crossing), and the roll direction.</summary>
@@ -2431,6 +2450,12 @@ namespace RealisticAviation
                         {
                             continue;
                         }
+                        // Cleared only once it is coming up to its hold-short point, not right after its pushback: the tower
+                        // gives the takeoff (or crossing) clearance to an airplane at the runway.
+                        if (flight.m_LastDistance > ClearanceDistance(pair.Key))
+                        {
+                            continue;
+                        }
                         if (!state.IsFree(m_Tick) && !CanLineUp(state))
                         {
                             continue;
@@ -2507,6 +2532,12 @@ namespace RealisticAviation
                 next.Dispose();
             }
 
+            /// <summary>Path distance to the runway within which a ground airplane can get its clearance: its hold-short point plus a margin.</summary>
+            private float ClearanceDistance(Entity entity)
+            {
+                return GetNoseLength(m_PrefabRefData[entity].m_Prefab) + m_Settings.m_HoldShortSetback + kGroundClearanceMargin;
+            }
+
             /// <summary>
             /// A ground airplane cleared onto (or to line up on) a runway that the taxi spacing holds behind another airplane
             /// still waiting for the same runway can never get there: they would wait for each other forever. Its clearance goes
@@ -2574,7 +2605,15 @@ namespace RealisticAviation
             /// <summary>The runway's airport uses line up and wait, and nobody is lined up on it yet.</summary>
             private bool CanLineUp(in RunwayState state)
             {
-                return state.m_LineUp == Entity.Null && state.m_Airport != Entity.Null && m_LineUpAirportData.HasComponent(state.m_Airport);
+                return state.m_LineUp == Entity.Null && state.m_Airport != Entity.Null && UsesLineUp(state.m_Airport);
+            }
+
+            /// <summary>Line up and wait at this airport: the player's choice for its present class, else the class default (B, C on).</summary>
+            private bool UsesLineUp(Entity airport)
+            {
+                AirspaceClass airspaceClass = m_Airspaces.TryGetValue(airport, out AirportSpace space) ? space.m_Class : AirspaceClass.D;
+                bool hasSetting = m_LineUpData.TryGetComponent(airport, out LineUpSetting setting);
+                return LineUpSetting.IsEnabled(hasSetting, setting, airspaceClass);
             }
 
             /// <summary>

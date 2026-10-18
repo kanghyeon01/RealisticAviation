@@ -411,6 +411,19 @@ otherwise fly nose-up like in the flare (the author reported this).
   now a four-pointed star); north is always the game's. Without Map Compass RA numbers every runway 10, with L/C/R by
   position when an airport has several (`RunwayNames.NameWithoutCompass`); one runway used in both directions is
   "10" both ways.
+- Takeoff clearance near the runway (2026-10-19): departures were cleared for takeoff right after their pushback (asked
+  at ~550 m, the runway free). A ground airplane is now a candidate for the takeoff, line-up or crossing clearance only
+  within its hold-short point + 100 m (`ClearanceDistance`). And (author) a departure calls the tower ("contact tower",
+  the runway request) only once it has started taxiing (faster than 1 m/s after "taxi to runway"), not from the stand
+  while it pauses after the pushback (`HasTaxiClearance`).
+  Fix found in the log (2026-10-19): a departure whose last message was left over from the air (`TransitContact`)
+  asked for the runway from its stand before its pushback, as any message but "taxi to the gate" counted as a taxi
+  clearance. Now only "taxi to runway" (moving) does, or "taxi to the gate" for a crossing on the way in; anything else
+  gets its taxi clearance first (`ClearToTaxi`).
+- Line up and wait default by class (2026-10-19, author): on at B and C, off at D (`LineUpSetting.DefaultFor`). A choice
+  in the panel is stored with the class it was made under and holds only while that class stays; any class change
+  (chosen or automatic) brings back the default. The old `LineUpAndWaitAirport` tag is no longer read (kept so old
+  saves load).
 - Final decision the same day (author): Map Compass stays a standalone mod (the "4"-shaped north sign only) and RA
   does not look for it: RA numbers runways from their map heading itself, with the game's north, as before. The
   reflection lookup and the "10 without the compass" rule were removed again.

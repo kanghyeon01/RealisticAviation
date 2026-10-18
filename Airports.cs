@@ -10,11 +10,45 @@ using Unity.Mathematics;
 namespace RealisticAviation
 {
     /// <summary>
-    /// Tag on an airport building whose tower uses "line up and wait". Saved with the city; without the mod the loader
-    /// logs "Not serializable type" and drops it.
+    /// Legacy (until 2026-10-19): the tag that turned "line up and wait" on for an airport. No longer read, now that the
+    /// default depends on the airspace class (<see cref="LineUpSetting"/>); kept so that older saves still load cleanly.
     /// </summary>
     public struct LineUpAndWaitAirport : IComponentData, IQueryTypeParameter, IEmptySerializable
     {
+    }
+
+    /// <summary>
+    /// The player's "line up and wait" choice for an airport, set in its info panel and stored on the airport building,
+    /// together with the airspace class it was made for. It holds only while the airport keeps that class: when the class
+    /// changes (chosen in the panel, or automatically after gates or runways changed), the new class's default applies
+    /// again. Default: on at class B and C airports (busy enough to need it), off at class D. Saved with the city.
+    /// </summary>
+    public struct LineUpSetting : IComponentData, IQueryTypeParameter, ISerializable
+    {
+        public bool m_Enabled;
+
+        /// <summary>The <see cref="AirspaceClass"/> the choice was made under.</summary>
+        public byte m_Class;
+
+        public static bool DefaultFor(AirspaceClass airspaceClass) => airspaceClass != AirspaceClass.D;
+
+        /// <summary>Line up and wait at an airport of this class, with or without a choice of the player.</summary>
+        public static bool IsEnabled(bool hasSetting, in LineUpSetting setting, AirspaceClass airspaceClass)
+        {
+            return hasSetting && setting.m_Class == (byte)airspaceClass ? setting.m_Enabled : DefaultFor(airspaceClass);
+        }
+
+        public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
+        {
+            writer.Write(m_Enabled);
+            writer.Write(m_Class);
+        }
+
+        public void Deserialize<TReader>(TReader reader) where TReader : IReader
+        {
+            reader.Read(out m_Enabled);
+            reader.Read(out m_Class);
+        }
     }
 
     /// <summary>

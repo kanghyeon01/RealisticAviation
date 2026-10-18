@@ -127,7 +127,7 @@ namespace RealisticAviation
         /// <summary>The ground airplane cleared to line up and wait on the runway, or Entity.Null.</summary>
         public Entity m_LineUp;
 
-        /// <summary>The airport this runway belongs to; its <see cref="LineUpAndWaitAirport"/> tag enables line up and wait.</summary>
+        /// <summary>The airport this runway belongs to (its <see cref="LineUpSetting"/> and class decide line up and wait).</summary>
         public Entity m_Airport;
 
         /// <summary>Holding altitudes in use above this runway, one bit per stack level.</summary>

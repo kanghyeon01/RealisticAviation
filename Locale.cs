@@ -134,7 +134,8 @@ namespace RealisticAviation
             {
                 "RealisticAviation.LineUp.Tooltip",
                 "When on, a departing airplane may enter the runway and wait lined up as soon as the landing airplane, or the airplane taking off ahead of it, has passed its entry point, " +
-                "then takes off the moment the runway is clear. When off, it holds short until the runway is clear."
+                "then takes off the moment the runway is clear. When off, it holds short until the runway is clear. " +
+                "On by default at class B and C airports, off at class D; when the airport's class changes, it goes back to the new class's default."
             },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.EnablePushback)), "Pushback" },
             {
@@ -265,7 +266,8 @@ namespace RealisticAviation
             {
                 "RealisticAviation.LineUp.Tooltip",
                 "켜면 착륙기나 앞서 이륙하는 비행기가 진입 지점을 지나가는 즉시 출발기가 활주로에 들어가 정렬한 채 기다리다가, 활주로가 비는 순간 이륙합니다. " +
-                "끄면 활주로가 빌 때까지 Hold Short로 기다립니다."
+                "끄면 활주로가 빌 때까지 Hold Short로 기다립니다. " +
+                "기본값은 Class B·C 공항은 켜짐, Class D 공항은 꺼짐이고, 공항 등급이 바뀌면 바뀐 등급의 기본값으로 돌아갑니다."
             },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.EnablePushback)), "Pushback" },
             {

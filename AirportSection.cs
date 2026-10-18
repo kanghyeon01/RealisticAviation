@@ -12,7 +12,7 @@ namespace RealisticAviation
     /// banner is <see cref="AirportClosedSection"/>). Options: line up
     /// and wait for the airport, and the traffic pattern direction for each runway end (listed as RWY 09, RWY 27, ...).
     /// RealisticAviation.mjs draws the checkboxes; a click comes back through a trigger binding and updates
-    /// <see cref="LineUpAndWaitAirport"/> on the airport building or <see cref="RunwayPattern"/> on the runway's edges.
+    /// <see cref="LineUpSetting"/> on the airport building or <see cref="RunwayPattern"/> on the runway's edges.
     /// </summary>
     public partial class AirportSection : InfoSectionBase
     {
@@ -95,7 +95,7 @@ namespace RealisticAviation
 
         protected override void OnProcess()
         {
-            m_LineUp = EntityManager.HasComponent<LineUpAndWaitAirport>(m_Airport);
+            m_LineUp = IsLineUpEnabled();
             m_GroundDelay = GetGroundDelay();
             IReadOnlyList<RunwayInfo> runways = m_AtcSystem.RunwayList;
             for (int i = 0; i < runways.Count; i++)
@@ -230,20 +230,35 @@ namespace RealisticAviation
             writer.ArrayEnd();
         }
 
+        /// <summary>The airport's present airspace class (D without airspace data, as the tower assumes).</summary>
+        private AirspaceClass CurrentClass()
+        {
+            return m_AtcSystem.TryGetAirspace(m_Airport, out AirportSpace space) ? space.m_Class : AirspaceClass.D;
+        }
+
+        private bool IsLineUpEnabled()
+        {
+            bool hasSetting = EntityManager.HasComponent<LineUpSetting>(m_Airport);
+            LineUpSetting setting = hasSetting ? EntityManager.GetComponentData<LineUpSetting>(m_Airport) : default;
+            return LineUpSetting.IsEnabled(hasSetting, setting, CurrentClass());
+        }
+
+        /// <summary>Flips line up and wait for the airport, as a choice for its present class (a class change brings back the default).</summary>
         private void ToggleLineUp()
         {
             if (m_Airport == Entity.Null || !EntityManager.Exists(m_Airport))
             {
                 return;
             }
-            bool enable = !EntityManager.HasComponent<LineUpAndWaitAirport>(m_Airport);
-            if (enable)
+            bool enable = !IsLineUpEnabled();
+            LineUpSetting setting = new LineUpSetting { m_Enabled = enable, m_Class = (byte)CurrentClass() };
+            if (EntityManager.HasComponent<LineUpSetting>(m_Airport))
             {
-                EntityManager.AddComponent<LineUpAndWaitAirport>(m_Airport);
+                EntityManager.SetComponentData(m_Airport, setting);
             }
             else
             {
-                EntityManager.RemoveComponent<LineUpAndWaitAirport>(m_Airport);
+                EntityManager.AddComponentData(m_Airport, setting);
             }
             Mod.Log.Info($"Line up and wait {(enable ? "enabled" : "disabled")} at airport {m_Airport}");
             // Re-sends every section to the UI; only marking this one dirty would leave the checkbox unchanged on screen.

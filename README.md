@@ -4,7 +4,7 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
 
 > Vibe-coded with Claude (Anthropic). Reviewed and play-tested by the author.
 
-## Phase 1: tower control (this version)
+## Features
 
 - **One airplane per runway.** A runway is every runway segment connected through shared nodes, so crossing runways
   count as one. Only the airplane the tower cleared may use it.
@@ -18,7 +18,8 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
   (time waited + expected runway time) / expected runway time goes next: quick users of the runway are favored,
   but every waiting airplane's ratio keeps rising, so nobody waits forever. On a taxiway, the airplane at the head of
   the queue is the one cleared.
-- **Line up and wait (per airport).** A checkbox in each airport's info panel. The same panel lists every runway end in use
+- **Line up and wait (per airport).** A checkbox in each airport's info panel: on by default at class B and C airports,
+  off at class D, and back to the new class's default when the class changes. The same panel lists every runway end in use
   (game runways are usually one-way) with a right-hand traffic pattern checkbox, ticked by default when a parallel
   runway lies to its left so that the pattern stays on the outside. Parallel runways are named L/R (or L/C/R), e.g. RWY 07L (ICAO style, two digits; four or five parallels as 32L, 32R, 33L, 33R). When on, the next departure may enter
   the runway and wait lined up as soon as the landing airplane has touched down, or the departing airplane has started
@@ -61,8 +62,9 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
   side moves the pattern to the other side. Airliners normally fly straight-in approaches, so arrivals do not fly the
   pattern otherwise.
 
-Helicopters are not affected. Only the per-airport line up and wait choice is saved with the city (and dropped
-harmlessly if the mod is removed); the tower rebuilds everything else after a save is loaded.
+Helicopters are not affected. The per-airport choices (line up and wait, pattern side per runway end, airspace class,
+ground delay) are saved with the city and dropped harmlessly if the mod is removed; the tower rebuilds everything else
+after a save is loaded.
 
 ### Options
 
@@ -81,6 +83,14 @@ harmlessly if the mod is removed); the tower rebuilds everything else after a sa
 | Taxi spacing | 40 m | Gap a taxiing airplane keeps behind the airplane ahead |
 | Departure gap before arrivals | 30 s | A ground airplane may go ahead of a cleared arrival at least this far out |
 
+## Compatibility
+
+- Built and tested on game version **1.6.2f1**.
+- Played together with **Traffic** (krzychu124) and **C2VM Traffic Tool Essentials**.
+- It changes only how airplanes are steered (speed, steering target, facing during pushback); runways, taxiways and
+  routes are left as the game builds them. Mods that also take over airplane movement may conflict.
+- In-game text is available in English and Korean; radio calls are in English (ICAO/FAA phraseology).
+
 ## How it works
 
 `AtcSystem` runs right after the game's `AircraftNavigationSystem` (every 16 frames) as a worker-thread job.
@@ -88,17 +98,26 @@ It only lowers the speed (hold short) or replaces the steering target (holding) 
 before `AircraftMoveSystem` applies them. `AtcPreNavigationSystem` keeps the game from advancing a holding
 airplane along its planned path while it circles.
 
-## Building
+## Building from source
 
-Requires the .NET SDK and a local install of the game. Set the game's `Cities2_Data\Managed` path in
-`RealisticAviation.csproj.user` (or pass `-p:CS2ManagedPath=...`), then:
+Requirements: the game and the [.NET SDK](https://dotnet.microsoft.com/download) 8 or newer. The official modding toolchain is not needed, because the mod has no Burst code.
 
 ```
-dotnet build -c Release
+dotnet build -c Release -p:CS2ManagedPath="<game folder>\Cities2_Data\Managed"
 ```
 
-The DLL is copied to the local `Mods\RealisticAviation` folder.
+Instead of passing the path every time, you can create `RealisticAviation.csproj.user` next to the project file (it is git-ignored):
+
+```xml
+<Project>
+  <PropertyGroup>
+    <CS2ManagedPath>D:\SteamLibrary\steamapps\common\Cities Skylines II\Cities2_Data\Managed</CS2ManagedPath>
+  </PropertyGroup>
+</Project>
+```
+
+Without either, the build looks in the default Steam location. The output (`RealisticAviation.dll`, `RealisticAviation.mjs`) is copied to `%USERPROFILE%\AppData\LocalLow\Colossal Order\Cities Skylines II\Mods\RealisticAviation`, where the game loads it as a local mod. Remove that folder before subscribing to the published version, otherwise the mod loads twice.
 
 ## License
 
-MIT
+[MIT](LICENSE) © Boing787(kanghyeon01)
