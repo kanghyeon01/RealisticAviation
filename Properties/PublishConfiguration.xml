@@ -1,6 +1,6 @@
 <Publish>
   <!-- Filled in after the first Publish ("Mod published with Id=...") so NewVersion/Update can find the mod. -->
-  <ModId Value="163974" />
+  <ModId Value="164021" />
   <DisplayName Value="Realistic Aviation" />
   <ShortDescription Value="A control tower for your airports: one airplane per runway, holding, line up and wait, pushback, airspace and radio." />
   <LongDescription>Realistic Aviation: a control tower for your airports. Full description coming soon.
@@ -8,8 +8,8 @@
 Source code (MIT): https://github.com/kanghyeon01/RealisticAviation</LongDescription>
   <Thumbnail Value="Properties/Thumbnail.png" />
   <Tag Value="Code Mod" />
-  <ModVersion Value="0.1.1" />
-  <ChangeLog>First release.</ChangeLog>
+  <ModVersion Value="1.0.0" />
+  <ChangeLog>First public release (1.0.0).</ChangeLog>
   <GameVersion Value="1.6.*" />
   <!-- Private while testing; change to Public and run the Update command to release. -->
   <AccessLevel Value="Private" />
