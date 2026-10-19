@@ -10,7 +10,7 @@
     <LangVersion>9.0</LangVersion>
     <AssemblyName>RealisticAviation</AssemblyName>
     <RootNamespace>RealisticAviation</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.0</Version>
     <Authors>Boing787(kanghyeon01)</Authors>
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
