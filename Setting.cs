@@ -7,8 +7,8 @@ using Game.UI;
 namespace RealisticAviation
 {
     [FileLocation("ModsSettings/" + Mod.kName + "/" + Mod.kName)]
-    [SettingsUIGroupOrder(kArrivalGroup, kPatternGroup, kGroundGroup, kClosureGroup)]
-    [SettingsUIShowGroupName(kArrivalGroup, kPatternGroup, kGroundGroup, kClosureGroup)]
+    [SettingsUIGroupOrder(kArrivalGroup, kPatternGroup, kGroundGroup, kClosureGroup, kLogGroup)]
+    [SettingsUIShowGroupName(kArrivalGroup, kPatternGroup, kGroundGroup, kClosureGroup, kLogGroup)]
     public sealed class Setting : ModSetting
     {
         public const string kSection = "Main";
@@ -16,6 +16,7 @@ namespace RealisticAviation
         public const string kGroundGroup = "Ground";
         public const string kPatternGroup = "Pattern";
         public const string kClosureGroup = "Closure";
+        public const string kLogGroup = "Log";
 
         public Setting(IMod mod) : base(mod)
         {
@@ -93,6 +94,13 @@ namespace RealisticAviation
         [SettingsUIDisableByCondition(typeof(Setting), nameof(IsClosureTimeUnlimited))]
         public int MaxClosureMinutes { get; set; }
 
+        /// <summary>
+        /// Writes each airplane's radio exchanges, events, waits and pushback steps to the log, for reporting problems. Off: only
+        /// settings changes, airspaces, closures, ground delays and warnings.
+        /// </summary>
+        [SettingsUISection(kSection, kLogGroup)]
+        public bool DetailedLog { get; set; }
+
         public bool IsClosureTimeUnlimited() => !LimitClosureTime;
 
         public override void SetDefaults()
@@ -111,6 +119,7 @@ namespace RealisticAviation
             CloseForOtherDisasters = true;
             LimitClosureTime = false;
             MaxClosureMinutes = 30;
+            DetailedLog = false;
         }
     }
 }

@@ -1,6 +1,6 @@
 # Realistic Aviation – plan and design notes
 
-Status as of 2026-10-17. Game version 1.6.2f1. Author: Boing787 (kanghyeon01).
+Status as of 2026-10-19. Game version 1.6.2f1. Author: Boing787 (kanghyeon01).
 
 ## Phases
 
@@ -9,13 +9,13 @@ Status as of 2026-10-17. Game version 1.6.2f1. Author: Boing787 (kanghyeon01).
 | 1 | Tower control (ATC) | **Done, tested in game** |
 | 2 | Pushback | **Done, tested in game** (approval wait not yet seen) |
 | 3 | Traffic pattern (upwind, crosswind, downwind, base, final) | **Done, tested in game** |
-| 4-1 | Go-around at decision height, arrival sequencing, disaster closure | Implemented 2026-10-17, testing in game |
-| 4-2 | ATC radio text (callsign, instruction, readback) in the info panels | Implemented 2026-10-17, testing in game |
-| 4-3 | Airspace: automatic class B/C/D per airport, contact on zone entry, holds separated by altitude per class, class D without approach control, pattern side away from neighbours | Implemented 2026-10-18, testing in game |
+| 4-1 | Go-around at decision height, arrival sequencing, disaster closure | **Done, tested in game** (go-around 2026-10-17, closure with the test disasters 2026-10-19) |
+| 4-2 | ATC radio text (callsign, instruction, readback) in the info panels | **Done, tested in game** |
+| 4-3 | Airspace: automatic class B/C/D per airport, contact on zone entry, holds separated by altitude per class, class D without approach control, pattern side away from neighbours | **Done, tested in game** (departure check-in seen 2026-10-19) |
 | 4-4 | Departure and climb procedure | **Dropped** (the steep climb is the game's 20 degree climb angle for every airplane; the author prefers not to touch game defaults) |
-| 4-5 | Ground flow control: when too many airplanes taxi or wait on the ground at an airport (not counting ones at gates), approach stops clearing new arrivals (they hold, "expect further clearance, ground delay") and departures go first; threshold an option (fixed count, or from the gate count if it can be found) | Implemented 2026-10-18 (per-airport limit in the airport panel, default 1.5 per gate, hysteresis 2), testing in game |
+| 4-5 | Ground flow control: when too many airplanes taxi or wait on the ground at an airport (not counting ones at gates), approach stops clearing new arrivals (they hold, "expect further clearance, ground delay") and departures go first; threshold an option (fixed count, or from the gate count if it can be found) | Implemented 2026-10-18 (per-airport limit in the airport panel, default 1.5 per gate, hysteresis 2; off by default), not yet seen in game |
 | 5 | Divert (base mod option, on) after 3–5 go-arounds (default 4) or after holding longer than a limit (10–60 game min, default 30; a closure still means holding first): proceed to the next stop of the line | Dropped 2026-10-19 after a trial (see Phase 5 below) |
-| 6 | Compass add-on: a standalone compass mod (map north, optional on-screen compass), detected by RA for runway designators | Map Compass built as a standalone mod; RA does not depend on it (2026-10-19) |
+| 6 | Compass add-on: a standalone compass mod (map north, optional on-screen compass), detected by RA for runway designators | Map Compass built as a standalone mod, seen in game 2026-10-18; RA does not depend on it (2026-10-19) |
 | – | Snow-free runways | **Dropped** (snow is a GPU snow-map shader effect; too hard) |
 
 Possible extra: an "ATC" section in the vehicle info panel showing each airplane's tower status, plus phraseology
@@ -262,7 +262,7 @@ Before: one cleared arrival owned the runway from about 5 NM, about one arrival 
   asks for the runway ("contact tower 118.300"), the tower hands a landed airplane to ground ("contact ground ...")
   before "taxi to the gate", and a departure to departure control after takeoff ("contact departure ...", or
   "frequency change approved" at class D). Approach to tower was already in the approach clearance.
-- Radio phrasing pass (2026-10-19, untested): readbacks of every frequency change end "good day"; first calls report
+- Radio phrasing pass (2026-10-19; the departure check-in seen in game the same day, the rest is in TestChecklist 2-1): readbacks of every frequency change end "good day"; first calls report
   the altitude above the field instead of "with you"; after takeoff the pilot checks in with departure (B: DEP, C: APP,
   "<Airport> Departure, <cs>, climbing through 1,200" / "radar contact"); after the approach clearance (B, C) the pilot
   checks in with the tower ("ILS runway 36L" / "runway 36L, continue"); taxi is "taxi to runway 36L". Fix: an arrival
@@ -367,7 +367,8 @@ Idea (author): an arrival does not enter the apron while its gate is occupied, s
 
 - Always do an optimization pass. The tower runs as a worker-thread IJob without Burst.
 - English-only code and comments. Ship both EN and KO locales.
-- Diagnostics: tower events are logged to `Logs/RealisticAviation.log`.
+- Diagnostics: tower events are logged to `Logs/RealisticAviation.log`. Per-airplane lines (radio, long waits, pushback,
+  gate paths) only with the "Detailed log" option, off by default; warnings, deadlocks and airport-wide events always.
 
 ## Phase 5 – alternate airport (optional, idea)
 
@@ -461,7 +462,7 @@ otherwise fly nose-up like in the flare (the author reported this).
   radio all follow; without it, map +z stays north as now. Only the names change, not any behaviour.
 - Chosen over the compass mod detecting RA: the dependency points the natural way (RA uses a generic north), the
   compass stays reusable by other mods, and the designator rules stay in one place.
-- Implemented 2026-10-19 (untested) as the separate mod "Map Compass" (repo ../MapCompass): options map north (0–359°,
+- Implemented 2026-10-19 as the separate mod "Map Compass" (repo ../MapCompass): options map north (0–359°,
   clockwise from the game's north), magnetic variation (−30..30°, east +), show compass; an on-screen rose in the top
   right that turns with the camera (`CompassUISystem` from `CameraUpdateSystem.direction`). API `MapCompass.CompassApi`
   (`TrueHeading`, `MagneticHeading` of a map x/z direction). RA: `RunwayNames.Heading` finds `MagneticHeading` by
@@ -605,3 +606,22 @@ otherwise fly nose-up like in the flare (the author reported this).
   closures and the ATIS phase 5 weather.
   Removed again the same day, once closures and the phase 5 weather had been tried with it; it can be brought back from
   history.
+
+## Maintenance before 1.0 (2026-10-19)
+
+From a review of the whole mod, done in this order:
+
+- Save format version. Every saved airport setting (`LineUpSetting`, `RunwayPattern`, `GroundDelaySetting`,
+  `AirspaceClassSetting`, `AirportCode`) now starts with a version byte, `0x80 | version` (now 1), from
+  `SaveFormat.WriteVersion`. Saves from before carry no such byte: their first byte is a bool (0/1), a small number or
+  an ASCII letter, always below 0x80, so `SaveFormat.ReadVersion` reads it as version 0 and the old layout is decoded
+  from that byte. A later change bumps the version and adds a branch, instead of breaking old saves.
+- Detailed log option (options, "Log" group, off by default; `AtcSettings.m_DetailedLog` in the job). Per-airplane
+  lines are written only when it is on; Aviation Weather Add-on reads the same option for its raw wind and climate
+  values next to each report.
+- `AtcSystem` split into partial files, moved without any change (checked by putting the pieces back together and
+  comparing with the old file): `AtcSystem.cs` (system, main thread, public API), `AtcSystem.Runways.cs`, and the job
+  as `partial struct AtcJob` in `AtcSystem.Job.cs` (fields, `Execute`) plus `.Closure`, `.Scan`, `.Clearances`,
+  `.Radio`, `.Steering`, `.Pushback` and `.Pattern`.
+- After a game patch: both mods log the game version and their own (the add-on also RA's) right after `OnLoad`, and
+  `docs/TestChecklist` section 10 lists a short check to run first.

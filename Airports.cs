@@ -18,6 +18,31 @@ namespace RealisticAviation
     }
 
     /// <summary>
+    /// Version of the settings saved with the city. Each one starts with a byte <see cref="kFlag"/> | version, so that a later
+    /// version can add fields and still read older saves. Saves from before 2026-10-20 have no such byte: their first byte
+    /// is the first field, always below 0x80 (a bool, a small count, a class, the bits of a pattern, the low byte of a code
+    /// letter), which tells the two apart. A save's data runs on from one component to the next, so every reader must take
+    /// exactly the bytes that were written.
+    /// </summary>
+    internal static class SaveFormat
+    {
+        public const byte kFlag = 0x80;
+        public const byte kVersion = 1;
+
+        public static void WriteVersion<TWriter>(TWriter writer) where TWriter : IWriter
+        {
+            writer.Write((byte)(kFlag | kVersion));
+        }
+
+        /// <summary>The version of what follows, or 0 for an old save: then <paramref name="first"/> is its first field's byte.</summary>
+        public static int ReadVersion<TReader>(TReader reader, out byte first) where TReader : IReader
+        {
+            reader.Read(out first);
+            return (first & kFlag) != 0 ? first & ~kFlag : 0;
+        }
+    }
+
+    /// <summary>
     /// The player's "line up and wait" choice for an airport, set in its info panel and stored on the airport building,
     /// together with the airspace class it was made for. It holds only while the airport keeps that class: when the class
     /// changes (chosen in the panel, or automatically after gates or runways changed), the new class's default applies
@@ -40,13 +65,22 @@ namespace RealisticAviation
 
         public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
         {
+            SaveFormat.WriteVersion(writer);
             writer.Write(m_Enabled);
             writer.Write(m_Class);
         }
 
         public void Deserialize<TReader>(TReader reader) where TReader : IReader
         {
-            reader.Read(out m_Enabled);
+            // Without a version byte (saves before 2026-10-20) the first byte is m_Enabled itself.
+            if (SaveFormat.ReadVersion(reader, out byte first) == 0)
+            {
+                m_Enabled = first != 0;
+            }
+            else
+            {
+                reader.Read(out m_Enabled);
+            }
             reader.Read(out m_Class);
         }
     }
@@ -84,12 +118,21 @@ namespace RealisticAviation
 
         public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
         {
+            SaveFormat.WriteVersion(writer);
             writer.Write(m_RightHand);
         }
 
         public void Deserialize<TReader>(TReader reader) where TReader : IReader
         {
-            reader.Read(out m_RightHand);
+            // Without a version byte the first byte is m_RightHand itself (its bits never reach 0x80).
+            if (SaveFormat.ReadVersion(reader, out byte first) == 0)
+            {
+                m_RightHand = first;
+            }
+            else
+            {
+                reader.Read(out m_RightHand);
+            }
         }
     }
 
@@ -126,13 +169,22 @@ namespace RealisticAviation
 
         public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
         {
+            SaveFormat.WriteVersion(writer);
             writer.Write(m_Limit);
             writer.Write(m_Enabled);
         }
 
         public void Deserialize<TReader>(TReader reader) where TReader : IReader
         {
-            reader.Read(out m_Limit);
+            // Without a version byte the first byte is m_Limit itself (at most 20).
+            if (SaveFormat.ReadVersion(reader, out byte first) == 0)
+            {
+                m_Limit = first;
+            }
+            else
+            {
+                reader.Read(out m_Limit);
+            }
             reader.Read(out m_Enabled);
         }
     }
@@ -147,12 +199,21 @@ namespace RealisticAviation
 
         public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
         {
+            SaveFormat.WriteVersion(writer);
             writer.Write(m_Class);
         }
 
         public void Deserialize<TReader>(TReader reader) where TReader : IReader
         {
-            reader.Read(out m_Class);
+            // Without a version byte the first byte is m_Class itself (0 to 2).
+            if (SaveFormat.ReadVersion(reader, out byte first) == 0)
+            {
+                m_Class = first;
+            }
+            else
+            {
+                reader.Read(out m_Class);
+            }
         }
     }
 
@@ -199,12 +260,27 @@ namespace RealisticAviation
 
         public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
         {
+            SaveFormat.WriteVersion(writer);
             writer.Write(m_Packed);
         }
 
         public void Deserialize<TReader>(TReader reader) where TReader : IReader
         {
-            reader.Read(out m_Packed);
+            // Without a version byte the first byte is the lowest byte of m_Packed (the first letter, below 0x80, as the
+            // game writes a uint lowest byte first): read the other three and put it back together.
+            if (SaveFormat.ReadVersion(reader, out byte first) == 0)
+            {
+                m_Packed = first;
+                for (int shift = 8; shift < 32; shift += 8)
+                {
+                    reader.Read(out byte next);
+                    m_Packed |= (uint)next << shift;
+                }
+            }
+            else
+            {
+                reader.Read(out m_Packed);
+            }
         }
     }
 

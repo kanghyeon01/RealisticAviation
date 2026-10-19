@@ -38,6 +38,12 @@ namespace RealisticAviation
             { m_Setting.GetOptionGroupLocaleID(Setting.kGroundGroup), "Ground" },
             { m_Setting.GetOptionGroupLocaleID(Setting.kPatternGroup), "Traffic pattern" },
             { m_Setting.GetOptionGroupLocaleID(Setting.kClosureGroup), "Airport closure" },
+            { m_Setting.GetOptionGroupLocaleID(Setting.kLogGroup), "Log" },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.DetailedLog)), "Detailed log" },
+            {
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.DetailedLog)),
+                "Writes every airplane's radio exchanges, events, waits and pushback steps to the mod's log file (Logs/RealisticAviation.log), to help report a problem. The file grows quickly at a busy airport. Off: only settings changes, airspaces, closures, ground delays and warnings are logged."
+            },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.CloseForTornado)), "Close for tornadoes" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.CloseForTornado)),
@@ -177,6 +183,12 @@ namespace RealisticAviation
             { m_Setting.GetOptionGroupLocaleID(Setting.kGroundGroup), "지상" },
             { m_Setting.GetOptionGroupLocaleID(Setting.kPatternGroup), "장주 (Traffic Pattern)" },
             { m_Setting.GetOptionGroupLocaleID(Setting.kClosureGroup), "공항 폐쇄" },
+            { m_Setting.GetOptionGroupLocaleID(Setting.kLogGroup), "로그" },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.DetailedLog)), "자세한 로그" },
+            {
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.DetailedLog)),
+                "비행기마다 교신, 이벤트, 대기, 푸시백 단계를 모드 로그 파일(Logs/RealisticAviation.log)에 남깁니다. 문제를 알릴 때 도움이 됩니다. 붐비는 공항에서는 파일이 빨리 커집니다. 끄면 설정 변경, 공역, 폐쇄, 지상 혼잡, 경고만 남깁니다."
+            },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.CloseForTornado)), "토네이도 시 폐쇄" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.CloseForTornado)),

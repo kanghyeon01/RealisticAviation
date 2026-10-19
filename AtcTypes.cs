@@ -325,6 +325,9 @@ namespace RealisticAviation
 
         public bool m_Pushback;
 
+        /// <summary>Log each airplane's radio exchanges, events and pushback steps (the "Detailed log" option).</summary>
+        public bool m_DetailedLog;
+
         /// <summary>In metres (the options themselves are in nautical miles).</summary>
         public float m_PatternWidth;
 
@@ -362,6 +365,7 @@ namespace RealisticAviation
             m_DepartureGapSeconds = setting.DepartureGapSeconds;
             m_HoldingLegLength = setting.HoldingLegNm * Setting.kMetersPerNauticalMile;
             m_HoldShortSetback = setting.HoldShortSetback;
+            m_DetailedLog = setting.DetailedLog;
         }
     }
 

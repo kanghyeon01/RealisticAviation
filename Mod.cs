@@ -20,6 +20,8 @@ namespace RealisticAviation
         public void OnLoad(UpdateSystem updateSystem)
         {
             Log.Info(nameof(OnLoad));
+            // After a game patch, the log shows which game and mod versions ran together.
+            Log.Info("Game " + Game.Version.current.fullVersion + ", Realistic Aviation " + typeof(Mod).Assembly.GetName().Version);
 
             // ModSetting registers each instance under the mod's id, so build the defaults first
             // and let the live instance be the one that stays registered.
