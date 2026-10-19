@@ -573,3 +573,10 @@ otherwise fly nose-up like in the flare (the author reported this).
     edge (`kZoneExitMargin`).
   - The airplane panel hides its radio box once the airplane was released to a controller the mod doesn't model:
     "contact center", or "frequency change approved" at class D.
+- Public API for Realistic Aviation ATIS (2026-10-19), main thread only:
+  - `AtcSystem.TryGetAirspaceClass`;
+  - `GetLandingRunways`: the landing ends in use, named as on the radio and sorted;
+  - `IsClosed`: whether the airport is closed and what closed it.
+
+  ATIS phase 3 builds its broadcast from them. Phase 4 ("with information X" on first contact) will need a hook in the
+  other direction: RA cannot reference ATIS, so ATIS will register a provider for RA to call.

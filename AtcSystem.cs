@@ -239,6 +239,49 @@ namespace RealisticAviation
             return m_AirportClosures.TryGetValue(airport, out Entity closedBy) ? closedBy : Entity.Null;
         }
 
+        // ---- For other mods (Realistic Aviation ATIS): what an airport's ATIS broadcast needs. Main thread only.
+
+        /// <summary>The airport's airspace class, or false if it has no airspace (not an airport, or not found yet).</summary>
+        public bool TryGetAirspaceClass(Entity airport, out AirspaceClass airspaceClass)
+        {
+            bool found = m_Airspaces.TryGetValue(airport, out AirportSpace space);
+            airspaceClass = space.m_Class;
+            return found;
+        }
+
+        /// <summary>
+        /// The airport's runway ends in use for landing, named as on the radio ("27", "09L"), sorted, added to
+        /// <paramref name="names"/> (game runways are mostly one-way; both ends of a runway whose lanes say nothing).
+        /// </summary>
+        public void GetLandingRunways(Entity airport, List<string> names)
+        {
+            for (int i = 0; i < m_RunwayList.Count; i++)
+            {
+                RunwayInfo runway = m_RunwayList[i];
+                if (runway.Airport != airport)
+                {
+                    continue;
+                }
+                byte ends = RunwayNames.UsedEnds(runway.Geometry);
+                if ((ends & RunwayGeometry.kAlong) != 0)
+                {
+                    names.Add(RunwayNames.Name(m_RunwayList, runway.Key, runway.Geometry.m_Direction));
+                }
+                if ((ends & RunwayGeometry.kAgainst) != 0)
+                {
+                    names.Add(RunwayNames.Name(m_RunwayList, runway.Key, -runway.Geometry.m_Direction));
+                }
+            }
+            names.Sort(System.StringComparer.Ordinal);
+        }
+
+        /// <summary>Whether the tower has closed the airport, and what closed it (a disaster event, or the airport itself).</summary>
+        public bool IsClosed(Entity airport, out Entity closedBy)
+        {
+            closedBy = GetClosure(airport);
+            return closedBy != Entity.Null;
+        }
+
         internal AtcRadio Radio => m_Radio;
 
         /// <summary>Each airport's airspace, for the airspace infoview (read on the main thread; the tower job only reads it too).</summary>
