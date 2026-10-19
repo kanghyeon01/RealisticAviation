@@ -115,8 +115,12 @@ namespace RealisticAviation
             { "RealisticAviation.Airspace.Label", "Airspace" },
             { "RealisticAviation.Airspace.Choose", "Airspace class" },
             { "RealisticAviation.Airspace.Auto", "Auto" },
-            { "Infoviews.INFOVIEW[" + AirspaceOverlaySystem.kInfoviewName + "]", "Airspace" },
-            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kInfomodeName + "]", "Airplane stops" },
+            { "Infoviews.INFOVIEW[" + AirspaceOverlaySystem.kInfoviewName + "]", "VFR chart" },
+            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kAirportsInfomodeName + "]", "Airports (class B, D)" },
+            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kAirportsCInfomodeName + "]", "Airports (class C)" },
+            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kUrbanInfomodeName + "]", "Built-up areas" },
+            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kObstaclesInfomodeName + "]", "Obstacles" },
+            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kTerrainInfomodeName + "]", "Terrain elevations" },
             { "RealisticAviation.Airspace.Value", "Class {CLASS}, {RADIUS} NM" },
             {
                 "RealisticAviation.Airspace.Tooltip",
@@ -130,6 +134,8 @@ namespace RealisticAviation
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.HoldShortSetback)),
                 "Gap between the nose of an airplane holding short and the edge of the runway it is waiting for."
             },
+            { "RealisticAviation.Code.Label", "ICAO code" },
+            { "RealisticAviation.Code.Tooltip", "The airport's location code (3 or 4 letters or digits), used in its weather reports. Leave it empty for an automatic code from the airport's name." },
             { "RealisticAviation.LineUp.Label", "Line up and wait" },
             {
                 "RealisticAviation.LineUp.Tooltip",
@@ -247,8 +253,12 @@ namespace RealisticAviation
             { "RealisticAviation.Airspace.Label", "관제공역" },
             { "RealisticAviation.Airspace.Choose", "공역 등급" },
             { "RealisticAviation.Airspace.Auto", "자동" },
-            { "Infoviews.INFOVIEW[" + AirspaceOverlaySystem.kInfoviewName + "]", "관제공역" },
-            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kInfomodeName + "]", "비행기 정류장" },
+            { "Infoviews.INFOVIEW[" + AirspaceOverlaySystem.kInfoviewName + "]", "VFR 차트" },
+            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kAirportsInfomodeName + "]", "공항 (B·D 등급)" },
+            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kAirportsCInfomodeName + "]", "공항 (C 등급)" },
+            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kUrbanInfomodeName + "]", "시가지" },
+            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kObstaclesInfomodeName + "]", "장애물" },
+            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kTerrainInfomodeName + "]", "지형 표고" },
             { "RealisticAviation.Airspace.Value", "Class {CLASS}, 반경 {RADIUS}NM" },
             {
                 "RealisticAviation.Airspace.Tooltip",
@@ -262,6 +272,8 @@ namespace RealisticAviation
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.HoldShortSetback)),
                 "활주로 진입을 기다리는 비행기의 기수와 활주로 가장자리 사이에 두는 거리입니다."
             },
+            { "RealisticAviation.Code.Label", "ICAO 코드" },
+            { "RealisticAviation.Code.Tooltip", "공항 식별 코드(영문자나 숫자 3~4자리)입니다. 기상 관측 보고에 쓰입니다. 비워 두면 공항 이름으로 자동 코드를 만듭니다." },
             { "RealisticAviation.LineUp.Label", "Line Up and Wait" },
             {
                 "RealisticAviation.LineUp.Tooltip",

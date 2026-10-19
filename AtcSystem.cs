@@ -1028,6 +1028,10 @@ namespace RealisticAviation
             // The inner surface area of class B and C zones (as drawn by the airspace infoview), as a share of the radius.
             private const float kInnerZoneFactor = 0.5f;
 
+            // An airplane leaves a zone only this far beyond its edge, though it enters at the edge itself: without the margin one
+            // skimming the boundary flipped between "radar contact" and "contact center" every few seconds.
+            private const float kZoneExitMargin = 0.5f * Setting.kMetersPerNauticalMile;
+
             // A clearance is only taken back from a taxiing airplane that can still stop short (speed slack in m/s).
             private const float kHoldShortSpeedSlack = 0.5f;
             private const int kMaxStackLevel = 63;
@@ -2124,10 +2128,10 @@ namespace RealisticAviation
                 }
                 float2 position = m_TransformData[entity].m_Position.xz;
                 Entity owner = ZoneOwner(position);
-                // It stays with its controller while still inside that zone (no ping-pong along a boundary), unless it entered a
-                // higher class's inner surface area.
+                // It stays with its controller until clearly out of that zone (its edge plus a margin, so no ping-pong along a
+                // boundary), unless it entered a higher class's inner surface area.
                 if (owner != zone.m_Airport && zone.m_Airport != Entity.Null && m_Airspaces.TryGetValue(zone.m_Airport, out AirportSpace current)
-                    && math.distancesq(position, current.m_Center) <= current.m_Radius * current.m_Radius
+                    && math.distance(position, current.m_Center) <= current.m_Radius + kZoneExitMargin
                     && !(owner != Entity.Null && m_Airspaces[owner].m_Class > current.m_Class
                         && math.distance(position, m_Airspaces[owner].m_Center) < m_Airspaces[owner].m_Radius * kInnerZoneFactor))
                 {
@@ -2778,7 +2782,10 @@ namespace RealisticAviation
                         GiveWayToPushbacks(entity, pushbackAreas);
                     }
                 }
-                if (!scan.m_Flying && scan.m_Occupied == Entity.Null && !scan.m_PathUnknown && !m_Pushbacks.ContainsKey(entity) && !m_Flights.ContainsKey(entity))
+                // Ground control only at a real airport: an airplane passing through on the ground lanes of an outside connection
+                // (the routeless "TRAFFIC" ones) is not taxiing anywhere and must not be cleared.
+                if (!scan.m_Flying && scan.m_Occupied == Entity.Null && !scan.m_PathUnknown && !m_Pushbacks.ContainsKey(entity) && !m_Flights.ContainsKey(entity)
+                    && m_Airspaces.ContainsKey(GetAirportOf(entity)))
                 {
                     ClearToTaxi(entity);
                     if (m_LastMessages.TryGetValue(entity, out AtcMessage last) && last.m_Kind == AtcMessageKind.TaxiToRunway

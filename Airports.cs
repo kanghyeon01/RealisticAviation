@@ -156,6 +156,161 @@ namespace RealisticAviation
         }
     }
 
+    /// <summary>
+    /// The airport's location code (ICAO, or a 3-letter local identifier) as the player entered it in the info panel: up to
+    /// four letters or digits, packed one ASCII byte each from the lowest byte. An airport without it uses an automatic code
+    /// (<see cref="AirportCodes"/>). Saved with the city.
+    /// </summary>
+    public struct AirportCode : IComponentData, IQueryTypeParameter, ISerializable
+    {
+        public const int kMaxLength = 4;
+
+        public uint m_Packed;
+
+        public static bool TryCreate(string text, out AirportCode code)
+        {
+            code = default;
+            if (text == null || text.Length < 3 || text.Length > kMaxLength)
+            {
+                return false;
+            }
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = char.ToUpperInvariant(text[i]);
+                if (!(c >= 'A' && c <= 'Z') && !(c >= '0' && c <= '9'))
+                {
+                    return false;
+                }
+                code.m_Packed |= (uint)c << (8 * i);
+            }
+            return true;
+        }
+
+        public override string ToString()
+        {
+            char[] text = new char[kMaxLength];
+            int length = 0;
+            for (uint packed = m_Packed; packed != 0 && length < kMaxLength; packed >>= 8)
+            {
+                text[length++] = (char)(packed & 0xFF);
+            }
+            return new string(text, 0, length);
+        }
+
+        public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
+        {
+            writer.Write(m_Packed);
+        }
+
+        public void Deserialize<TReader>(TReader reader) where TReader : IReader
+        {
+            reader.Read(out m_Packed);
+        }
+    }
+
+    /// <summary>
+    /// Airport codes, for the airport panel and for other mods (Realistic Aviation ATIS): the code the player entered, or an
+    /// automatic one from the airport's name (its first four Latin letters, "ZZAA" when it has fewer), made unique among the
+    /// city's airports by stepping the last two letters (airports in entity order; entered codes come first).
+    /// </summary>
+    public static class AirportCodes
+    {
+        /// <summary>The code the player entered for this airport, or null.</summary>
+        public static string GetEntered(EntityManager entityManager, Entity airport)
+        {
+            return entityManager.TryGetComponent(airport, out AirportCode code) && code.m_Packed != 0 ? code.ToString() : null;
+        }
+
+        /// <summary>The airport's code: the entered one, or else its automatic one.</summary>
+        public static string Get(EntityManager entityManager, Game.UI.NameSystem nameSystem, Entity airport)
+        {
+            return GetEntered(entityManager, airport) ?? GetAutomatic(entityManager, nameSystem, airport);
+        }
+
+        /// <summary>The automatic code the airport has (or would have) without an entered one.</summary>
+        public static string GetAutomatic(EntityManager entityManager, Game.UI.NameSystem nameSystem, Entity airport)
+        {
+            EntityQuery stops = Airports.CreateAirplaneStopQuery(entityManager);
+            NativeList<Entity> airports = new NativeList<Entity>(4, Allocator.Temp);
+            try
+            {
+                Airports.Collect(entityManager, stops, airports);
+                airports.Sort();
+                System.Collections.Generic.HashSet<string> used = new System.Collections.Generic.HashSet<string>();
+                for (int i = 0; i < airports.Length; i++)
+                {
+                    string entered = GetEntered(entityManager, airports[i]);
+                    if (entered != null)
+                    {
+                        used.Add(entered);
+                    }
+                }
+                string code = null;
+                for (int i = 0; i < airports.Length; i++)
+                {
+                    if (GetEntered(entityManager, airports[i]) != null && airports[i] != airport)
+                    {
+                        continue;
+                    }
+                    code = Unique(FromName(nameSystem.GetRenderedLabelName(airports[i])), used);
+                    used.Add(code);
+                    if (airports[i] == airport)
+                    {
+                        return code;
+                    }
+                }
+                // Not an airport (yet): a code from its name that no airport uses.
+                return Unique(FromName(nameSystem.GetRenderedLabelName(airport)), used);
+            }
+            finally
+            {
+                airports.Dispose();
+                stops.Dispose();
+            }
+        }
+
+        private static char[] FromName(string name)
+        {
+            char[] code = new char[AirportCode.kMaxLength];
+            int length = 0;
+            for (int i = 0; name != null && i < name.Length && length < code.Length; i++)
+            {
+                char c = char.ToUpperInvariant(name[i]);
+                if (c >= 'A' && c <= 'Z')
+                {
+                    code[length++] = c;
+                }
+            }
+            if (length < code.Length)
+            {
+                code[0] = 'Z';
+                code[1] = 'Z';
+                code[2] = 'A';
+                code[3] = 'A';
+            }
+            return code;
+        }
+
+        private static string Unique(char[] code, System.Collections.Generic.HashSet<string> used)
+        {
+            for (int n = 0; n < 26 * 26; n++)
+            {
+                string candidate = new string(code);
+                if (!used.Contains(candidate))
+                {
+                    return candidate;
+                }
+                // Taken: step the last two letters (..AA, ..AB, ...).
+                code[3] = (char)(code[3] == 'Z' ? 'A' : code[3] + 1);
+                if (code[3] == 'A')
+                {
+                    code[2] = (char)(code[2] == 'Z' ? 'A' : code[2] + 1);
+                }
+            }
+            return new string(code);
+        }
+    }
+
     /// <summary>An airport is a top-level building that owns airplane stops (gates), outside connections excluded.</summary>
     internal static class Airports
     {

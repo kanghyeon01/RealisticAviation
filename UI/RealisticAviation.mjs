@@ -102,6 +102,37 @@ function getGameModule(path, name) {
 const InfoSection = getGameModule("game-ui/game/components/selected-info-panel/shared-components/info-section/info-section.tsx", "InfoSection");
 const InfoRow = getGameModule("game-ui/game/components/selected-info-panel/shared-components/info-row/info-row.tsx", "InfoRow");
 const Checkbox = getGameModule("game-ui/common/input/toggle/checkbox/checkbox.tsx", "Checkbox");
+const TextInput = getGameModule("game-ui/common/input/text/text-input.tsx", "TextInput");
+
+const CODE_INPUT_STYLE = {
+    width: "70rem",
+    padding: "2rem 6rem",
+    borderRadius: "3rem",
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    color: "white",
+    textAlign: "center",
+    fontSize: "14rem",
+};
+
+// The airport code: the entered one, or the automatic one shown greyed as the placeholder. Sent when the field loses focus
+// (Enter and Esc do that too); an empty field brings back the automatic code.
+function CodeField(props) {
+    const [draft, setDraft] = React.useState(null);
+    return React.createElement(TextInput, {
+        value: draft !== null ? draft : props.code,
+        placeholder: props.automaticCode,
+        maxLength: 4,
+        style: CODE_INPUT_STYLE,
+        onFocus: () => setDraft(props.code),
+        onChange: (e) => setDraft(String(e.target.value).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4)),
+        onBlur: () => {
+            if (draft !== null && draft !== props.code) {
+                api.trigger(GROUP, "SetAirportCode", draft);
+            }
+            setDraft(null);
+        },
+    });
+}
 
 // "[-] value [+]" for a small number setting; dimmed (still clickable) while the setting is off.
 const STEPPER_BUTTON_STYLE = {
@@ -164,6 +195,13 @@ function AirportSection(props) {
                 { label: "B", value: 2 }, { label: "C", value: 1 }, { label: "D", value: 0 },
             ], props.airspaceChosen ? AIRSPACE_CLASS_VALUES[props.airspaceClass] : -1, (value) => api.trigger(GROUP, "SetAirspaceClass", value)),
             uppercase: true,
+        }) : null,
+        TextInput ? React.createElement(InfoRow, {
+            key: "code",
+            left: translate("RealisticAviation.Code.Label", "ICAO code"),
+            right: React.createElement(CodeField, { code: props.code, automaticCode: props.automaticCode }),
+            uppercase: true,
+            tooltip: translate("RealisticAviation.Code.Tooltip", ""),
         }) : null,
         checkboxRow("lineUp", translate("RealisticAviation.LineUp.Label", "Line up and wait"), props.lineUp,
             () => api.trigger(GROUP, "ToggleLineUpAndWait"), translate("RealisticAviation.LineUp.Tooltip", "")),

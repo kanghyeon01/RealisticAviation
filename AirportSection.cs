@@ -21,6 +21,7 @@ namespace RealisticAviation
         public const string kToggleGroundDelayTrigger = "ToggleGroundDelay";
         public const string kAdjustGroundDelayTrigger = "AdjustGroundDelayLimit";
         public const string kSetAirspaceClassTrigger = "SetAirspaceClass";
+        public const string kSetAirportCodeTrigger = "SetAirportCode";
 
         private struct RunwayEnd
         {
@@ -51,6 +52,8 @@ namespace RealisticAviation
         private Entity m_Airport;
         private bool m_LineUp;
         private GroundDelaySetting m_GroundDelay;
+        private string m_EnteredCode;
+        private string m_AutomaticCode;
 
         protected override string group => nameof(AirportSection);
 
@@ -65,6 +68,7 @@ namespace RealisticAviation
             AddBinding(new TriggerBinding(Mod.kName, kToggleGroundDelayTrigger, ToggleGroundDelay));
             AddBinding(new TriggerBinding<int>(Mod.kName, kAdjustGroundDelayTrigger, AdjustGroundDelayLimit));
             AddBinding(new TriggerBinding<int>(Mod.kName, kSetAirspaceClassTrigger, SetAirspaceClass));
+            AddBinding(new TriggerBinding<string>(Mod.kName, kSetAirportCodeTrigger, SetAirportCode));
         }
 
         protected override void OnUpdate()
@@ -96,6 +100,8 @@ namespace RealisticAviation
         protected override void OnProcess()
         {
             m_LineUp = IsLineUpEnabled();
+            m_EnteredCode = AirportCodes.GetEntered(EntityManager, m_Airport) ?? string.Empty;
+            m_AutomaticCode = AirportCodes.GetAutomatic(EntityManager, m_NameSystem, m_Airport);
             m_GroundDelay = GetGroundDelay();
             IReadOnlyList<RunwayInfo> runways = m_AtcSystem.RunwayList;
             for (int i = 0; i < runways.Count; i++)
@@ -189,6 +195,10 @@ namespace RealisticAviation
 
         public override void OnWriteProperties(IJsonWriter writer)
         {
+            writer.PropertyName("code");
+            writer.Write(m_EnteredCode ?? string.Empty);
+            writer.PropertyName("automaticCode");
+            writer.Write(m_AutomaticCode ?? string.Empty);
             writer.PropertyName("lineUp");
             writer.Write(m_LineUp);
             writer.PropertyName("groundDelay");
@@ -308,6 +318,40 @@ namespace RealisticAviation
             {
                 m_AtcSystem.RequestAirspaceClass(m_Airport, value);
             }
+        }
+
+        /// <summary>
+        /// Sets the airport's code from the panel's text field: 3–4 letters or digits; empty brings back the automatic code;
+        /// anything else is ignored (the field then shows the code it had).
+        /// </summary>
+        private void SetAirportCode(string text)
+        {
+            if (m_Airport == Entity.Null || !EntityManager.Exists(m_Airport))
+            {
+                return;
+            }
+            text = text?.Trim() ?? string.Empty;
+            if (text.Length == 0)
+            {
+                if (EntityManager.HasComponent<AirportCode>(m_Airport))
+                {
+                    EntityManager.RemoveComponent<AirportCode>(m_Airport);
+                }
+                Mod.Log.Info($"Airport {m_Airport} uses its automatic code");
+            }
+            else if (AirportCode.TryCreate(text, out AirportCode code))
+            {
+                if (EntityManager.HasComponent<AirportCode>(m_Airport))
+                {
+                    EntityManager.SetComponentData(m_Airport, code);
+                }
+                else
+                {
+                    EntityManager.AddComponentData(m_Airport, code);
+                }
+                Mod.Log.Info($"Airport {m_Airport} code set to {code}");
+            }
+            m_InfoUISystem.RequestUpdate();
         }
 
         /// <summary>Raises or lowers the limit by <paramref name="delta"/> airplanes, within the allowed range.</summary>

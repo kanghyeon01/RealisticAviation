@@ -1,0 +1,163 @@
+<!doctype html><html><head><meta charset="utf-8"><title>VFR chart symbols</title></head><body style="margin:0;font-family:sans-serif;background:#fff">
+<!-- Approved shapes (2026-10-19) for the VFR chart obstacle symbols. The C# overlay drawing (ChartLabels.cs) is ported from these paths.
+     Wind turbines are never drawn lighted. Turbines chained within 1,200 m: 1 = single symbol; 2-4 within 1 km = turbine group
+     (two overlapping turbines); 5 or more, or wider than 1 km = wind farm (dashed outline, elevation in a box). -->
+<div id="refs" style="display:none"></div><div id="cmp" style="padding:6px"></div><svg id="art" width="10" height="10" style="display:none"></svg><script>
+const REF33='', REF34='', REF35='', REF41='';
+const C = '#1f5fa0';
+const p = (x, y) => `${x.toFixed(4)},${(-y).toFixed(4)}`;
+const dot = (x, y, r) => `<circle cx="${x}" cy="${-y}" r="${r}" fill="${C}"/>`;
+
+// Tall spire (1,000 ft and over): a long rod with a round top, then concave sides flaring to thin pointed feet, and a
+// pointed arch notch between the feet; the dot sits in the notch.
+function tallSpirePath(cx) {
+  const r = 0.035;
+  return `M${p(cx - 0.3, 0)} C${p(cx - 0.2, 0.1)} ${p(cx - 0.06, 0.3)} ${p(cx - r, 0.5)} L${p(cx - r, 1 - r)}`
+       + ` A${r} ${r} 0 0 1 ${p(cx + r, 1 - r)} L${p(cx + r, 0.5)} C${p(cx + 0.06, 0.3)} ${p(cx + 0.2, 0.1)} ${p(cx + 0.3, 0)}`
+       + ` C${p(cx + 0.22, 0.02)} ${p(cx + 0.04, 0.12)} ${p(cx, 0.3)} C${p(cx - 0.04, 0.12)} ${p(cx - 0.22, 0.02)} ${p(cx - 0.3, 0)} Z`;
+}
+// Tall group: two rods joined by a V valley; the bottom rises to a point between them.
+function tallGroupPath() {
+  const r = 0.035, a = -0.15, b = 0.15;
+  return `M${p(-0.45, 0)} C${p(-0.33, 0.1)} ${p(a - 0.06, 0.3)} ${p(a - r, 0.5)} L${p(a - r, 1 - r)} A${r} ${r} 0 0 1 ${p(a + r, 1 - r)}`
+       + ` L${p(a + r, 0.5)} C${p(a + r, 0.42)} ${p(-0.04, 0.36)} ${p(0, 0.33)} C${p(0.04, 0.36)} ${p(b - r, 0.42)} ${p(b - r, 0.5)}`
+       + ` L${p(b - r, 1 - r)} A${r} ${r} 0 0 1 ${p(b + r, 1 - r)} L${p(b + r, 0.5)} C${p(b + 0.06, 0.3)} ${p(0.33, 0.1)} ${p(0.45, 0)}`
+       + ` C${p(0.3, 0.02)} ${p(0.06, 0.08)} ${p(0, 0.2)} C${p(-0.06, 0.08)} ${p(-0.3, 0.02)} ${p(-0.45, 0)} Z`;
+}
+// Lightning bolt: a filled zigzag, wide near the obstacle and pointed at its far end.
+function bolt(ax, ay, deg, r0, r1, w) {
+  const a = deg * Math.PI / 180, d = [Math.cos(a), Math.sin(a)], n = [-d[1], d[0]];
+  const at = (t, s) => { const r = r0 + (r1 - r0) * t; return p(ax + d[0] * r + n[0] * s * w, ay + d[1] * r + n[1] * s * w); };
+  // Outline of a classic bolt: down one side, across the step, down to the tip, back up the other side.
+  return `<polygon fill="${C}" points="${[at(0, 0.5), at(0.55, 0.9), at(0.5, 0.1), at(1, 0), at(0.45, -0.9), at(0.5, -0.1), at(0, -0.5)].join(' ')}"/>`;
+}
+const bolts = (ax, ay, list, r0, r1, w) => list.map(a => bolt(ax, ay, a, r0, r1, w)).join('');
+const ALL = [90, 35, 145, -15, 195];
+
+// Low obstacle (under 1,000 ft): a bold ^ with a dot under it. Low group: an M with two dots.
+const stroke = (pts, w) => `<polyline points="${pts.map(v => p(v[0], v[1])).join(' ')}" fill="none" stroke="${C}" stroke-width="${w}" stroke-linejoin="miter" stroke-linecap="butt"/>`;
+function low(tx, ty, s, lighted) {
+  return `<g transform="translate(${tx},${ty}) scale(${s})">${stroke([[-0.36, 0], [0, 1], [0.36, 0]], 0.13)}${dot(0, -0.02, 0.07)}`
+       + `${lighted ? bolts(0, 1.08, ALL, 0.14, 0.5, 0.07) : ''}</g>`;
+}
+function lowGroup(tx, ty, s) {
+  return `<g transform="translate(${tx},${ty}) scale(${s})">${stroke([[-0.62, 0], [-0.3, 1], [0, 0.42], [0.3, 1], [0.62, 0]], 0.2)}`
+       + `${dot(-0.3, -0.02, 0.07)}${dot(0.3, -0.02, 0.07)}</g>`;
+}
+function tall(tx, ty, s, lighted) {
+  return `<g transform="translate(${tx},${ty}) scale(${s})"><path d="${tallSpirePath(0)}" fill="${C}"/>${dot(0, 0.035, 0.035)}`
+       + `${lighted ? bolts(0, 1.0, ALL, 0.1, 0.32, 0.045) : ''}</g>`;
+}
+function tallGroup(tx, ty, s) {
+  return `<g transform="translate(${tx},${ty}) scale(${s})"><path d="${tallGroupPath()}" fill="${C}"/>${dot(-0.13, -0.02, 0.035)}${dot(0.13, -0.02, 0.035)}</g>`;
+}
+// Wind turbine: thin mast, base line, small hub, three thin blades (one up, two down to the sides).
+function turbine(tx, ty, s) {
+  const hub = 0.72, L = 0.3, line = (x1, y1, x2, y2, w) => `<line x1="${x1}" y1="${-y1}" x2="${x2}" y2="${-y2}" stroke="${C}" stroke-width="${w}" stroke-linecap="round"/>`;
+  const blade = deg => { const a = deg * Math.PI / 180; return line(0, hub, Math.cos(a) * L, hub + Math.sin(a) * L, 0.055); };
+  return `<g transform="translate(${tx},${ty}) scale(${s})">${line(0, 0, 0, hub, 0.065)}${line(-0.13, 0, 0.13, 0, 0.065)}`
+       + `${blade(90)}${blade(200)}${blade(340)}${dot(0, hub, 0.055)}</g>`;
+}
+
+document.getElementById('refs').innerHTML = `<img src="${REF35}" style="height:150px"><img src="${REF33}" style="height:150px"><img src="${REF34}" style="height:110px">`;
+const art = tall(55, 290, 190, false) + tall(160, 290, 190, true) + tallGroup(275, 290, 190) + low(390, 290, 80, false) + low(470, 290, 80, true)
+          + lowGroup(570, 290, 80) + turbine(650, 290, 170);
+document.getElementById('art').innerHTML = art;
+// Tall spire, as the legend: a rod with a round top that widens smoothly from about 60 % down to the feet, the feet
+// cut slightly blunt, an inverted-V notch with nearly straight sides, the dot inside it.
+function tallSpirePath(cx) {
+  const r = 0.025;
+  return `M${p(cx - 0.33, 0)} C${p(cx - 0.22, 0.14)} ${p(cx - r, 0.3)} ${p(cx - r, 0.62)} L${p(cx - r, 1 - r)}`
+       + ` A${r} ${r} 0 0 1 ${p(cx + r, 1 - r)} L${p(cx + r, 0.62)} C${p(cx + r, 0.3)} ${p(cx + 0.22, 0.14)} ${p(cx + 0.33, 0)}`
+       + ` C${p(cx + 0.22, 0.07)} ${p(cx + 0.105, 0.15)} ${p(cx, 0.23)}`
+       + ` C${p(cx - 0.105, 0.15)} ${p(cx - 0.22, 0.07)} ${p(cx - 0.33, 0)} Z`;
+}
+function tall(tx, ty, s, lighted) {
+  return `<g transform="translate(${tx},${ty}) scale(${s})"><path d="${tallSpirePath(0)}" fill="${C}" stroke="${C}" stroke-width="0.035" stroke-linejoin="round"/>${dot(0, 0.05, 0.045)}`
+       + `${lighted ? bolts(0, 1.0, ALL, 0.1, 0.32, 0.045) : ''}</g>`;
+}
+// Tall group, as the legend: two rods close together whose inner sides sweep into a pointed V, outer sides flaring to
+// wide feet cut slightly blunt, an inverted-V notch under each rod (nearly straight sides) with a dot inside each, and
+// a short blunt middle foot between the notches that stays well above the ground line.
+function tallGroupPath() {
+  const r = 0.025, a = -0.12, b = 0.12;
+  return `M${p(-0.46, 0)} C${p(-0.34, 0.14)} ${p(a - r, 0.32)} ${p(a - r, 0.66)} L${p(a - r, 1 - r)} A${r} ${r} 0 0 1 ${p(a + r, 1 - r)}`
+       + ` L${p(a + r, 0.72)} C${p(a + r, 0.5)} ${p(-0.03, 0.44)} ${p(0, 0.36)} C${p(0.03, 0.44)} ${p(b - r, 0.5)} ${p(b - r, 0.72)}`
+       + ` L${p(b - r, 1 - r)} A${r} ${r} 0 0 1 ${p(b + r, 1 - r)} L${p(b + r, 0.66)} C${p(b + r, 0.32)} ${p(0.34, 0.14)} ${p(0.46, 0)}`
+       + ` C${p(0.34, 0.07)} ${p(0.23, 0.15)} ${p(b, 0.22)}`
+       + ` C${p(0.08, 0.17)} ${p(0.05, 0.12)} ${p(0.03, 0.1)} Q${p(0, 0.075)} ${p(-0.03, 0.1)}`
+       + ` C${p(-0.05, 0.12)} ${p(-0.08, 0.17)} ${p(a, 0.22)}`
+       + ` C${p(-0.23, 0.15)} ${p(-0.34, 0.07)} ${p(-0.46, 0)} Z`;
+}
+function tallGroup(tx, ty, s) {
+  return `<g transform="translate(${tx},${ty}) scale(${s})"><path d="${tallGroupPath()}" fill="${C}" stroke="${C}" stroke-width="0.035" stroke-linejoin="round"/>${dot(-0.12, 0.05, 0.04)}${dot(0.12, 0.05, 0.04)}</g>`;
+}
+// Low obstacle (under 1,000 ft), as the guide: a solid ^ with a pointed top, thick legs, an inverted-V notch and the
+// dot inside it. Corners rounded a little, as the tall symbols.
+function lowPath(cx) {
+  return `M${p(cx - 0.4, 0)} L${p(cx, 1)} L${p(cx + 0.4, 0)} L${p(cx + 0.2, 0)} L${p(cx, 0.45)} L${p(cx - 0.2, 0)} Z`;
+}
+// Low group: a solid M, a notch under each peak with a dot in each, the middle foot short and blunt.
+function lowGroupPath() {
+  return `M${p(-0.62, 0)} L${p(-0.3, 1)} L${p(0, 0.5)} L${p(0.3, 1)} L${p(0.62, 0)} L${p(0.44, 0)} L${p(0.3, 0.4)}`
+       + ` L${p(0.12, 0.08)} L${p(-0.12, 0.08)} L${p(-0.3, 0.4)} L${p(-0.44, 0)} Z`;
+}
+const solid = d => `<path d="${d}" fill="${C}" stroke="${C}" stroke-width="0.04" stroke-linejoin="round"/>`;
+// Lightning ray, as the guide: a thin line out from the top with one sharp sideways kink, ending in a point.
+function ray(ax, ay, deg, r0, r1, w) {
+  const a = deg * Math.PI / 180, d = [Math.cos(a), Math.sin(a)], n = [-d[1], d[0]];
+  const at = (t, s) => p(ax + d[0] * (r0 + (r1 - r0) * t) + n[0] * s, ay + d[1] * (r0 + (r1 - r0) * t) + n[1] * s);
+  const k = (r1 - r0) * 0.09;
+  return `<polyline points="${[at(0, 0), at(0.52, k), at(0.44, -k), at(1, 0)].join(' ')}" fill="none" stroke="${C}" stroke-width="${w}" stroke-linejoin="miter" stroke-linecap="round"/>`;
+}
+const RAYS = [90, 35, 145, -25, 205];
+const rays = (ax, ay, r0, r1, w) => RAYS.map(a => ray(ax, ay, a, r0, r1, w)).join('');
+function lowSym(tx, ty, s, lit) {
+  return `<g transform="translate(${tx},${ty}) scale(${s})">${solid(lowPath(0))}${dot(0, 0.1, 0.07)}${lit ? rays(0, 1.04, 0.14, 0.55, 0.035) : ''}</g>`;
+}
+function lowGroupSym(tx, ty, s) {
+  return `<g transform="translate(${tx},${ty}) scale(${s})">${solid(lowGroupPath())}${dot(-0.3, 0.1, 0.07)}${dot(0.3, 0.1, 0.07)}</g>`;
+}
+function tallLit(tx, ty, s) {
+  return `<g transform="translate(${tx},${ty}) scale(${s})"><path d="${tallSpirePath(0)}" fill="${C}" stroke="${C}" stroke-width="0.035" stroke-linejoin="round"/>`
+       + `${dot(0, 0.05, 0.045)}${rays(0, 1.02, 0.08, 0.3, 0.02)}</g>`;
+}
+const W = 150, Y = 230;
+const cell = inner => `<svg width="${W}" height="250" style="background:#fff;vertical-align:bottom">${inner}</svg>`;
+document.getElementById('cmp').innerHTML = '<div>1,000 ft and over / lighted / under 1,000 ft / lighted / low group / tall group / wind turbine</div>'
+  + cell(tall(75, Y, 200, false)) + cell(tallLit(75, Y, 170)) + cell(lowSym(60, Y, 80, false)) + cell(lowSym(60, Y, 70, true))
+  + cell(lowGroupSym(60, Y, 70)) + cell(tallGroup(75, Y, 150)) + cell(turbine(60, Y, 180));
+// Low obstacle (under 1,000 ft), as the reference: a ^ drawn as two bands of even width. The notch sides run parallel to
+// the outer sides, so the legs are equally thick all the way; the dot sits in the notch.
+const LS = 0.41, LW = 0.13;   // outer half-width at the ground, leg width (horizontal)
+function lowPath2(cx) {
+  const top = 1 - LW / LS;
+  return `M${p(cx - LS, 0)} L${p(cx, 1)} L${p(cx + LS, 0)} L${p(cx + LS - LW, 0)} L${p(cx, top)} L${p(cx - LS + LW, 0)} Z`;
+}
+// Low group: an M of the same even bands. Peaks at +-A with the single ^'s slope; each underside runs parallel to the
+// side above it, so the middle legs meet just above the ground. A notch under each peak with its dot.
+const LA = 0.23;
+function lowGroupPath2() {
+  const v = 1 - LA / LS, notch = 1 - LW / LS, foot = 1 - (LA + LW) / LS;
+  return `M${p(-LA - LS, 0)} L${p(-LA, 1)} L${p(0, v)} L${p(LA, 1)} L${p(LA + LS, 0)} L${p(LA + LS - LW, 0)}`
+       + ` L${p(LA, notch)} L${p(0, foot)} L${p(-LA, notch)} L${p(-LA - LS + LW, 0)} Z`;
+}
+const slim = d => `<path d="${d}" fill="${C}" stroke="${C}" stroke-width="0.012" stroke-linejoin="round"/>`;
+function lowSym2(tx, ty, s, lit) {
+  return `<g transform="translate(${tx},${ty}) scale(${s})">${slim(lowPath2(0))}${dot(0, 0.075, 0.075)}${lit ? rays(0, 1.04, 0.14, 0.55, 0.03) : ''}</g>`;
+}
+function lowGroupSym2(tx, ty, s) {
+  return `<g transform="translate(${tx},${ty}) scale(${s})">${slim(lowGroupPath2())}${dot(-LA, 0.075, 0.07)}${dot(LA, 0.075, 0.07)}</g>`;
+}
+document.getElementById('cmp').innerHTML = `<div>Approved shapes</div>`
+  + cell(lowSym2(75, Y, 110, false)) + cell(lowSym2(75, Y, 95, true)) + cell(lowGroupSym2(75, Y, 100));
+document.getElementById('cmp').innerHTML += '<br>' + cell(tall(75, Y, 200, false)) + cell(tallLit(75, Y, 170)) + cell(tallGroup(75, Y, 150)) + cell(turbine(75, Y, 180));
+// Wind turbine, as the legend: a solid dot at the hub (the nacelle) with an open gap around it; the mast and the three
+// blades start beyond the gap.
+function turbine(tx, ty, s) {
+  const hub = 0.72, L = 0.3, R = 0.085, line = (x1, y1, x2, y2, w) => `<line x1="${x1}" y1="${-y1}" x2="${x2}" y2="${-y2}" stroke="${C}" stroke-width="${w}" stroke-linecap="butt"/>`;
+  const blade = deg => { const a = deg * Math.PI / 180, c = Math.cos(a), si = Math.sin(a); return line(c * R, hub + si * R, c * (R + L), hub + si * (R + L), 0.055); };
+  return `<g transform="translate(${tx},${ty}) scale(${s})">${line(0, 0, 0, hub - R, 0.065)}${line(-0.13, 0, 0.13, 0, 0.065)}`
+       + `${blade(90)}${blade(200)}${blade(340)}<circle cx="0" cy="${-hub}" r="0.045" fill="${C}"/></g>`;
+}
+</script></body></html>

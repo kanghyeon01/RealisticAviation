@@ -49,6 +49,32 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
   radius 5 / 3.5 / 2.5 NM), shown in its panel. Arrivals call when within the radius + 0.5 NM; holds are stacked by
   class (B highest, from 6,000 / 4,000 / 2,000 ft); a class D airport has no approach control (its tower says "continue
   approach"); the default pattern side turns away from a neighbouring airport.
+- **VFR chart infoview.** A button in the infoview menu draws the map like a VFR sectional chart:
+  - airspace rings (B solid blue, C solid magenta, D dashed blue);
+  - their altitude limits in hundreds of feet above sea level ("100 / SFC", "40 / 12", and "-25" between corner
+    brackets for class D), using typical FAA values above the field: B to 10,000 ft (shelf from 3,000), C to
+    4,000 ft (shelf from 1,200), D to 2,500 ft;
+  - a Mode C veil around each class B airport: a thin magenta ring "MODE C 6 NM" (the chart's 30 NM scaled to the
+    map: the class B radius plus 1 NM, so it crosses the edge of the playable area);
+  - built-up areas in yellow, where residents and workers reach 2,500 per km²;
+  - terrain in the chart's eight elevation tints, fitted to the map's height (at least 200 ft per tint), with spot
+    elevations on peaks and Maximum Elevation Figures (MEF) per quadrant;
+  - obstacles: every building at least 200 ft high, with its top above sea level and its height above the ground
+    ("1324 (312)"). The highest are shown first; a lower one within 600 m turns that symbol into the group symbol,
+    so labels never overlap. Symbols follow the FAA legend:
+    - the spire from 1,000 ft, else ^;
+    - lightning rays above 700 ft;
+    - groups show the elevation only;
+    - inside built-up areas only obstacles over 299 ft are shown.
+
+    Wind turbines have their own symbol. Two to four close together are a turbine group; more, or spread wider than
+    1 km, are a wind farm, drawn with a dashed outline and its highest elevation in a box;
+  - the airport buildings in their airspace colour: blue for class B and D, magenta for class C.
+
+  Like a printed chart, it is worked out once when the infoview opens; reopen it to see changes. Each layer can be turned
+  off in the legend.
+- **ICAO code.** Each airport's panel has a code field (3–4 letters or digits). An empty field means an automatic code
+  from the airport's name. The code is saved with the city and used by Realistic Aviation ATIS.
 - **Gate hold.** An airplane taxiing in to a gate that another airplane still uses waits 100 m before the stand,
   clear of the pushback area ("hold position, gate occupied").
 - **Pushback (phase 2).** An airplane leaving a nose-in gate is pushed back a short way (about half its length,

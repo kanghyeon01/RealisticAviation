@@ -3,6 +3,7 @@ using Colossal.Logging;
 using Game;
 using Game.Modding;
 using Game.Prefabs;
+using Game.Rendering;
 using Game.SceneFlow;
 using Game.Simulation;
 
@@ -33,9 +34,11 @@ namespace RealisticAviation
             // every navigation update: one right before it, one between it and AircraftMoveSystem.
             updateSystem.UpdateBefore<AtcPreNavigationSystem, AircraftNavigationSystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAfter<AtcSystem, AircraftNavigationSystem>(SystemUpdatePhase.GameSimulation);
-            // Airspace infoview (phase 4-3): the button in the infoview menu, and the rings it draws on the map.
+            // VFR chart infoview (phase 4-3): the button in the infoview menu, what it draws on the map, and the airport
+            // buildings recoloured right after the game colours buildings for the infoview.
             AirspaceOverlaySystem.CreateInfoview(updateSystem.World.GetOrCreateSystemManaged<PrefabSystem>());
             updateSystem.UpdateAt<AirspaceOverlaySystem>(SystemUpdatePhase.Rendering);
+            updateSystem.UpdateAfter<AirportHighlightSystem, ObjectColorSystem>(SystemUpdatePhase.Rendering);
 
             // Info panel sections aren't scheduled; the selected-info system updates the ones it knows about.
             updateSystem.World.GetOrCreateSystemManaged<AirportSection>();

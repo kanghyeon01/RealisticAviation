@@ -50,7 +50,16 @@ namespace RealisticAviation
         {
             Entity entity = selectedEntity;
             visible = entity != Entity.Null && EntityManager.HasComponent<Airplane>(entity) && m_AtcSystem.TryGetLastMessage(entity, out m_Message)
-                && m_Message.m_Airport != Entity.Null;
+                && m_Message.m_Airport != Entity.Null && !HasLeftFrequency(m_Message);
+        }
+
+        /// <summary>
+        /// Released to a controller the mod doesn't model ("contact center" on leaving the last zone, or "frequency change
+        /// approved" after a class D departure): it is on none of the airport's frequencies any more.
+        /// </summary>
+        private static bool HasLeftFrequency(in AtcMessage message)
+        {
+            return message.m_Kind == AtcMessageKind.ContactCenter || (message.m_Kind == AtcMessageKind.ContactDeparture && message.m_Value == 0);
         }
 
         protected override void OnProcess()

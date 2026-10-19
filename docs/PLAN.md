@@ -197,6 +197,64 @@ Before: one cleared arrival owned the runway from about 5 NM, about one arrival 
   game's airplane icon; an infoview needs an infomode, so it highlights airplane stops). While it is active the rings are
   drawn with OverlayRenderSystem, projected on the terrain, VFR-sectional style: B solid blue (inner surface ring at half
   the radius + outer ring), C the same in magenta, D one dashed blue ring. Esc / another infoview closes it.
+- VFR chart infoview (2026-10-19): the airspace infoview is renamed "VFR chart" ("VFR 차트"), and it gains three things.
+  - **Altitude labels** (`ChartLabels`): a stroke font (digits, S, F, C) drawn with overlay lines, north-up. Limits are
+    typical FAA values above the field elevation ((runway height − sea level) × 3.28) in hundreds of feet MSL:
+    - B: 10,000 / SFC inside, 10,000 / 3,000 in the shelf;
+    - C: 4,000 / SFC, 4,000 / 1,200;
+    - D: "-25" (up to but not including 2,500 ft) between four L-shaped corner brackets, as the chart writes it (first a
+      dashed box).
+
+    Each label goes at the first of 8 directions (SE first) that another airspace does not cover. The labels are
+    display only; the tower does not use them.
+  - **Built-up areas** (`UrbanAreaMap`):
+    - 128 m cells over the 14.3 km playable area count residents (households) and workers (company employees) of
+      buildings with renters, so city services such as airports are excluded;
+    - a cell is yellow when its 3×3 neighbourhood reaches 2,500 per km²;
+    - counted on a worker thread (non-Burst IJob) every 2 s while the infoview is open, and drawn as one strip per row
+      run.
+  - **Airport highlight** (`AirportHighlightSystem`): the game colours buildings only by kind, and airports share
+    "TransportStation" with every station. So the legend entries are BuildingInfomodePrefabs of type None: the game
+    colours nothing with them, but they get a palette slot and a checkbox. Right after `ObjectColorSystem`, every
+    airport (from `AtcSystem.Airspaces`) and its sub-objects and upgrades get Color(slot, 0): B/D blue, C magenta.
+    Trees are left alone, as the game does. This replaces the old airplane-stops infomode.
+- VFR chart, second pass (2026-10-19):
+  - Legend: airports B/D (blue), airports C (magenta), built-up areas, obstacles.
+    - Colour slots: ToolSystem gives index = group × 4 + count. Every colour infomode is in group 2 (only heatmaps
+      differ), and the colour arrays hold 101 slots, so four or more entries are fine. The mail infoview has five.
+    - A first reading took the `k < 4` clean-up loop for a limit of three. Airports were briefly merged into one blue
+      entry because of it, then split again.
+  - **Obstacles** (`ObstacleMap`):
+    - top-level buildings whose prefab `ObjectGeometryData.m_Bounds.max.y` is at least 200 ft;
+    - taken highest top (above sea level) first; one within 600 m of a symbol already shown is not drawn and makes
+      that symbol a group, so symbols are always 600 m apart (first a 1,024 m grid, whose neighbours could touch at
+      the cell edges and overlap downtown);
+    - drawn as on the chart legend:
+      - a solid spire: inward-curving legs (quadratic curves, control point at 0.05 / 0.2 of the size) from pointed
+        feet, a triangular notch between the feet (0.14 high), filled with 24 square-ended strips and outlined thinly;
+      - a dot under the notch and thin light rays round the top;
+      - a group is two spires foot to foot, each keeping only its outer rays;
+      - bigger from 1,000 ft above the ground, with "MSL" over "(AGL)" in feet to its right.
+    - Wind turbines (prefab with `WindPoweredData`) have their own symbol: a mast, three blades and a base line,
+      labelled the same. Turbines within 1,200 m of a turbine already in a farm join it (single linkage). A farm of two
+      or more is a dashed circle round its turbines (+200 m, at least wide enough for its contents), with the turbine
+      symbol and the highest elevation in a box in its middle, as the chart's wind farm. Other obstacles within 600 m
+      of a turbine, and turbines within 600 m of another obstacle, are left out. Symbol 100 m high (150 m from 1,000 ft); first 220 / 330 m, which
+      hid the shape under thick strokes. Label strings are built once per 2 s refresh;
+    - the font gained "(" and ")".
+  - **ICAO code** (`AirportCode` on the airport building, 4 ASCII bytes in a uint, saved):
+    - set from the panel through the game's own TextInput (it blocks hotkeys while typing; Enter or Esc commits on
+      blur);
+    - `AirportCodes.Get` gives the entered code, or else an automatic one: the first four Latin letters of the name,
+      "ZZAA" otherwise, made unique in entity order after the entered codes;
+    - Realistic Aviation ATIS references this assembly and uses it for its METAR station codes.
+  - **Mode C veil**: a thin magenta ring (20 m) around each class B airport.
+    - Radius: B radius + 1 NM = 6 NM (first 8 NM, which lay wholly outside the 7.7 NM wide playable area). Real veils
+      are 30 NM.
+    - Where two veils overlap, each keeps the part nearer its own airport.
+    - "MODE C 6 NM" is lettered along the inside at −120° and 60°. `ChartLabels.DrawTextOnCircle` turns each character
+      with the circle, top inwards on the lower half and outwards on the upper half, so it reads north-up.
+    - The font gained M, O (the 0 oval), D, E and N. Display only.
 - Airspace entry and handoffs (2026-10-18): an arrival's first call on entering its zone is pilot first
   ("Portland Approach, <cs>, level 5,000." (altitude above the field, climbing/descending through when changing)" / "<cs>, Portland Approach, radar contact, cleared into the Class B
   airspace, expect runway 07"; C without the clearance, D to the tower). Ground hands a departure to the tower when it
@@ -458,3 +516,60 @@ otherwise fly nose-up like in the flare (the author reported this).
 - The game's own north (research 2026-10-19): `PlanetarySystem` places the sun with `TopocentricCoordinates.
   ToLocalCoordinates` = (sin az, cos alt, cos az) with the azimuth from north towards east (SunCalc + pi), so map +z is
   north and +x east: the sun rises towards +x. RA's map north was already the same.
+- VFR chart symbols, final (2026-10-19). The shapes were approved one by one against the FAA legend in
+  `docs/vfr-symbols-preview.html`, and `ObstacleSymbols.cs` uses the same unit coordinates. Solid shapes are cut once
+  into 40 rows of fill strips (even-odd scanlines) and edged with a thin outline, which also rounds the corners. Dots are
+  overlay circles. The old line-drawn spires in `ChartLabels` are gone.
+  - Symbols and sizes:
+    - tall spire (1,000 ft AGL and over, 150 m) and its group: two rods, two notches with a dot each;
+    - low ^ (under 1,000 ft, 100 m) and its group M: even-width bands;
+    - lightning rays: five thin lines with a small jog;
+    - wind turbine (110 m): a solid nacelle dot with a gap round it, blades at 90/200/340°;
+    - turbine group: two overlapping turbines;
+    - wind farm: dashed circle with the elevation in a box.
+  - Rules (FAA Chart Users' Guide):
+    - shown above 200 ft AGL, or above 299 ft inside a built-up (yellow) cell, from `UrbanAreaMap.IsUrban`, which is
+      false while built-up areas are off in the legend;
+    - rays only above 700 ft AGL, never on turbines. This follows AC 70/7460-1M, which allows medium-intensity lights up
+      to 700 ft; the threshold was read from secondary sources, not the AC text itself;
+    - groups (600 m declutter) show the MSL only, as in congested areas;
+    - turbines chained within 1,200 m: 1 is single, 2–4 within 1 km is a turbine group, more or wider is a wind farm.
+- VFR chart terrain (2026-10-19, `TerrainChartMap`, legend entry "Terrain elevations" / "지형 표고"). The game has no
+  terrain-height heatmap, so terrain is drawn as overlay strips like the built-up areas.
+  - Sampling: 32 m cells over the playable area. A non-Burst job samples `TerrainSystem.GetHeightData()` and the water
+    surface (`WaterUtils.SampleDepth` > 0.5 m means water, left uncoloured). It registers itself as a CPU height reader and
+    a water surface reader. It runs when the infoview opens and every 30 s.
+  - Elevation tints use the chart bands: < 1000, 2000, 3000, 5000, 7000, 9000, 12000 ft and above, alpha 0.8. They are
+    drawn under the built-up yellow, whose alpha rose to 0.7.
+  - Spot elevations: local maxima over 1 km (checked every 4 cells), standing at least 100 ft above the ring 1 km out,
+    kept highest first and 1.5 km apart. Each is a black dot (20 m) with the MSL in feet (45 m text).
+  - MEF: 4 × 4 quadrants (3.6 km). Each takes the highest terrain or obstacle (`ObstacleMap.HighestTop`, the obstacles
+    found, so terrain plus anything over 200 ft; trees are left out), rounded up to 100 ft. It is drawn blue: the thousands
+    420 m high, the hundreds 250 m and raised. Texts are rebuilt only when a figure changes.
+- Built-up areas at 32 m (same day). A cell is built-up when the density over the 13 × 13 cells round it (416 m, from a
+  summed-area table built in the job) reaches 2,500 per km². The finished flags are copied to a managed array for
+  `IsUrban`, so the obstacle rules never read what the job writes.
+- VFR chart, performance and fixes after the first in-game look (2026-10-19). The frame rate dropped, and the city's low
+  hills showed almost no tint.
+  - Computed once per opening: built-up areas, obstacles and terrain are each counted once when the chart opens, as a
+    chart is printed rather than kept live; reopen it to refresh. Before this, built-up areas and obstacles were counted
+    every 2 s and terrain every 30 s. Obstacles wait for the built-up flags, so the 299 ft rule always sees them.
+  - `RectMerger` merges equal runs down the rows into rectangles, each drawn as one projected line as wide as the
+    rectangle is tall. Terrain tints and built-up areas now draw a handful of shapes per even area instead of one per
+    32 m row.
+  - MEF obstacle tops are looked up only when `ObstacleMap.Version` changes, no longer every frame.
+  - Elevation bands are fitted to the map: sea level to the highest land in the chart's eight tints, each step a whole
+    hundred feet and at least 200 ft.
+  - Wind turbines: the chain distance is 600 m (was 1,200 m). 2–4 turbines make a turbine group, 5 or more a wind farm;
+    the 1 km extent rule is gone. Four scattered turbines in an industrial area had been drawn as a farm the size of the
+    whole area. The farm outline is now the turbines' convex hull moved out by 150 m with rounded corners (monotone
+    chain), dashed evenly along its length, instead of a circle.
+- Radio fixes (2026-10-19, from the log):
+  - Routeless "TRAFFIC" airplanes on the ground lanes of an outside connection were given "taxi to runway" on a ground
+    frequency. Their "airport" was the outside connection (entities 1356069–1356076). Ground handling (`ClearToTaxi`,
+    hold, gate hold) now needs the airplane's lane to belong to a real airport, one in `m_Airspaces`.
+  - Zone ping-pong: entering and leaving a zone both used its radius, so TRAFFIC 159, skimming the edge, got "radar
+    contact", "contact center" 0.2 s later and "radar contact" again 3 s after. It now leaves only 0.5 NM beyond the
+    edge (`kZoneExitMargin`).
+  - The airplane panel hides its radio box once the airplane was released to a controller the mod doesn't model:
+    "contact center", or "frequency change approved" at class D.
