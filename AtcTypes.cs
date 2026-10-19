@@ -6,6 +6,16 @@ using Unity.Mathematics;
 
 namespace RealisticAviation
 {
+    /// <summary>The weather behind the weather go-around chance (AtcSystem.GetSettings).</summary>
+    public enum WeatherKind : byte
+    {
+        Clear,
+        Rain,
+        Snow,
+        Fog,
+        Thunderstorm,
+    }
+
     /// <summary>Kinds of disaster the tower may close an airport for (chosen in the options).</summary>
     [Flags]
     public enum HazardKinds : byte
@@ -332,7 +342,8 @@ namespace RealisticAviation
         /// <summary>Chance that an arrival goes around at the decision height because of the weather (set from the climate).</summary>
         public float m_WeatherGoAroundChance;
 
-        public bool m_Snowing;
+        /// <summary>The weather that set <see cref="m_WeatherGoAroundChance"/> (for the log).</summary>
+        public WeatherKind m_Weather;
 
         public AtcSettings(Setting setting)
         {
@@ -343,7 +354,7 @@ namespace RealisticAviation
             m_ArrivalSpacingSeconds = setting.ArrivalSpacingSeconds;
             // Set from the climate by AtcSystem.
             m_WeatherGoAroundChance = 0f;
-            m_Snowing = false;
+            m_Weather = WeatherKind.Clear;
             m_ClosureHazards = (setting.CloseForTornado ? HazardKinds.Tornado : HazardKinds.None)
                 | (setting.CloseForHail ? HazardKinds.Hail : HazardKinds.None)
                 | (setting.CloseForOtherDisasters ? HazardKinds.Other : HazardKinds.None);

@@ -420,6 +420,29 @@ otherwise fly nose-up like in the flare (the author reported this).
   asked for the runway from its stand before its pushback, as any message but "taxi to the gate" counted as a taxi
   clearance. Now only "taxi to runway" (moving) does, or "taxi to the gate" for a crossing on the way in; anything else
   gets its taxi clearance first (`ClearToTaxi`).
+- Departure starvation and queue overlap (2026-10-19, RiverPort log): departures waited 8–10 min at the hold-short
+  line under a steady arrival stream (a "first arrival far enough out" was cleared before the runway was free, and the
+  hole was gone by then), and the 3-minute taxi-hold timeout then let the queue behind them roll into each other
+  (10 releases). Now that arrival is cleared only while the runway is free (the departure goes in the same tick), and
+  a taxi hold behind an airplane waiting in line (ground request, itself held, or pushing back) is never given up
+  (`IsWaitingInLine`); cycles are still released by `DetectDeadlocks`.
+- Close-airplane diagnostics (2026-10-19, research, remove before the next release): the user has seen airplanes
+  end up nose to tail since the first versions. `LogCloseAirplanes` logs ("close: ...") any ground airplane whose nose is
+  within 8 m of another's body ahead (by position), once a minute per pair, with both airplanes' request, lane (runway
+  or taxiway, flags), mod holds and releases, game blocker and geometry. Suspects: no taxi spacing on runway lanes,
+  wrong asset bounds, merging taxiways.
+  Result (00:03–00:08 log): most entries were airplanes at outside connections (100–190 m/s on "Connection" lanes
+  without the flying flag), now filtered out (`IsTaxiing`). The real ones: an airplane rolled up to 4–8 m of one
+  holding short whose tail sat across a junction; it was on a crossing lane (game blocker type Crossing), which taxi
+  spacing never looked at. Fix: `FindCrossingAhead` reads the game's `LaneOverlap` of each lane ahead; an airplane within
+  20 m of the junction point on a crossing or merging lane counts as the airplane ahead there (runway lanes excluded).
+  Follow-up the same night: two departures reaching a merge together each took the other as the airplane ahead, the
+  wait-for cycle was released as a deadlock and they drove through each other (twice). Now only the one further from
+  the junction (by body; tie by entity index) gives way (`GivesWay`), so there is no cycle; one standing across the
+  junction always goes first.
+- Weather go-arounds by kind (2026-10-19, author): 0.3% in clear weather; per kind the chance grows with the 0–1
+  intensity (`ClimateSystem` precipitation/isSnowing, fog, thunder) from 0.3% to 8% rain, 12% snow, 12% fog, 15%
+  thunderstorm; the highest kind counts (never above 15%). Logged when it changes by 0.5 points (`GetSettings`).
 - Line up and wait default by class (2026-10-19, author): on at B and C, off at D (`LineUpSetting.DefaultFor`). A choice
   in the panel is stored with the class it was made under and holds only while that class stays; any class change
   (chosen or automatic) brings back the default. The old `LineUpAndWaitAirport` tag is no longer read (kept so old

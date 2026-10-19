@@ -38,7 +38,7 @@ namespace RealisticAviation
         [SettingsUISlider(min = 45, max = 180, step = 5, unit = Unit.kInteger)]
         public int ArrivalSpacingSeconds { get; set; }
 
-        /// <summary>In rain or snow, an arrival now and then goes around at the decision height (0.5–5%, by intensity).</summary>
+        /// <summary>An arrival now and then goes around at the decision height: 0.3% in clear weather, up to 8–15% in bad weather.</summary>
         [SettingsUISection(kSection, kArrivalGroup)]
         public bool WeatherGoArounds { get; set; }
 

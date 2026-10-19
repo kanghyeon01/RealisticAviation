@@ -7,7 +7,7 @@
 
 - One airplane per runway: departures hold short, arrivals in the air fly a holding pattern until cleared. The runway goes to whoever has waited longest relative to how quickly they use it, so nobody waits forever.
 - Arrival sequencing with spacing and wake turbulence separation; departures slot in between arrivals.
-- Go-arounds at 100 ft when the runway is not clear (and now and then in rain or snow), followed by a traffic pattern.
+- Go-arounds at 100 ft when the runway is not clear (and now and then on the pilot's own decision, more often in rain, snow, fog or thunderstorms), followed by a traffic pattern.
 - Line up and wait (on at class B and C airports), pushback from nose-in gates, taxi spacing, gate holds.
 - Airport closures for tornadoes, hail and other disasters near a runway.
 - Airspace classes B, C and D with approach, departure, tower and ground frequencies, handoffs between airports, and an airspace infoview.

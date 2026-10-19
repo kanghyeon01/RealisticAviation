@@ -72,7 +72,7 @@ after a save is loaded.
 | --- | --- | --- |
 | Holding leg length | 1.5 NM | Straight-leg length of the holding pattern |
 | Arrival spacing | 45 s | Minimum time between two arrivals cleared to the same runway |
-| Weather go-arounds | On | In rain or snow an arrival sometimes goes around at 100 ft (0.5–5% by intensity) |
+| Weather go-arounds | On | An arrival sometimes goes around at 100 ft: 0.3% in clear weather, rising with the intensity to 8% (rain), 12% (snow, fog), 15% (thunderstorm) |
 | Close for tornadoes / hail storms / other disasters | On | Which disasters close an airport |
 | Limit closure time | Off | Off: closed as long as the disaster lasts. On: reopens after the maximum closure |
 | Maximum closure | 30 min | Game minutes after which a closed airport reopens (when the limit is on) |

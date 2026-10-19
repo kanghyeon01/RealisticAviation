@@ -96,8 +96,8 @@ namespace RealisticAviation
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.WeatherGoArounds)), "Weather go-arounds" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.WeatherGoArounds)),
-                "In rain or snow, an arriving airplane now and then goes around at 100 ft because the pilot can't see the runway: " +
-                "0.5% of approaches in light rain up to 3% in heavy rain, half as much again in snow (at most 5%). Never in dry weather."
+                "Now and then an arriving airplane goes around at 100 ft on the pilot's own decision: 0.3% of approaches in clear weather, " +
+                "more the worse the weather, up to 8% in the heaviest rain, 12% in heavy snow or thick fog and 15% in a thunderstorm."
             },
             { "RealisticAviation.GroundDelay.Toggle", "Ground delay" },
             {
@@ -228,8 +228,8 @@ namespace RealisticAviation
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.WeatherGoArounds)), "기상 Go-around" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.WeatherGoArounds)),
-                "비나 눈이 오면 조종사가 활주로를 보지 못해 100ft에서 가끔 Go-around 합니다. " +
-                "약한 비 0.5%에서 강한 비 3%까지, 눈은 그 1.5배(최대 5%)입니다. 맑은 날에는 일어나지 않습니다."
+                "도착기 조종사가 100ft에서 가끔 스스로 Go-around 합니다. 맑은 날은 접근의 0.3%이고, " +
+                "날씨가 나쁠수록 늘어나 가장 강한 비에서 8%, 폭설이나 짙은 안개에서 12%, 뇌우에서 15%까지 올라갑니다."
             },
             { "RealisticAviation.GroundDelay.Toggle", "지상 항공교통 관리" },
             {
