@@ -35,7 +35,7 @@ namespace RealisticAviation
 
         /// <summary>Minimum time between two arrivals cleared to land on the same runway, in seconds (in-trail spacing).</summary>
         [SettingsUISection(kSection, kArrivalGroup)]
-        [SettingsUISlider(min = 45, max = 180, step = 5, unit = Unit.kInteger)]
+        [SettingsUISlider(min = 15, max = 75, step = 5, unit = Unit.kInteger)]
         public int ArrivalSpacingSeconds { get; set; }
 
         /// <summary>An arrival now and then goes around at the decision height: 0.3% in clear weather, up to 8–15% in bad weather.</summary>
@@ -68,7 +68,7 @@ namespace RealisticAviation
 
         /// <summary>A ground airplane may take off or cross ahead of an arrival that is at least this many seconds out.</summary>
         [SettingsUISection(kSection, kGroundGroup)]
-        [SettingsUISlider(min = 30, max = 300, step = 10, unit = Unit.kInteger)]
+        [SettingsUISlider(min = 10, max = 50, step = 5, unit = Unit.kInteger)]
         public int DepartureGapSeconds { get; set; }
 
         /// <summary>A tornado near the airport closes it.</summary>

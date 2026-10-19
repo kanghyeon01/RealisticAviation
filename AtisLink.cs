@@ -19,7 +19,7 @@ namespace RealisticAviation
     }
 
     /// <summary>
-    /// The link to an ATIS mod (Realistic Aviation ATIS), which registers <see cref="Current"/> when it loads. Realistic
+    /// The link to an ATIS mod (Aviation Weather Add-on), which registers <see cref="Current"/> when it loads. Realistic
     /// Aviation cannot reference that mod, so the call goes this way round. Without it the radio works as before, with no
     /// "with information X".
     /// </summary>

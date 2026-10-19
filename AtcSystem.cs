@@ -242,7 +242,7 @@ namespace RealisticAviation
             return m_AirportClosures.TryGetValue(airport, out Entity closedBy) ? closedBy : Entity.Null;
         }
 
-        // ---- For other mods (Realistic Aviation ATIS): what an airport's ATIS broadcast needs. Main thread only.
+        // ---- For other mods (Aviation Weather Add-on): what an airport's ATIS broadcast needs. Main thread only.
 
         /// <summary>The airport's airspace class, or false if it has no airspace (not an airport, or not found yet).</summary>
         public bool TryGetAirspaceClass(Entity airport, out AirspaceClass airspaceClass)

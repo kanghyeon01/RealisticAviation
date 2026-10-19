@@ -209,7 +209,7 @@ namespace RealisticAviation
     }
 
     /// <summary>
-    /// Airport codes, for the airport panel and for other mods (Realistic Aviation ATIS): the code the player entered, or an
+    /// Airport codes, for the airport panel and for other mods (Aviation Weather Add-on): the code the player entered, or an
     /// automatic one from the airport's name (its first four Latin letters, "ZZAA" when it has fewer), made unique among the
     /// city's airports by stepping the last two letters (airports in entity order; entered codes come first).
     /// </summary>

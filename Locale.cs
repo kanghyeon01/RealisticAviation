@@ -171,7 +171,7 @@ namespace RealisticAviation
 
         protected override Dictionary<string, string> Entries() => new Dictionary<string, string>
         {
-            { m_Setting.GetSettingsLocaleID(), "리얼리스틱 항공 (Realistic Aviation)" },
+            { m_Setting.GetSettingsLocaleID(), "Realistic Aviation" },
             { m_Setting.GetOptionTabLocaleID(Setting.kSection), "메인" },
             { m_Setting.GetOptionGroupLocaleID(Setting.kArrivalGroup), "도착" },
             { m_Setting.GetOptionGroupLocaleID(Setting.kGroundGroup), "지상" },

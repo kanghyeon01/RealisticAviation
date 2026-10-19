@@ -299,8 +299,10 @@ namespace RealisticAviation
             {
                 if (TryPlaceLabel(spaces, self, kClassDLabelFactor, false, out float2 at))
                 {
-                    // "-25": up to but not including 2,500 ft, as the chart writes the class D ceiling.
-                    ChartLabels.DrawBracketed(buffer, at, space.m_Height, "-" + Hundreds(elevation + kClassDTop), height, color, width);
+                    // The ceiling in hundreds of feet; "-25" (up to but not including 2,500 ft) only where a class B or C airspace
+                    // overlaps it, its shelf starting where class D ends, as the chart writes it.
+                    string ceiling = Hundreds(elevation + kClassDTop);
+                    ChartLabels.DrawBracketed(buffer, at, space.m_Height, UnderBOrC(spaces, self) ? "-" + ceiling : ceiling, height, color, width);
                 }
                 return;
             }
@@ -421,6 +423,21 @@ namespace RealisticAviation
                         m_MefSmall[index], kMefSmall, kMefBlue, 0.16f * kMefSmall);
                 }
             }
+        }
+
+        /// <summary>Whether a class B or C airspace overlaps this class D one (their outer rings meet).</summary>
+        private static bool UnderBOrC(NativeArray<AirportSpace> spaces, int self)
+        {
+            AirportSpace own = spaces[self];
+            for (int i = 0; i < spaces.Length; i++)
+            {
+                AirportSpace other = spaces[i];
+                if (i != self && other.m_Class != AirspaceClass.D && math.distance(own.m_Center, other.m_Center) < own.m_Radius + other.m_Radius)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>The first label spot at this share of the radius that another airport's airspace doesn't cover.</summary>

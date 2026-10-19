@@ -202,7 +202,8 @@ Before: one cleared arrival owned the runway from about 5 NM, about one arrival 
     typical FAA values above the field elevation ((runway height − sea level) × 3.28) in hundreds of feet MSL:
     - B: 10,000 / SFC inside, 10,000 / 3,000 in the shelf;
     - C: 4,000 / SFC, 4,000 / 1,200;
-    - D: "-25" (up to but not including 2,500 ft) between four L-shaped corner brackets, as the chart writes it (first a
+    - D: "25" between four L-shaped corner brackets, as the chart writes it, and "-25" (up to but not including
+      2,500 ft) only where a class B or C airspace overlaps it (first always "-25", before that a
       dashed box).
 
     Each label goes at the first of 8 directions (SE first) that another airspace does not cover. The labels are
@@ -247,7 +248,7 @@ Before: one cleared arrival owned the runway from about 5 NM, about one arrival 
       blur);
     - `AirportCodes.Get` gives the entered code, or else an automatic one: the first four Latin letters of the name,
       "ZZAA" otherwise, made unique in entity order after the entered codes;
-    - Realistic Aviation ATIS references this assembly and uses it for its METAR station codes.
+    - Aviation Weather Add-on references this assembly and uses it for its METAR station codes.
   - **Mode C veil**: a thin magenta ring (20 m) around each class B airport.
     - Radius: B radius + 1 NM = 6 NM (first 8 NM, which lay wholly outside the 7.7 NM wide playable area). Real veils
       are 30 NM.
@@ -573,7 +574,7 @@ otherwise fly nose-up like in the flare (the author reported this).
     edge (`kZoneExitMargin`).
   - The airplane panel hides its radio box once the airplane was released to a controller the mod doesn't model:
     "contact center", or "frequency change approved" at class D.
-- Public API for Realistic Aviation ATIS (2026-10-19), main thread only:
+- Public API for Aviation Weather Add-on (2026-10-19), main thread only:
   - `AtcSystem.TryGetAirspaceClass`;
   - `GetLandingRunways`: the landing ends in use, named as on the radio and sorted;
   - `IsClosed`: whether the airport is closed and what closed it.
@@ -581,7 +582,7 @@ otherwise fly nose-up like in the flare (the author reported this).
   ATIS phase 3 builds its broadcast from them. Phase 4 ("with information X" on first contact) will need a hook in the
   other direction: RA cannot reference ATIS, so ATIS will register a provider for RA to call.
 - ATIS phase 4 (2026-10-19): "with information X".
-  - Link: `AtisLink.Current`, a delegate Realistic Aviation ATIS registers. RA cannot reference ATIS, so the call goes
+  - Link: `AtisLink.Current`, a delegate Aviation Weather Add-on registers. RA cannot reference ATIS, so the call goes
     this way round. Each tower update `FillAtisStates` copies every airport's state (letter, previous letter, QNH,
     minutes since change) into `m_AtisStates` for the job. Without the ATIS mod the table stays empty and the radio is
     unchanged.
@@ -594,3 +595,13 @@ otherwise fly nose-up like in the flare (the author reported this).
     changed since then, it reports the previous letter, and the controller adds "information Charlie now current, QNH
     1009, ". The message stores the reported and current letters (+1, 0 = none) and the QNH, since the text is built
     later on the main thread.
+- Slider ranges centred on the defaults (2026-10-19, the user's request): arrival spacing 15–75 s (was 45–180) and the
+  departure gap before arrivals 10–50 s (was 30–300), both in 5 s steps, so the defaults of 45 s and 30 s sit in the
+  middle.
+- Test disasters again (2026-10-19), as buttons at the bottom of each airport's panel instead of the temporary options
+  group removed in b04e84c. There is one button per weather event prefab, labelled with the game's name. The trigger
+  only records the request; `DisasterTestSystem` creates the event over that airport on the next simulation update,
+  through the end-frame barrier and with the airport as target, as the game's developer panel does. Used to test
+  closures and the ATIS phase 5 weather.
+  Removed again the same day, once closures and the phase 5 weather had been tried with it; it can be brought back from
+  history.

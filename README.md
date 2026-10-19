@@ -51,9 +51,9 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
   approach"); the default pattern side turns away from a neighbouring airport.
 - **VFR chart infoview.** A button in the infoview menu draws the map like a VFR sectional chart:
   - airspace rings (B solid blue, C solid magenta, D dashed blue);
-  - their altitude limits in hundreds of feet above sea level ("100 / SFC", "40 / 12", and "-25" between corner
-    brackets for class D), using typical FAA values above the field: B to 10,000 ft (shelf from 3,000), C to
-    4,000 ft (shelf from 1,200), D to 2,500 ft;
+  - their altitude limits in hundreds of feet above sea level ("100 / SFC", "40 / 12", and "25" between corner
+    brackets for class D, "-25" under a class B or C), using typical FAA values above the field: B to 10,000 ft
+    (shelf from 3,000), C to 4,000 ft (shelf from 1,200), D to 2,500 ft;
   - a Mode C veil around each class B airport: a thin magenta ring "MODE C 6 NM" (the chart's 30 NM scaled to the
     map: the class B radius plus 1 NM, so it crosses the edge of the playable area);
   - built-up areas in yellow, where residents and workers reach 2,500 per km²;
@@ -74,7 +74,7 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
   Like a printed chart, it is worked out once when the infoview opens; reopen it to see changes. Each layer can be turned
   off in the legend.
 - **ICAO code.** Each airport's panel has a code field (3–4 letters or digits). An empty field means an automatic code
-  from the airport's name. The code is saved with the city and used by Realistic Aviation ATIS.
+  from the airport's name. The code is saved with the city and used by Aviation Weather Add-on.
 - **Gate hold.** An airplane taxiing in to a gate that another airplane still uses waits 100 m before the stand,
   clear of the pushback area ("hold position, gate occupied").
 - **Pushback (phase 2).** An airplane leaving a nose-in gate is pushed back a short way (about half its length,
@@ -97,7 +97,7 @@ after a save is loaded.
 | Option | Default | Meaning |
 | --- | --- | --- |
 | Holding leg length | 1.5 NM | Straight-leg length of the holding pattern |
-| Arrival spacing | 45 s | Minimum time between two arrivals cleared to the same runway |
+| Arrival spacing | 45 s (15–75) | Minimum time between two arrivals cleared to the same runway |
 | Weather go-arounds | On | An arrival sometimes goes around at 100 ft: 0.3% in clear weather, rising with the intensity to 8% (rain), 12% (snow, fog), 15% (thunderstorm) |
 | Close for tornadoes / hail storms / other disasters | On | Which disasters close an airport |
 | Limit closure time | Off | Off: closed as long as the disaster lasts. On: reopens after the maximum closure |
@@ -107,7 +107,7 @@ after a save is loaded.
 | Pattern width | 1.5 NM | Runway centerline to downwind |
 | Final length | 2 NM | Distance of the base turn before the runway |
 | Taxi spacing | 40 m | Gap a taxiing airplane keeps behind the airplane ahead |
-| Departure gap before arrivals | 30 s | A ground airplane may go ahead of a cleared arrival at least this far out |
+| Departure gap before arrivals | 30 s (10–50) | A ground airplane may go ahead of a cleared arrival at least this far out |
 
 ## Compatibility
 
