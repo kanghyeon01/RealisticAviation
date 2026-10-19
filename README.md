@@ -67,8 +67,8 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
     - groups show the elevation only;
     - inside built-up areas only obstacles over 299 ft are shown.
 
-    Wind turbines have their own symbol. Two to four close together are a turbine group; more, or spread wider than
-    1 km, are a wind farm, drawn with a dashed outline and its highest elevation in a box;
+    Wind turbines have their own symbol. Two to four within 600 m of each other are a turbine group; five or more are
+    a wind farm, drawn with a dashed outline round them and its highest elevation in a box;
   - the airport buildings in their airspace colour: blue for class B and D, magenta for class C.
 
   Like a printed chart, it is worked out once when the infoview opens; reopen it to see changes. Each layer can be turned
