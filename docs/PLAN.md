@@ -426,7 +426,7 @@ otherwise fly nose-up like in the flare (the author reported this).
   (10 releases). Now that arrival is cleared only while the runway is free (the departure goes in the same tick), and
   a taxi hold behind an airplane waiting in line (ground request, itself held, or pushing back) is never given up
   (`IsWaitingInLine`); cycles are still released by `DetectDeadlocks`.
-- Close-airplane diagnostics (2026-10-19, research, remove before the next release): the user has seen airplanes
+- Close-airplane diagnostics (2026-10-19, research; removed for 0.1.1): the user has seen airplanes
   end up nose to tail since the first versions. `LogCloseAirplanes` logs ("close: ...") any ground airplane whose nose is
   within 8 m of another's body ahead (by position), once a minute per pair, with both airplanes' request, lane (runway
   or taxiway, flags), mod holds and releases, game blocker and geometry. Suspects: no taxi spacing on runway lanes,

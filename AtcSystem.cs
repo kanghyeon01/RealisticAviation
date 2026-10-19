@@ -117,9 +117,6 @@ namespace RealisticAviation
         private NativeParallelHashMap<Entity, Entity> m_GateHolds;
         private NativeParallelHashMap<Entity, DeadlockRelease> m_Released;
 
-        // Diagnostics: pairs of ground airplanes found too close, and the frame they were last logged.
-        private NativeParallelHashMap<ulong, uint> m_CloseLogged;
-
         /// <summary>Airplanes moving on each airport's ground this tick, and the airports under a ground delay (phase 4-5).</summary>
         private NativeParallelHashMap<Entity, int> m_GroundCounts;
         private NativeParallelHashMap<Entity, int> m_GroundDelays;
@@ -378,7 +375,6 @@ namespace RealisticAviation
             m_Zones = new NativeParallelHashMap<Entity, ZoneState>(32, Allocator.Persistent);
             m_GateHolds = new NativeParallelHashMap<Entity, Entity>(8, Allocator.Persistent);
             m_Released = new NativeParallelHashMap<Entity, DeadlockRelease>(8, Allocator.Persistent);
-            m_CloseLogged = new NativeParallelHashMap<ulong, uint>(16, Allocator.Persistent);
             m_GroundCounts = new NativeParallelHashMap<Entity, int>(4, Allocator.Persistent);
             m_GroundDelays = new NativeParallelHashMap<Entity, int>(4, Allocator.Persistent);
             m_GateCounts = new NativeParallelHashMap<Entity, int>(4, Allocator.Persistent);
@@ -408,7 +404,6 @@ namespace RealisticAviation
             m_Zones.Dispose();
             m_GateHolds.Dispose();
             m_Released.Dispose();
-            m_CloseLogged.Dispose();
             m_GroundCounts.Dispose();
             m_GroundDelays.Dispose();
             m_GateCounts.Dispose();
@@ -445,7 +440,6 @@ namespace RealisticAviation
             m_HeldBehind.Clear();
             m_GateHolds.Clear();
             m_Released.Clear();
-            m_CloseLogged.Clear();
             m_AirspaceClassRequests.Clear();
             m_TaxiwayVersion = -1;
             m_AirportVersion = -1;
@@ -529,7 +523,6 @@ namespace RealisticAviation
                 m_Zones = m_Zones,
                 m_GateHolds = m_GateHolds,
                 m_Released = m_Released,
-                m_CloseLogged = m_CloseLogged,
                 m_GroundCounts = m_GroundCounts,
                 m_GroundDelays = m_GroundDelays,
                 m_LastMessages = m_LastMessages,
@@ -1028,13 +1021,6 @@ namespace RealisticAviation
             // minute), enough to drive past each other; cycles are followed at most this many links.
             private const uint kDeadlockReleaseFrames = 60 * 30;
 
-            // Diagnostics: a ground airplane's nose this close (metres) to another's body is logged, at most once per pair in
-            // this many frames (a simulation minute); only airplanes within the search distance are measured.
-            private const float kCloseGap = 8f;
-            private const uint kCloseLogFrames = 60 * 60;
-            private const float kCloseSearch = 150f;
-            private const float kMaxTaxiSpeed = 30f;
-
             // Two departures this close (metres of path to the runway) stand at the same spot: the earlier request goes first.
             private const float kSameSpotDistance = 5f;
             private const int kMaxDeadlockChain = 8;
@@ -1200,7 +1186,6 @@ namespace RealisticAviation
             public NativeParallelHashMap<Entity, ZoneState> m_Zones;
             public NativeParallelHashMap<Entity, Entity> m_GateHolds;
             public NativeParallelHashMap<Entity, DeadlockRelease> m_Released;
-            public NativeParallelHashMap<ulong, uint> m_CloseLogged;
             public NativeParallelHashMap<Entity, int> m_GroundCounts;
             public NativeParallelHashMap<Entity, int> m_GroundDelays;
             public NativeParallelHashMap<Entity, AtcMessage> m_LastMessages;
@@ -1252,7 +1237,6 @@ namespace RealisticAviation
                     {
                         Apply(scans[i], pushbackAreas);
                     }
-                    LogCloseAirplanes(scans);
                     pushbackAreas.Dispose();
                     scans.Dispose();
                     EndPushbackTick();
@@ -2316,109 +2300,6 @@ namespace RealisticAviation
                 }
                 return $"{entity} ({Describe(flight)}, ETA {flight.m_LastEta:F0} s, on runway: {flight.m_SeenOnRunway}, " +
                     $"cleared {(m_Frame - flight.m_ClearedFrame) / 60} s ago, holding: {flight.m_Holding}{DescribeBlocker(entity)})";
-            }
-
-            /// <summary>
-            /// Diagnostics for airplanes that end up nose to tail (research, see PLAN): every ground airplane whose nose is
-            /// within kCloseGap of another ground airplane's body ahead of it (by position, so merging taxiways count too) is
-            /// logged with both airplanes' state, at most once a minute per pair.
-            /// </summary>
-            private void LogCloseAirplanes(NativeArray<FlightScan> scans)
-            {
-                for (int i = 0; i < scans.Length; i++)
-                {
-                    if (scans[i].m_Flying || !IsTaxiing(scans[i].m_Entity))
-                    {
-                        continue;
-                    }
-                    Entity follower = scans[i].m_Entity;
-                    Transform followerTransform = m_TransformData[follower];
-                    float2 followerForward = math.normalizesafe(math.forward(followerTransform.m_Rotation).xz);
-                    float2 nose = followerTransform.m_Position.xz + followerForward * GetNoseLength(m_PrefabRefData[follower].m_Prefab);
-                    for (int j = 0; j < scans.Length; j++)
-                    {
-                        if (j == i || scans[j].m_Flying || !IsTaxiing(scans[j].m_Entity))
-                        {
-                            continue;
-                        }
-                        Entity leader = scans[j].m_Entity;
-                        Transform leaderTransform = m_TransformData[leader];
-                        float2 toLeader = leaderTransform.m_Position.xz - followerTransform.m_Position.xz;
-                        if (math.dot(toLeader, followerForward) <= 0f || math.lengthsq(toLeader) > kCloseSearch * kCloseSearch)
-                        {
-                            continue;
-                        }
-                        m_PrefabGeometryData.TryGetComponent(m_PrefabRefData[leader].m_Prefab, out ObjectGeometryData leaderGeometry);
-                        float2 leaderForward = math.normalizesafe(math.forward(leaderTransform.m_Rotation).xz);
-                        float2 leaderNose = leaderTransform.m_Position.xz + leaderForward * leaderGeometry.m_Bounds.max.z;
-                        float2 leaderTail = leaderTransform.m_Position.xz + leaderForward * leaderGeometry.m_Bounds.min.z;
-                        float gap = math.sqrt(DistanceToSegmentSq(nose, leaderNose, leaderTail));
-                        if (gap > kCloseGap)
-                        {
-                            continue;
-                        }
-                        ulong key = ((ulong)(uint)follower.Index << 32) | (uint)leader.Index;
-                        if (m_CloseLogged.TryGetValue(key, out uint logged) && m_Frame - logged < kCloseLogFrames)
-                        {
-                            continue;
-                        }
-                        m_CloseLogged[key] = m_Frame;
-                        Mod.Log.Info($"close: {follower} nose {gap:F1} m from {leader} (taxi spacing {m_Settings.m_TaxiSpacing:F0} m). " +
-                            $"Behind: {DescribeGround(scans[i])}. Ahead: {DescribeGround(scans[j])}");
-                    }
-                }
-                if (m_Tick % kDiagnosticInterval == 0 && !m_CloseLogged.IsEmpty)
-                {
-                    NativeList<ulong> old = new NativeList<ulong>(Allocator.Temp);
-                    foreach (var pair in m_CloseLogged)
-                    {
-                        if (m_Frame - pair.Value >= kCloseLogFrames)
-                        {
-                            old.Add(pair.Key);
-                        }
-                    }
-                    for (int i = 0; i < old.Length; i++)
-                    {
-                        m_CloseLogged.Remove(old[i]);
-                    }
-                    old.Dispose();
-                }
-            }
-
-            /// <summary>
-            /// On an airfield taxiway or runway at taxi speed: not one at an outside connection, where the game moves airplanes
-            /// on and off the map at flying speed without the flying flag (they filled the first close-airplane log).
-            /// </summary>
-            private bool IsTaxiing(Entity entity)
-            {
-                Entity owner = m_OwnerData.TryGetComponent(m_CurrentLaneData[entity].m_Lane, out Owner laneOwner) ? laneOwner.m_Owner : Entity.Null;
-                return m_TaxiwayData.HasComponent(owner) && math.lengthsq(m_MovingData[entity].m_Velocity) < kMaxTaxiSpeed * kMaxTaxiSpeed;
-            }
-
-            /// <summary>One ground airplane for the close-airplane log: what it is, where, and what holds it.</summary>
-            private string DescribeGround(in FlightScan scan)
-            {
-                Entity entity = scan.m_Entity;
-                m_PrefabNames.TryGetValue(m_PrefabRefData[entity].m_Prefab, out FixedString128Bytes name);
-                m_PrefabGeometryData.TryGetComponent(m_PrefabRefData[entity].m_Prefab, out ObjectGeometryData geometry);
-                string flight = m_Flights.TryGetValue(entity, out Flight f)
-                    ? $"{(f.m_Arrival ? "arrival" : "departure")} {f.m_Clearance}{(f.m_TouchedDown ? " landed" : string.Empty)}"
-                    : "no request";
-                AircraftCurrentLane currentLane = m_CurrentLaneData[entity];
-                Entity owner = m_OwnerData.TryGetComponent(currentLane.m_Lane, out Owner laneOwner) ? laneOwner.m_Owner : Entity.Null;
-                string lane = $"{currentLane.m_Lane}@{currentLane.m_CurvePosition.x:F2}" +
-                    (m_RunwayOf.ContainsKey(owner) ? " runway" : m_TaxiwayData.HasComponent(owner) ? " taxiway" : " other") +
-                    $" flags {currentLane.m_LaneFlags}";
-                System.Text.StringBuilder mod = new System.Text.StringBuilder();
-                if (m_HeldBehind.TryGetValue(entity, out Entity ahead)) mod.Append(" held-behind ").Append(ahead);
-                if (m_GateHolds.TryGetValue(entity, out Entity occupant)) mod.Append(" gate-hold ").Append(occupant);
-                if (m_TaxiHolds.TryGetValue(entity, out TaxiHold hold) && hold.m_Released) mod.Append(" taxi-hold-released");
-                if (IsReleased(entity)) mod.Append(" deadlock-released");
-                if (m_Pushbacks.TryGetValue(entity, out Pushback pushback)) mod.Append(" pushback ").Append(pushback.m_Phase);
-                if (mod.Length == 0) mod.Append(" none");
-                string blocker = m_BlockerData.TryGetComponent(entity, out Blocker b) && b.m_Blocker != Entity.Null ? $"{b.m_Blocker} ({b.m_Type})" : "none";
-                return $"{entity} [{name}] {flight}, {math.length(m_MovingData[entity].m_Velocity):F1} m/s, lane {lane}, " +
-                    $"mod:{mod}, game blocker {blocker}, length {geometry.m_Bounds.max.z:F0}/{-geometry.m_Bounds.min.z:F0} m nose/tail";
             }
 
             /// <summary>

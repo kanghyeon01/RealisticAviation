@@ -1,30 +1,15 @@
 <Publish>
   <!-- Filled in after the first Publish ("Mod published with Id=...") so NewVersion/Update can find the mod. -->
-  <ModId Value="163873" />
+  <ModId Value="163974" />
   <DisplayName Value="Realistic Aviation" />
   <ShortDescription Value="A control tower for your airports: one airplane per runway, holding, line up and wait, pushback, airspace and radio." />
-  <LongDescription>Realistic Aviation gives every airport a control tower that runs its runways the way real ones do.
-
-- One airplane per runway: departures hold short, arrivals in the air fly a holding pattern until cleared. The runway goes to whoever has waited longest relative to how quickly they use it, so nobody waits forever.
-- Arrival sequencing with spacing and wake turbulence separation; departures slot in between arrivals.
-- Go-arounds at 100 ft when the runway is not clear (and now and then on the pilot's own decision, more often in rain, snow, fog or thunderstorms), followed by a traffic pattern.
-- Line up and wait (on at class B and C airports), pushback from nose-in gates, taxi spacing, gate holds.
-- Airport closures for tornadoes, hail and other disasters near a runway.
-- Airspace classes B, C and D with approach, departure, tower and ground frequencies, handoffs between airports, and an airspace infoview.
-- Radio in standard ICAO/FAA English phraseology in the airport and airplane info panels ("Runway 09, cleared to land").
-- Runway numbers from each runway's heading (09, 27L, ...).
-
-Every option and per-airport setting is in the options menu or the airport's info panel. In-game text is in English and Korean.
-
-The per-airport choices are saved with the city. Removing the mod is safe: the save still loads and those choices are simply dropped.
-
-Made with AI: this mod was vibe-coded with Claude by Anthropic. Claude (Claude Code) wrote all the code; Boing787 directed the work and tested it in-game.
+  <LongDescription>Realistic Aviation: a control tower for your airports. Full description coming soon.
 
 Source code (MIT): https://github.com/kanghyeon01/RealisticAviation</LongDescription>
   <Thumbnail Value="Properties/Thumbnail.png" />
   <Tag Value="Code Mod" />
-  <ModVersion Value="1.0.0" />
-  <ChangeLog>Initial release.</ChangeLog>
+  <ModVersion Value="0.1.1" />
+  <ChangeLog>First release.</ChangeLog>
   <GameVersion Value="1.6.*" />
   <!-- Private while testing; change to Public and run the Update command to release. -->
   <AccessLevel Value="Private" />
