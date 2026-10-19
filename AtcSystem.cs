@@ -126,6 +126,9 @@ namespace RealisticAviation
 
         /// <summary>Each airport's airspace (phase 4-3); rebuilt with the runway map.</summary>
         private NativeParallelHashMap<Entity, AirportSpace> m_Airspaces;
+
+        /// <summary>Each airport's ATIS as of this tower update (empty without an ATIS mod), for "with information X".</summary>
+        private NativeParallelHashMap<Entity, AtisState> m_AtisStates;
         private NativeParallelHashMap<Entity, AtcMessage> m_LastMessages;
         private NativeList<AtcMessage> m_RadioLog;
         private NativeReference<uint> m_RadioVersion;
@@ -282,6 +285,25 @@ namespace RealisticAviation
             return closedBy != Entity.Null;
         }
 
+        /// <summary>Copies each airport's ATIS from the ATIS mod, if one is loaded, for the tower job of this update.</summary>
+        private void FillAtisStates()
+        {
+            m_JobHandle.Complete();
+            m_AtisStates.Clear();
+            AtisLink.Provider provider = AtisLink.Current;
+            if (provider == null)
+            {
+                return;
+            }
+            foreach (var pair in m_Airspaces)
+            {
+                if (provider(pair.Key, out AtisState state))
+                {
+                    m_AtisStates[pair.Key] = state;
+                }
+            }
+        }
+
         internal AtcRadio Radio => m_Radio;
 
         /// <summary>Each airport's airspace, for the airspace infoview (read on the main thread; the tower job only reads it too).</summary>
@@ -422,6 +444,7 @@ namespace RealisticAviation
             m_GroundDelays = new NativeParallelHashMap<Entity, int>(4, Allocator.Persistent);
             m_GateCounts = new NativeParallelHashMap<Entity, int>(4, Allocator.Persistent);
             m_Airspaces = new NativeParallelHashMap<Entity, AirportSpace>(4, Allocator.Persistent);
+            m_AtisStates = new NativeParallelHashMap<Entity, AtisState>(4, Allocator.Persistent);
             m_LastMessages = new NativeParallelHashMap<Entity, AtcMessage>(64, Allocator.Persistent);
             m_RadioLog = new NativeList<AtcMessage>(64, Allocator.Persistent);
             m_RadioVersion = new NativeReference<uint>(0, Allocator.Persistent);
@@ -451,6 +474,7 @@ namespace RealisticAviation
             m_GroundDelays.Dispose();
             m_GateCounts.Dispose();
             m_Airspaces.Dispose();
+            m_AtisStates.Dispose();
             m_LastMessages.Dispose();
             m_RadioLog.Dispose();
             m_RadioVersion.Dispose();
@@ -525,6 +549,7 @@ namespace RealisticAviation
             m_RouteLaneData.Update(this);
             m_TaxiwayData.Update(this);
 
+            FillAtisStates();
             NativeList<Entity> airplanes = m_AirplaneQuery.ToEntityListAsync(Allocator.TempJob, out JobHandle airplanesHandle);
             NativeList<Entity> weatherEvents = m_WeatherEventQuery.ToEntityListAsync(Allocator.TempJob, out JobHandle weatherHandle);
             AtcJob job = new AtcJob
@@ -582,6 +607,7 @@ namespace RealisticAviation
                 m_PrefabNames = m_PrefabNames,
                 m_GateCounts = m_GateCounts,
                 m_Airspaces = m_Airspaces,
+                m_AtisStates = m_AtisStates,
                 m_Settings = GetSettings(),
                 m_Tick = m_Tick,
                 m_Frame = m_SimulationSystem.frameIndex,
@@ -1225,6 +1251,7 @@ namespace RealisticAviation
             [ReadOnly] public NativeParallelHashMap<Entity, FixedString128Bytes> m_PrefabNames;
             [ReadOnly] public NativeParallelHashMap<Entity, int> m_GateCounts;
             [ReadOnly] public NativeParallelHashMap<Entity, AirportSpace> m_Airspaces;
+            [ReadOnly] public NativeParallelHashMap<Entity, AtisState> m_AtisStates;
             public NativeParallelHashMap<Entity, Entity> m_AirportClosures;
             /// <summary>Diagnostics: what the taxi spacing or a pushback held each ground airplane behind, last tick.</summary>
             public NativeParallelHashMap<Entity, Entity> m_HeldBehind;
@@ -1984,8 +2011,45 @@ namespace RealisticAviation
                     float climb = m_MovingData.TryGetComponent(airplane, out Moving moving) ? moving.m_Velocity.y : 0f;
                     message.m_Vertical = (sbyte)(climb > kLevelClimbRate ? 1 : climb < -kLevelClimbRate ? -1 : 0);
                 }
+                if (IsFirstCall(airplane, kind))
+                {
+                    AttachAtis(ref message);
+                }
                 m_LastMessages[airplane] = message;
                 AddToRadioLog(message);
+            }
+
+            /// <summary>
+            /// A pilot's first call to the airport, the one that carries "with information X": the pushback request, the
+            /// first taxi request of a departure that needs no pushback, and an arrival's initial contact (approach, or the
+            /// tower at class D).
+            /// </summary>
+            private bool IsFirstCall(Entity airplane, AtcMessageKind kind)
+            {
+                if (kind == AtcMessageKind.PushbackApproved || kind == AtcMessageKind.InitialContact)
+                {
+                    return true;
+                }
+                return kind == AtcMessageKind.TaxiToRunway
+                    && !(m_LastMessages.TryGetValue(airplane, out AtcMessage last) && last.m_Kind == AtcMessageKind.PushbackApproved);
+            }
+
+            /// <summary>
+            /// The ATIS letter the pilot reports and the current one. A pilot listens to the ATIS a few minutes before the call
+            /// (2 to 10 game minutes, fixed for each airplane): one that listened before the latest change reports the previous
+            /// letter, and the controller gives the current one.
+            /// </summary>
+            private void AttachAtis(ref AtcMessage message)
+            {
+                if (!m_AtisStates.TryGetValue(message.m_Airport, out AtisState atis))
+                {
+                    return;
+                }
+                float listenedAgo = 2f + math.hash(new int2(message.m_Airplane.Index, message.m_Airplane.Version)) % 9u;
+                bool stale = atis.m_PreviousLetter >= 0 && atis.m_MinutesSinceChange < listenedAgo;
+                message.m_AtisReported = (byte)((stale ? atis.m_PreviousLetter : atis.m_Letter) + 1);
+                message.m_AtisCurrent = (byte)(atis.m_Letter + 1);
+                message.m_AtisQnh = (short)atis.m_Qnh;
             }
 
             private void Say(Entity airplane, AtcMessageKind kind, in Flight flight, int value = 0, Entity hazard = default)

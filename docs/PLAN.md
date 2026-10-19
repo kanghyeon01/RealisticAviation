@@ -580,3 +580,17 @@ otherwise fly nose-up like in the flare (the author reported this).
 
   ATIS phase 3 builds its broadcast from them. Phase 4 ("with information X" on first contact) will need a hook in the
   other direction: RA cannot reference ATIS, so ATIS will register a provider for RA to call.
+- ATIS phase 4 (2026-10-19): "with information X".
+  - Link: `AtisLink.Current`, a delegate Realistic Aviation ATIS registers. RA cannot reference ATIS, so the call goes
+    this way round. Each tower update `FillAtisStates` copies every airport's state (letter, previous letter, QNH,
+    minutes since change) into `m_AtisStates` for the job. Without the ATIS mod the table stays empty and the radio is
+    unchanged.
+  - First calls carry the letter: the pushback request, the first taxi request of a departure without pushback, and an
+    arrival's InitialContact (approach, or the tower at class D). Transit traffic (TransitContact) never mentions it.
+    These exchanges become pilot first:
+    - "PortLand Ground, X, ready for pushback, with information Bravo." / "X, pushback approved."
+    - "PortLand Ground, X, ready to taxi, with information Bravo." / "X, taxi to runway 27."
+  - Stale ATIS: each airplane listened 2–10 game minutes before its call (fixed per airplane, hashed). If the ATIS
+    changed since then, it reports the previous letter, and the controller adds "information Charlie now current, QNH
+    1009, ". The message stores the reported and current letters (+1, 0 = none) and the QNH, since the text is built
+    later on the main thread.

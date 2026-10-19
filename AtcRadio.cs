@@ -109,6 +109,14 @@ namespace RealisticAviation
         /// <summary>Climbing (1), descending (-1) or level (0) when the message was said.</summary>
         public sbyte m_Vertical;
 
+        /// <summary>
+        /// ATIS on a first call (pushback, first taxi, an arrival's initial contact): the letter the pilot reports and the one
+        /// current, each + 1 (0 = no ATIS), and the current QNH. They differ when the pilot listened before the latest change.
+        /// </summary>
+        public byte m_AtisReported;
+        public byte m_AtisCurrent;
+        public short m_AtisQnh;
+
         public uint m_Frame;
         public AtcMessageKind m_Kind;
 
@@ -307,12 +315,36 @@ namespace RealisticAviation
             pilot = callsign + ": " + pilot;
             if (message.m_Kind == AtcMessageKind.GoingAround || message.m_Kind == AtcMessageKind.InitialContact
                 || message.m_Kind == AtcMessageKind.TransitContact || message.m_Kind == AtcMessageKind.TowerCheckIn
-                || message.m_Kind == AtcMessageKind.DepartureCheckIn)
+                || message.m_Kind == AtcMessageKind.DepartureCheckIn
+                || (message.m_AtisReported != 0 && (message.m_Kind == AtcMessageKind.PushbackApproved || message.m_Kind == AtcMessageKind.TaxiToRunway)))
             {
                 // The pilot speaks first; "tower" and "pilot" are then the first and second line.
                 pilotFirst = true;
                 (tower, pilot) = (pilot, tower);
             }
+        }
+
+        private static readonly string[] kPhonetic =
+        {
+            "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliett", "Kilo", "Lima", "Mike",
+            "November", "Oscar", "Papa", "Quebec", "Romeo", "Sierra", "Tango", "Uniform", "Victor", "Whiskey", "X-ray", "Yankee", "Zulu",
+        };
+
+        /// <summary>The pilot's ", with information Bravo", or nothing without an ATIS.</summary>
+        private static string AtisReport(in AtcMessage message)
+        {
+            return message.m_AtisReported == 0 ? string.Empty : ", with information " + kPhonetic[(message.m_AtisReported - 1) % kPhonetic.Length];
+        }
+
+        /// <summary>The controller's "information Charlie now current, QNH 1009, " when the pilot reported an old letter.</summary>
+        private static string AtisCorrection(in AtcMessage message)
+        {
+            if (message.m_AtisReported == 0 || message.m_AtisReported == message.m_AtisCurrent)
+            {
+                return string.Empty;
+            }
+            return "information " + kPhonetic[(message.m_AtisCurrent - 1) % kPhonetic.Length] + " now current, QNH "
+                + message.m_AtisQnh.ToString(CultureInfo.InvariantCulture) + ", ";
         }
 
         /// <summary>An IFR check-in's altitude: "level 5,000", "climbing through 2,300" or "descending through 3,400".</summary>
@@ -434,8 +466,8 @@ namespace RealisticAviation
                     string entry = viaTower ? string.Empty
                         : (AirspaceClass)message.m_Value == AirspaceClass.B ? "radar contact, cleared into the Class B airspace, " : "radar contact, ";
                     string expect = string.IsNullOrEmpty(runway) ? "continue inbound" : $"expect runway {runway}";
-                    tower = $"{callsign}, {facility}, {entry}{expect}.";
-                    pilot = $"{facility}, {callsign}, {AltitudeReport(message)}{(viaTower ? ", inbound for landing" : string.Empty)}.";
+                    tower = $"{callsign}, {facility}, {AtisCorrection(message)}{entry}{expect}.";
+                    pilot = $"{facility}, {callsign}, {AltitudeReport(message)}{(viaTower ? ", inbound for landing" : string.Empty)}{AtisReport(message)}.";
                     break;
                 case AtcMessageKind.HandoffTo:
                     // The next airport's approach, or its tower when it is class D (the value is its class).
@@ -492,10 +524,24 @@ namespace RealisticAviation
                     pilot = $"{airportName} Departure, {callsign}, {AltitudeReport(message)}.";
                     break;
                 case AtcMessageKind.PushbackApproved:
+                    if (message.m_AtisReported != 0)
+                    {
+                        // The pilot asks (first), with the ATIS heard; ground approves, giving the current ATIS if it changed.
+                        pilot = $"{airportName} Ground, {callsign}, ready for pushback{AtisReport(message)}.";
+                        tower = $"{callsign}, {AtisCorrection(message)}pushback approved.";
+                        break;
+                    }
                     tower = $"{callsign}, pushback approved.";
                     pilot = $"Pushback approved, {callsign}.";
                     break;
                 case AtcMessageKind.TaxiToRunway:
+                    if (message.m_AtisReported != 0)
+                    {
+                        // First call of a departure without pushback: the pilot asks to taxi, with the ATIS heard.
+                        pilot = $"{airportName} Ground, {callsign}, ready to taxi{AtisReport(message)}.";
+                        tower = $"{callsign}, {AtisCorrection(message)}taxi to {(string.IsNullOrEmpty(runway) ? "the runway" : "runway " + runway)}.";
+                        break;
+                    }
                     if (string.IsNullOrEmpty(runway))
                     {
                         tower = $"{callsign}, taxi to the runway.";
