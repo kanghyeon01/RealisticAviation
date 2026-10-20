@@ -7,7 +7,7 @@ namespace RealisticAviation
     /// A standard (right-turn) racetrack holding pattern in the horizontal plane.
     /// The loop is: inbound leg ending at the fix, 180-degree right turn, outbound leg, 180-degree right turn.
     /// </summary>
-    public struct HoldingPattern
+    internal struct HoldingPattern
     {
         /// <summary>Holding fix; its y is the holding altitude.</summary>
         public float3 m_Fix;

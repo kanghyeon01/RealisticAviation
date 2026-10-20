@@ -117,6 +117,12 @@ after a save is loaded.
   routes are left as the game builds them. Mods that also take over airplane movement may conflict.
 - In-game text is available in English and Korean; radio calls are in English (ICAO/FAA phraseology).
 
+## Add-ons
+
+- [Aviation Weather Add-on](https://github.com/kanghyeon01/AviationWeatherAddon): weather reports (METAR) and ATIS for
+  your airports.
+- Writing your own: see [docs/AddonGuide.md](docs/AddonGuide.md) for the public `Api` (airports, radio events, ATIS).
+
 ## How it works
 
 `AtcSystem` runs right after the game's `AircraftNavigationSystem` (every 16 frames) as a worker-thread job.

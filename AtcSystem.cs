@@ -132,6 +132,10 @@ namespace RealisticAviation
         private NativeParallelHashMap<Entity, AtcMessage> m_LastMessages;
         private NativeList<AtcMessage> m_RadioLog;
         private NativeReference<uint> m_RadioVersion;
+
+        /// <summary>The radio version up to which add-ons have been told (<see cref="RaiseApiEvents"/>).</summary>
+        private uint m_RaisedRadioVersion;
+        private Game.UI.NameSystem m_NameSystem;
         private readonly AtcRadio m_Radio = new AtcRadio();
         private int m_EventPrefabCount = -1;
 
@@ -242,10 +246,10 @@ namespace RealisticAviation
             return m_AirportClosures.TryGetValue(airport, out Entity closedBy) ? closedBy : Entity.Null;
         }
 
-        // ---- For other mods (Aviation Weather Add-on): what an airport's ATIS broadcast needs. Main thread only.
+        // ---- Behind the public Api (main thread only).
 
         /// <summary>The airport's airspace class, or false if it has no airspace (not an airport, or not found yet).</summary>
-        public bool TryGetAirspaceClass(Entity airport, out AirspaceClass airspaceClass)
+        internal bool TryGetAirspaceClass(Entity airport, out AirspaceClass airspaceClass)
         {
             bool found = m_Airspaces.TryGetValue(airport, out AirportSpace space);
             airspaceClass = space.m_Class;
@@ -256,7 +260,7 @@ namespace RealisticAviation
         /// The airport's runway ends in use for landing, named as on the radio ("27", "09L"), sorted, added to
         /// <paramref name="names"/> (game runways are mostly one-way; both ends of a runway whose lanes say nothing).
         /// </summary>
-        public void GetLandingRunways(Entity airport, List<string> names)
+        internal void GetLandingRunways(Entity airport, List<string> names)
         {
             for (int i = 0; i < m_RunwayList.Count; i++)
             {
@@ -279,18 +283,44 @@ namespace RealisticAviation
         }
 
         /// <summary>Whether the tower has closed the airport, and what closed it (a disaster event, or the airport itself).</summary>
-        public bool IsClosed(Entity airport, out Entity closedBy)
+        internal bool IsClosed(Entity airport, out Entity closedBy)
         {
             closedBy = GetClosure(airport);
             return closedBy != Entity.Null;
         }
 
-        /// <summary>Copies each airport's ATIS from the ATIS mod, if one is loaded, for the tower job of this update.</summary>
+        internal EntityQuery AirplaneStopQuery => m_AirplaneStopQuery;
+
+        internal PrefabSystem PrefabSystem => m_PrefabSystem;
+
+        internal Game.UI.NameSystem NameSystem => m_NameSystem ??= World.GetOrCreateSystemManaged<Game.UI.NameSystem>();
+
+        /// <summary>
+        /// Hands the transmissions of the last tower update to add-ons (<see cref="Api"/> events), in order. Called with the
+        /// tower job completed. The log keeps the latest messages only, so after a very busy update the oldest may be missed.
+        /// </summary>
+        private void RaiseApiEvents()
+        {
+            uint version = m_RadioVersion.Value;
+            uint count = version - m_RaisedRadioVersion;
+            m_RaisedRadioVersion = version;
+            if (count == 0 || !Api.HasListeners)
+            {
+                return;
+            }
+            int first = m_RadioLog.Length - (int)math.min(count, (uint)m_RadioLog.Length);
+            for (int i = first; i < m_RadioLog.Length; i++)
+            {
+                Api.Raise(m_RadioLog[i]);
+            }
+        }
+
+        /// <summary>Copies each airport's ATIS from the ATIS add-on, if one is registered, for the tower job of this update.</summary>
         private void FillAtisStates()
         {
             m_JobHandle.Complete();
             m_AtisStates.Clear();
-            AtisLink.Provider provider = AtisLink.Current;
+            Api.AtisProvider provider = Api.CurrentAtisProvider;
             if (provider == null)
             {
                 return;
@@ -360,6 +390,7 @@ namespace RealisticAviation
         protected override void OnCreate()
         {
             base.OnCreate();
+            Api.Tower = this;
             m_SimulationSystem = World.GetOrCreateSystemManaged<SimulationSystem>();
             m_ClimateSystem = World.GetOrCreateSystemManaged<ClimateSystem>();
             m_PrefabSystem = World.GetOrCreateSystemManaged<PrefabSystem>();
@@ -454,6 +485,10 @@ namespace RealisticAviation
 
         protected override void OnDestroy()
         {
+            if (Api.Tower == this)
+            {
+                Api.Tower = null;
+            }
             m_JobHandle.Complete();
             m_RunwayOf.Dispose();
             m_Runways.Dispose();
@@ -493,6 +528,8 @@ namespace RealisticAviation
             m_HoldingFlights.Clear();
             m_LastMessages.Clear();
             m_RadioLog.Clear();
+            // Messages of the city before are not news to add-ons.
+            m_RaisedRadioVersion = m_RadioVersion.Value;
             m_Radio.Reset();
             m_GroundCounts.Clear();
             m_GroundDelays.Clear();
@@ -550,6 +587,7 @@ namespace RealisticAviation
             m_TaxiwayData.Update(this);
 
             FillAtisStates();
+            RaiseApiEvents();
             NativeList<Entity> airplanes = m_AirplaneQuery.ToEntityListAsync(Allocator.TempJob, out JobHandle airplanesHandle);
             NativeList<Entity> weatherEvents = m_WeatherEventQuery.ToEntityListAsync(Allocator.TempJob, out JobHandle weatherHandle);
             AtcJob job = new AtcJob

@@ -583,7 +583,7 @@ otherwise fly nose-up like in the flare (the author reported this).
   ATIS phase 3 builds its broadcast from them. Phase 4 ("with information X" on first contact) will need a hook in the
   other direction: RA cannot reference ATIS, so ATIS will register a provider for RA to call.
 - ATIS phase 4 (2026-10-19): "with information X".
-  - Link: `AtisLink.Current`, a delegate Aviation Weather Add-on registers. RA cannot reference ATIS, so the call goes
+  - Link: `AtisLink.Current` (replaced by `Api.RegisterAtisProvider` on 2026-10-20), a delegate Aviation Weather Add-on registers. RA cannot reference ATIS, so the call goes
     this way round. Each tower update `FillAtisStates` copies every airport's state (letter, previous letter, QNH,
     minutes since change) into `m_AtisStates` for the job. Without the ATIS mod the table stays empty and the radio is
     unchanged.
@@ -625,3 +625,17 @@ From a review of the whole mod, done in this order:
   `.Radio`, `.Steering`, `.Pushback` and `.Pattern`.
 - After a game patch: both mods log the game version and their own (the add-on also RA's) right after `OnLoad`, and
   `docs/TestChecklist` section 10 lists a short check to run first.
+
+## Add-on API (2026-10-20, next version)
+
+- One public entry point, `RealisticAviation.Api` (`Api.cs`), documented in `docs/AddonGuide.md`.
+  - `Version` is a property (1), so add-ons read the running version.
+  - Reads: airports, airspace class, landing runways, closure, ICAO code, an airplane's last message and its words.
+  - Events: `MessageSent`, `GoAround`, `AirportClosed`, `AirportOpened`. `AtcSystem.RaiseApiEvents` raises them from
+    the radio log after the tower job completes; the log's version counter tells which messages are new. Each handler
+    runs on its own in a try/catch.
+  - ATIS: `RegisterAtisProvider` replaces `AtisLink`; the latest provider registered is used.
+- Everything else that was public by accident is now internal: the tower's types (`Flight`, `RunwayState`, `AtcMessage`,
+  ...), `AirportCodes`, `HoldingPattern`, the locales, and the three old `AtcSystem` methods.
+  - Kept public: save components (changing them risks saves), info sections, systems, `Setting`, `Mod`.
+- Aviation Weather Add-on uses only `Api` now; its copy of `Airports` is gone. Both mods must be released together.

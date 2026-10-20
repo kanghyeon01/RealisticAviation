@@ -3,7 +3,7 @@ using Colossal;
 
 namespace RealisticAviation
 {
-    public abstract class LocaleBase : IDictionarySource
+    internal abstract class LocaleBase : IDictionarySource
     {
         protected readonly Setting m_Setting;
 
@@ -24,7 +24,7 @@ namespace RealisticAviation
         }
     }
 
-    public sealed class LocaleEN : LocaleBase
+    internal sealed class LocaleEN : LocaleBase
     {
         public LocaleEN(Setting setting) : base(setting)
         {
@@ -169,7 +169,7 @@ namespace RealisticAviation
         };
     }
 
-    public sealed class LocaleKO : LocaleBase
+    internal sealed class LocaleKO : LocaleBase
     {
         public LocaleKO(Setting setting) : base(setting)
         {

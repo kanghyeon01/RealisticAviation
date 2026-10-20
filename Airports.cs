@@ -289,7 +289,7 @@ namespace RealisticAviation
     /// automatic one from the airport's name (its first four Latin letters, "ZZAA" when it has fewer), made unique among the
     /// city's airports by stepping the last two letters (airports in entity order; entered codes come first).
     /// </summary>
-    public static class AirportCodes
+    internal static class AirportCodes
     {
         /// <summary>The code the player entered for this airport, or null.</summary>
         public static string GetEntered(EntityManager entityManager, Entity airport)

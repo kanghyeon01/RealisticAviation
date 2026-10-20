@@ -87,7 +87,7 @@ namespace RealisticAviation
     }
 
     /// <summary>One tower transmission, as recorded by the tower job.</summary>
-    public struct AtcMessage
+    internal struct AtcMessage
     {
         /// <summary>The airplane spoken to, or Entity.Null for a broadcast to all aircraft.</summary>
         public Entity m_Airplane;

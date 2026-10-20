@@ -7,7 +7,7 @@ using Unity.Mathematics;
 namespace RealisticAviation
 {
     /// <summary>The weather behind the weather go-around chance (AtcSystem.GetSettings).</summary>
-    public enum WeatherKind : byte
+    internal enum WeatherKind : byte
     {
         Clear,
         Rain,
@@ -18,7 +18,7 @@ namespace RealisticAviation
 
     /// <summary>Kinds of disaster the tower may close an airport for (chosen in the options).</summary>
     [Flags]
-    public enum HazardKinds : byte
+    internal enum HazardKinds : byte
     {
         None = 0,
         Tornado = 1,
@@ -28,7 +28,7 @@ namespace RealisticAviation
         Other = 4,
     }
 
-    public enum Clearance : byte
+    internal enum Clearance : byte
     {
         /// <summary>Asked for the runway; holding short (on the ground) or holding at the fix (in the air).</summary>
         Waiting,
@@ -41,7 +41,7 @@ namespace RealisticAviation
     }
 
     /// <summary>Tower bookkeeping for one airplane that has asked for a runway. Not saved; rebuilt after loading.</summary>
-    public struct Flight
+    internal struct Flight
     {
         /// <summary>Key of the runway (see <see cref="AtcSystem"/>) this airplane asked for.</summary>
         public Entity m_Runway;
@@ -129,7 +129,7 @@ namespace RealisticAviation
     /// One runway: every runway edge connected through shared nodes (so crossing runways count as one),
     /// together with those nodes. Only one airplane may use it at a time.
     /// </summary>
-    public struct RunwayState
+    internal struct RunwayState
     {
         /// <summary>The ground airplane currently cleared to take off from or cross the runway, or Entity.Null.</summary>
         public Entity m_Holder;
@@ -236,7 +236,7 @@ namespace RealisticAviation
     /// side. Holds are separated by altitude, one band per class with B highest, as satellite airports' traffic stays
     /// under a hub's.
     /// </summary>
-    public struct AirportSpace
+    internal struct AirportSpace
     {
         public const float kContactMargin = 0.5f * Setting.kMetersPerNauticalMile;
 
@@ -310,7 +310,7 @@ namespace RealisticAviation
     }
 
     /// <summary>The mod options, copied into a plain struct so jobs can use them.</summary>
-    public struct AtcSettings
+    internal struct AtcSettings
     {
         /// <summary>Straight-leg length of the holding pattern, in metres (the option itself is in nautical miles).</summary>
         public float m_HoldingLegLength;
@@ -404,7 +404,7 @@ namespace RealisticAviation
     }
 
     /// <summary>A runway as the airport info panel lists it (main thread only).</summary>
-    public sealed class RunwayInfo
+    internal sealed class RunwayInfo
     {
         public RunwayInfo(Entity key, Entity airport, RunwayGeometry geometry)
         {
@@ -424,7 +424,7 @@ namespace RealisticAviation
     }
 
     /// <summary>A runway's centerline in the horizontal plane: an axis and the extent of the runway along it.</summary>
-    public struct RunwayGeometry
+    internal struct RunwayGeometry
     {
         public float2 m_Origin;
 
@@ -465,7 +465,7 @@ namespace RealisticAviation
         public float2 Middle => m_Origin + m_Direction * (0.5f * (m_Min + m_Max));
     }
 
-    public enum CircuitLeg : byte
+    internal enum CircuitLeg : byte
     {
         /// <summary>Climbing straight ahead over the runway after the go-around.</summary>
         Upwind,
@@ -483,7 +483,7 @@ namespace RealisticAviation
         ExtendedDownwind,
     }
 
-    public enum PushbackPhase : byte
+    internal enum PushbackPhase : byte
     {
         /// <summary>Ready at the gate, waiting for ground control: traffic is close to the area it would be pushed into.</summary>
         AwaitingApproval,
@@ -499,7 +499,7 @@ namespace RealisticAviation
     }
 
     /// <summary>An airplane being pushed back from its gate. Not saved; a pushback in progress at load just ends.</summary>
-    public struct Pushback
+    internal struct Pushback
     {
         public float3 m_Start;
 

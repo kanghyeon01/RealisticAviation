@@ -113,7 +113,7 @@ namespace RealisticAviation
         /// the game colours nothing for, so they get a colour and a checkbox in the legend; <see cref="AirportHighlightSystem"/>
         /// and this system do the drawing.
         /// </summary>
-        public static void CreateInfoview(PrefabSystem prefabSystem)
+        internal static void CreateInfoview(PrefabSystem prefabSystem)
         {
             s_AirportsInfomode = AddInfomode(prefabSystem, kAirportsInfomodeName, kBlue);
             s_AirportsCInfomode = AddInfomode(prefabSystem, kAirportsCInfomodeName, kMagenta);
