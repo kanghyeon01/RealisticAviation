@@ -234,10 +234,29 @@ function AirportSection(props) {
     return React.createElement(InfoSection, { disableFocus: true }, ...rows);
 }
 
-// Airplane info panel: the recent exchanges on the frequency it is on, its own marked.
+const REMOVE_BUTTON_STYLE = {
+    marginTop: "6rem",
+    padding: "4rem 8rem",
+    borderRadius: "3rem",
+    textAlign: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    cursor: "pointer",
+};
+// "Remove this airplane": one click, as the option that shows it is off by default and turned on on purpose.
+function RemoveButton() {
+    const { translate } = l10n.useLocalization();
+    return React.createElement("div", { style: REMOVE_BUTTON_STYLE, onClick: () => api.trigger(GROUP, "RemoveAirplane") },
+        translate("RealisticAviation.RemoveAirplane", "Remove this airplane"));
+}
+
+// Airplane info panel: the recent exchanges on the frequency it is on, its own marked; and the remove button (option).
 function AirplaneAtcSection(props) {
     const { translate } = l10n.useLocalization();
-    return React.createElement(InfoSection, { disableFocus: true }, ...radioRows("radio", props.radio, translate));
+    const children = props.showRadio ? radioRows("radio", props.radio, translate) : [];
+    if (props.canRemove) {
+        children.push(React.createElement(RemoveButton, { key: "remove" }));
+    }
+    return React.createElement(InfoSection, { disableFocus: true }, ...children);
 }
 
 // "Airport closed" banner, with the event that closed it in the game's own words (e.g. "Hail Storm").

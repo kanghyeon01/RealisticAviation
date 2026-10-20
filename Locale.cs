@@ -185,6 +185,14 @@ namespace RealisticAviation
                 "An airplane leaving a nose-in gate is pushed back out of the stand with its nose towards the gate, then swung " +
                 "around to face along its taxi route, instead of turning around on the spot."
             },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.RemoveAirplaneButton)), "\"Remove this airplane\" button" },
+            {
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.RemoveAirplaneButton)),
+                "Adds a button to every airplane's info panel that removes the airplane, the way the game removes a stuck vehicle. " +
+                "Use it for an airplane stuck on a runway; if you can, send the log afterwards: the airplane's state is written " +
+                "there when it is removed."
+            },
+            { "RealisticAviation.RemoveAirplane", "Remove this airplane" },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.TaxiSpacing)), "Taxi spacing" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.TaxiSpacing)),
@@ -358,6 +366,13 @@ namespace RealisticAviation
                 "게이트에 기수를 대고 서 있던 비행기가 출발할 때, 제자리에서 돌지 않고 기수를 게이트 쪽에 둔 채 뒤로 밀려 나온 뒤 " +
                 "택싱 방향으로 돌려집니다."
             },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.RemoveAirplaneButton)), "\"이 비행기 제거\" 버튼" },
+            {
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.RemoveAirplaneButton)),
+                "모든 비행기 정보란에 비행기를 제거하는 버튼을 추가합니다. 게임이 막힌 차량을 없앨 때와 같은 방식으로 제거합니다. " +
+                "활주로에 멈춘 비행기가 있을 때 쓰세요. 제거할 때 비행기 상태가 로그에 남으니, 가능하면 로그를 보내 주세요."
+            },
+            { "RealisticAviation.RemoveAirplane", "이 비행기 제거" },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.TaxiSpacing)), "택싱 간격" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.TaxiSpacing)),

@@ -1,7 +1,11 @@
+using Colossal.Entities;
 using Colossal.UI.Binding;
+using Game.Pathfind;
 using Game.UI.InGame;
 using Game.Vehicles;
 using Unity.Entities;
+using Unity.Mathematics;
+using Transform = Game.Objects.Transform;
 
 namespace RealisticAviation
 {
@@ -9,15 +13,20 @@ namespace RealisticAviation
     /// "Tower radio" box in an airplane's info panel (phase 4-2): the recent transmissions on the frequency the airplane is
     /// on (the one of its latest message: tower or ground), as every airplane on that frequency hears them, with its own
     /// exchanges marked. Shown only while the airplane has heard from the tower recently.
+    /// With the "Remove airplane button" option, every airplane's panel also has a button that takes the airplane away.
     /// </summary>
     public partial class AirplaneAtcSection : InfoSectionBase
     {
+        public const string kRemoveAirplaneTrigger = "RemoveAirplane";
+
         private const int kExchanges = 5;
 
         private readonly RadioBox m_Radio = new RadioBox();
         private AtcSystem m_AtcSystem;
         private AtcMessage m_Message;
         private uint m_RadioVersion;
+        private bool m_ShowRadio;
+        private bool m_ShowRemove;
 
         protected override string group => nameof(AirplaneAtcSection);
 
@@ -26,6 +35,7 @@ namespace RealisticAviation
             base.OnCreate();
             m_AtcSystem = World.GetOrCreateSystemManaged<AtcSystem>();
             m_InfoUISystem.AddMiddleSection(this);
+            AddBinding(new TriggerBinding(Mod.kName, kRemoveAirplaneTrigger, RemoveAirplane));
         }
 
         protected override void Reset()
@@ -49,8 +59,11 @@ namespace RealisticAviation
         protected override void OnUpdate()
         {
             Entity entity = selectedEntity;
-            visible = entity != Entity.Null && EntityManager.HasComponent<Airplane>(entity) && m_AtcSystem.TryGetLastMessage(entity, out m_Message)
+            bool airplane = entity != Entity.Null && EntityManager.HasComponent<Airplane>(entity);
+            m_ShowRadio = airplane && m_AtcSystem.TryGetLastMessage(entity, out m_Message)
                 && m_Message.m_Airport != Entity.Null && !HasLeftFrequency(m_Message);
+            m_ShowRemove = airplane && Mod.Setting != null && Mod.Setting.RemoveAirplaneButton;
+            visible = m_ShowRadio || m_ShowRemove;
         }
 
         /// <summary>
@@ -64,13 +77,55 @@ namespace RealisticAviation
 
         protected override void OnProcess()
         {
-            m_Radio.Fill(m_AtcSystem, EntityManager, m_NameSystem, m_PrefabSystem, m_Message.m_Airport, m_Message.m_Frequency, kExchanges, selectedEntity);
+            if (m_ShowRadio)
+            {
+                m_Radio.Fill(m_AtcSystem, EntityManager, m_NameSystem, m_PrefabSystem, m_Message.m_Airport, m_Message.m_Frequency, kExchanges, selectedEntity);
+            }
         }
 
         public override void OnWriteProperties(IJsonWriter writer)
         {
+            writer.PropertyName("showRadio");
+            writer.Write(m_ShowRadio);
             writer.PropertyName("radio");
             m_Radio.Write(writer);
+            writer.PropertyName("canRemove");
+            writer.Write(m_ShowRemove);
+        }
+
+        /// <summary>
+        /// Takes the selected airplane away (a stop-gap for one stuck on a runway), the way the game itself does it with a
+        /// vehicle that is stuck (StuckMovingObjectSystem): its path is marked stuck, and its AI ends any boarding or loading
+        /// and deletes it at its next update. The tower forgets it once it is gone.
+        /// </summary>
+        private void RemoveAirplane()
+        {
+            Entity entity = selectedEntity;
+            if (Mod.Setting == null || !Mod.Setting.RemoveAirplaneButton || entity == Entity.Null || !EntityManager.HasComponent<Airplane>(entity))
+            {
+                return;
+            }
+            // Logged always: a player removing an airplane is what a bug report needs to explain.
+            string where = EntityManager.TryGetComponent(entity, out Transform transform) ? $" at {(int3)math.round(transform.m_Position)}" : string.Empty;
+            string lane = EntityManager.TryGetComponent(entity, out AircraftCurrentLane currentLane)
+                ? $", lane {currentLane.m_Lane} [{currentLane.m_LaneFlags}]" : string.Empty;
+            string speed = EntityManager.TryGetComponent(entity, out Game.Objects.Moving moving) ? $", speed {math.length(moving.m_Velocity):F1} m/s" : string.Empty;
+            string blocker = EntityManager.TryGetComponent(entity, out Blocker block) && block.m_Blocker != Entity.Null
+                ? $", blocked by {block.m_Blocker} ({block.m_Type})" : string.Empty;
+            string tower = Api.Flights.TryGet(entity, out FlightInfo flight)
+                ? $", tower: {flight.State} for runway {flight.Runway}, waited {flight.WaitedSeconds:F0} s" : ", tower: not handling it";
+            Mod.Log.Info($"{entity} removed by the player{where}{lane}{speed}{blocker}{tower}");
+
+            if (EntityManager.TryGetComponent(entity, out PathOwner pathOwner))
+            {
+                pathOwner.m_State |= PathFlags.Stuck;
+                EntityManager.SetComponentData(entity, pathOwner);
+            }
+            else
+            {
+                EntityManager.AddComponent<Game.Common.Deleted>(entity);
+            }
+            m_InfoUISystem.RequestUpdate();
         }
     }
 }

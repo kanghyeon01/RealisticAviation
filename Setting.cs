@@ -90,6 +90,10 @@ namespace RealisticAviation
         [SettingsUISection(kSection, kGroundGroup)]
         public bool EnablePushback { get; set; }
 
+        /// <summary>Every airplane's info panel has a "Remove this airplane" button (for one stuck on a runway; AirplaneAtcSection).</summary>
+        [SettingsUISection(kSection, kGroundGroup)]
+        public bool RemoveAirplaneButton { get; set; }
+
         /// <summary>Gap a taxiing airplane keeps between its nose and the tail of the airplane ahead (0 = game default).</summary>
         [SettingsUISection(kSection, kGroundGroup)]
         [SettingsUISlider(min = 0, max = 150, step = 5, unit = Unit.kLength)]
@@ -161,6 +165,7 @@ namespace RealisticAviation
             GlidePathDegrees = 5;
             ApproachHeightLimits = false;
             SmoothDepartureTurns = false;
+            RemoveAirplaneButton = false;
             HoldingLegNm = 1.5f;
             HoldShortSetback = 30;
             CloseForTornado = true;
