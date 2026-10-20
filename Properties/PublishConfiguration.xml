@@ -26,6 +26,8 @@ This mod makes the aviation system in Cities: Skylines II more realistic. Airpla
 
 This mod was vibe-coded with Claude Code. The full source code is available on git (https://github.com/kanghyeon01/RealisticAviation).
 
+Contact me: khkim040808@gmail.com
+
 ### Add-ons
 
 These add-ons give the mod extra features. Please recommend good add-ons!
@@ -54,6 +56,8 @@ These add-ons give the mod extra features. Please recommend good add-ons!
 
 본 모드는 클로드 코드로 바이브코딩 되었으며, 전체 코드는 git(https://github.com/kanghyeon01/RealisticAviation)에서 확인하실 수 있습니다.
 
+문의: khkim040808@gmail.com
+
 ### add-on
 
 모드에 추가 기능을 더해주는 애드온입니다. 좋은 기능을 가진 add-on을 추천해주세요!
@@ -61,20 +65,14 @@ These add-ons give the mod extra features. Please recommend good add-ons!
 **1. Aviation Weather Add-on** 항공기상을 추가해 주는 모드입니다. METAR와 ATIS가 추가됩니다.(ModID: 164025)</LongDescription>
   <Thumbnail Value="Properties/Thumbnail.png" />
   <Tag Value="Code Mod" />
-  <ModVersion Value="1.1" />
-  <ChangeLog>1.1
-- Add-on API: airports, runways, flights, radio, events, ATIS and options for other mods (guide on GitHub).
-- New options, off by default: straight-in final with glide path (3-20 degrees), building height limits under approaches, smooth departure turns.
-- "Reset to defaults" button in the options.
-- Pushback only from gate stands, once loading is done.
-- VFR chart: bridge towers and pillars are shown as obstacles.
+  <ModVersion Value="1.1a" />
+  <ChangeLog>1.1a
+- New option, off by default: a "Remove this airplane" button in every airplane's info panel, for an airplane stuck on a runway. Its state is written to the log when it is removed; please send the log if you can.
+- Glide path: arrivals keep their approach speed until just before touchdown, so they flare over the runway instead of halfway down the final.
 
-1.1
-- 애드온 API: 다른 모드가 공항, 활주로, 비행, 교신, 이벤트, ATIS, 옵션을 다룰 수 있습니다 (GitHub 가이드 참고).
-- 새 옵션 (기본 꺼짐): 직선 Final과 강하각(3-20도), 접근로 아래 건물 높이 제한, 출발기 완만한 선회.
-- 옵션에 "기본값으로 되돌리기" 버튼.
-- Pushback은 Gate에 서 있던 비행기만, 탑승·하역이 끝난 뒤에 합니다.
-- VFR 차트: 다리 주탑과 기둥을 장애물로 표시합니다.</ChangeLog>
+1.1a
+- 새 옵션 (기본 꺼짐): 모든 비행기 정보란에 "이 비행기 제거" 버튼. 활주로에 멈춘 비행기가 있을 때 쓰세요. 제거할 때 비행기 상태가 로그에 남으니, 가능하면 로그를 보내 주세요.
+- 강하각: 도착기가 착지 직전까지 접근 속도를 유지해서, Final 중간이 아니라 활주로 위에서 플레어합니다.</ChangeLog>
   <GameVersion Value="1.6.*" />
   <!-- Public on the site; NewVersion writes this back too. -->
   <AccessLevel Value="Public" />
