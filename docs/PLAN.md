@@ -670,7 +670,7 @@ From a review of the whole mod, done in this order:
   water below.
 - All three options are off by default; a "Reset to defaults" button sits at the bottom of the options page.
 
-## Next: approach procedure (1.1a or 1.2, decided 2026-10-20)
+## Next: approach procedure (1.2, decided 2026-10-20)
 
 The game's airway ends about 2.5 km beside the runway at 1,000 m, so every approach after it is a forced manoeuvre.
 Plan: an RNAV "Basic T" per runway end (AIM 5-4: IF/IAF on the centerline, left and right IAFs perpendicular, IAF
@@ -678,3 +678,14 @@ intercept at most 90°, 90° turn at the IF), steered by the tower from the appr
 vectors join at most 30° at least 2 NM outside the approach gate (JO 7110.65 5-9-1/2), not above the glide path;
 gradients initial ≤ 500 ft/NM, intermediate ≤ 318 ft/NM. Scaled down to the game: angles and gradients kept, lengths
 from the turn radius and the map (intermediate about three turn radii). Only with the glide path option.
+
+## 1.1a (2026-10-21, feedback patch)
+
+Versions: MAJOR.MINOR plus a patch letter (1.1a, 1.1b...); new features go to the next minor.
+
+- "Remove this airplane" button option (`AirplaneAtcSection`): marks the airplane's path stuck (`PathFlags.Stuck`), as
+  `StuckMovingObjectSystem` does, so `TransportAircraftAISystem` ends boarding and deletes it; logs its state first.
+  A stop-gap for airplanes stuck on a runway (forum report); the cause still needs a log.
+- Early flare on the long final: on the runway lane the game brakes for the target just ahead and slows to touchdown
+  speed at once; near the minimum flying speed the move system holds the nose up. `FollowGlidePath` keeps the
+  level-attitude approach speed and reaches touchdown speed `kFlareDistance` (300 m) before the touchdown point.

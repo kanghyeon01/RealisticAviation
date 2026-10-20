@@ -86,7 +86,8 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
   airway, an arrival joins the extended centerline outside the final approach fix (FAF, 1,500 ft above the runway) at an
   angle, as if vectored onto a localizer, and descends at the chosen angle (3–20°, default 5°). It stays on the airway
   until 2.5 km out, as in the game, so it doesn't reserve the runway exit for long. An arrival too high to descend in
-  time descends in a hold at the join point first (the hold in lieu of a procedure turn of an RNAV "T" approach).
+  time descends in a hold at the join point first (the hold in lieu of a procedure turn of an RNAV "T" approach). It
+  keeps its approach speed until just before touchdown, so it flares over the runway.
   - **Building height limits under approaches (option, off by default).** From each runway end out to the FAF, zoned
     buildings may not be built or level up above a surface 50 m below the glide path, widening away from the runway as
     an instrument runway's approach surface (14 CFR 77.19). Existing buildings stay; the game's own limits are only
@@ -121,6 +122,7 @@ after a save is loaded.
 | Maximum closure | 30 min | Game minutes after which a closed airport reopens (when the limit is on) |
 | Hold short setback | 30 m | Gap between a waiting airplane's nose and the runway |
 | Pushback | On | Push airplanes back out of nose-in gates instead of turning them on the spot |
+| "Remove this airplane" button | Off | A button in every airplane's info panel that removes it (for one stuck on a runway; its state is logged) |
 | Pattern width | 1.5 NM | Runway centerline to downwind |
 | Final length | 2 NM | Distance of the base turn before the runway (not used with the glide path: the final starts at the FAF) |
 | Taxi spacing | 40 m | Gap a taxiing airplane keeps behind the airplane ahead |
