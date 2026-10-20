@@ -35,13 +35,40 @@ namespace RealisticAviation
             private void UpdatePushback(Entity entity)
             {
                 bool active = m_Pushbacks.TryGetValue(entity, out Pushback pushback);
-                // Only an airplane standing still (at its gate) can begin a pushback. Airplanes at a gate keep their
-                // Moving component while boarding, so "just started moving" can't be used to find a departure.
-                if (!active && (math.lengthsq(m_MovingData[entity].m_Velocity) > kPushbackStartSpeed * kPushbackStartSpeed
-                    || m_NavigationLanes[entity].Length == 0))
+                if (!active)
                 {
-                    // Standing still with somewhere to go: an airplane still boarding has no route lanes yet.
-                    return;
+                    // Only an airplane standing still at its gate can begin a pushback. Airplanes at a gate keep their
+                    // Moving component while boarding, so "just started moving" can't be used to find a departure. Once it
+                    // is done there its next stop is somewhere else, so it is remembered as at the gate while it stands.
+                    // An arrival that stops on a taxiway and gets a path that turns back (the game sent it on to its next
+                    // stop) is no pushback: approved as one, it was pushed along the taxiway and blocked the gate traffic.
+                    if (math.lengthsq(m_MovingData[entity].m_Velocity) > kPushbackStartSpeed * kPushbackStartSpeed)
+                    {
+                        return;
+                    }
+                    if (IsHeldAtStop(entity))
+                    {
+                        // The game still holds it at the stop (loading, or stopped), though it may already have its next
+                        // path: asking now got a pushback approval it couldn't act on for a minute or more.
+                        if (IsAtOwnGate(entity) || m_AtGate.ContainsKey(entity))
+                        {
+                            m_AtGate[entity] = m_Tick;
+                        }
+                        return;
+                    }
+                    if (m_AtGate.ContainsKey(entity) || IsAtOwnGate(entity))
+                    {
+                        m_AtGate[entity] = m_Tick;
+                    }
+                    else
+                    {
+                        return;
+                    }
+                    if (m_NavigationLanes[entity].Length == 0)
+                    {
+                        // Standing still with somewhere to go: an airplane still boarding has no route lanes yet.
+                        return;
+                    }
                 }
                 Transform transform = m_TransformData[entity];
                 AircraftNavigation navigation = m_NavigationData[entity];
@@ -77,6 +104,7 @@ namespace RealisticAviation
                     {
                         return;
                     }
+                    m_AtGate.Remove(entity);
                     float2 size = m_PrefabGeometryData.TryGetComponent(m_PrefabRefData[entity].m_Prefab, out ObjectGeometryData geometry)
                         ? geometry.m_Size.xz : new float2(30f, 30f);
                     pushback = new Pushback
@@ -354,9 +382,39 @@ namespace RealisticAviation
                 return math.distancesq(point, a + ab * t);
             }
 
-            /// <summary>Forgets pushbacks of airplanes that stopped being tracked (parked, deleted or flying).</summary>
+            /// <summary>
+            /// The airplane stands at the stop it is bound for (still boarding there): on one of the stand's lanes. The gate's
+            /// boarding vehicle can't tell: an arrival is named there while still taxiing in.
+            /// </summary>
+            private bool IsAtOwnGate(Entity entity)
+            {
+                if (!m_TargetData.TryGetComponent(entity, out Game.Common.Target target)
+                    || !m_RouteLaneData.TryGetComponent(target.m_Target, out Game.Routes.RouteLane stand))
+                {
+                    return false;
+                }
+                Entity lane = m_CurrentLaneData[entity].m_Lane;
+                return lane == stand.m_StartLane || lane == stand.m_EndLane;
+            }
+
+            /// <summary>
+            /// The game still holds the airplane at its stop: loading or boarding (the Boarding state of its cargo or passenger
+            /// transport), or stopped outright.
+            /// </summary>
+            private bool IsHeldAtStop(Entity entity)
+            {
+                return m_StoppedData.HasComponent(entity)
+                    || (m_CargoTransportData.TryGetComponent(entity, out Game.Vehicles.CargoTransport cargo) && (cargo.m_State & CargoTransportFlags.Boarding) != 0)
+                    || (m_PublicTransportData.TryGetComponent(entity, out Game.Vehicles.PublicTransport passenger) && (passenger.m_State & PublicTransportFlags.Boarding) != 0);
+            }
+
+            /// <summary>
+            /// Forgets pushbacks of airplanes that stopped being tracked (parked, deleted or flying), and airplanes no
+            /// longer standing at their gate.
+            /// </summary>
             private void EndPushbackTick()
             {
+                RemoveStale(m_AtGate);
                 if (m_Pushbacks.IsEmpty)
                 {
                     return;
@@ -372,6 +430,27 @@ namespace RealisticAviation
                 for (int i = 0; i < stale.Length; i++)
                 {
                     m_Pushbacks.Remove(stale[i]);
+                }
+                stale.Dispose();
+            }
+
+            private void RemoveStale(NativeParallelHashMap<Entity, uint> lastTicks)
+            {
+                if (lastTicks.IsEmpty)
+                {
+                    return;
+                }
+                NativeList<Entity> stale = new NativeList<Entity>(Allocator.Temp);
+                foreach (var pair in lastTicks)
+                {
+                    if (pair.Value != m_Tick)
+                    {
+                        stale.Add(pair.Key);
+                    }
+                }
+                for (int i = 0; i < stale.Length; i++)
+                {
+                    lastTicks.Remove(stale[i]);
                 }
                 stale.Dispose();
             }

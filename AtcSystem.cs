@@ -82,6 +82,9 @@ namespace RealisticAviation
         private ComponentLookup<Game.Common.Target> m_TargetData;
         private ComponentLookup<Game.Routes.Connected> m_ConnectedData;
         private ComponentLookup<Game.Routes.BoardingVehicle> m_BoardingVehicleData;
+        private ComponentLookup<Game.Vehicles.CargoTransport> m_CargoTransportData;
+        private ComponentLookup<Game.Vehicles.PublicTransport> m_PublicTransportData;
+        private ComponentLookup<Stopped> m_StoppedData;
         private ComponentLookup<Game.Routes.RouteLane> m_RouteLaneData;
         private ComponentLookup<Taxiway> m_TaxiwayData;
 
@@ -95,6 +98,8 @@ namespace RealisticAviation
         private NativeParallelHashMap<Entity, Flight> m_Flights;
         private NativeList<Entity> m_HoldingFlights;
         private NativeParallelHashMap<Entity, Pushback> m_Pushbacks;
+        private NativeParallelHashMap<Entity, uint> m_AtGate;
+        private NativeParallelHashMap<Entity, DepartureTurn> m_DepartureTurns;
         private NativeReference<uint> m_Sequence;
 
         /// <summary>Airplane prefab names for the log (diagnostics only).</summary>
@@ -304,23 +309,31 @@ namespace RealisticAviation
             uint version = m_RadioVersion.Value;
             uint count = version - m_RaisedRadioVersion;
             m_RaisedRadioVersion = version;
-            if (count == 0 || !Api.HasListeners)
+            if (count == 0 || !Api.Events.HasListeners)
             {
                 return;
             }
+            // Copied first: a handler may post to the radio (Api.Radio.Post), which changes the log. Its message is raised next time.
             int first = m_RadioLog.Length - (int)math.min(count, (uint)m_RadioLog.Length);
+            m_RaiseBuffer.Clear();
             for (int i = first; i < m_RadioLog.Length; i++)
             {
-                Api.Raise(m_RadioLog[i]);
+                m_RaiseBuffer.Add(m_RadioLog[i]);
+            }
+            for (int i = 0; i < m_RaiseBuffer.Count; i++)
+            {
+                Api.Events.Raise(m_RaiseBuffer[i]);
             }
         }
+
+        private readonly List<AtcMessage> m_RaiseBuffer = new List<AtcMessage>();
 
         /// <summary>Copies each airport's ATIS from the ATIS add-on, if one is registered, for the tower job of this update.</summary>
         private void FillAtisStates()
         {
             m_JobHandle.Complete();
             m_AtisStates.Clear();
-            Api.AtisProvider provider = Api.CurrentAtisProvider;
+            Api.AtisProvider provider = Api.Atis.Current;
             if (provider == null)
             {
                 return;
@@ -452,6 +465,9 @@ namespace RealisticAviation
             m_TargetData = GetComponentLookup<Game.Common.Target>(true);
             m_ConnectedData = GetComponentLookup<Game.Routes.Connected>(true);
             m_BoardingVehicleData = GetComponentLookup<Game.Routes.BoardingVehicle>(true);
+            m_CargoTransportData = GetComponentLookup<Game.Vehicles.CargoTransport>(true);
+            m_PublicTransportData = GetComponentLookup<Game.Vehicles.PublicTransport>(true);
+            m_StoppedData = GetComponentLookup<Stopped>(true);
             m_RouteLaneData = GetComponentLookup<Game.Routes.RouteLane>(true);
             m_TaxiwayData = GetComponentLookup<Taxiway>(true);
 
@@ -461,6 +477,8 @@ namespace RealisticAviation
             m_Flights = new NativeParallelHashMap<Entity, Flight>(64, Allocator.Persistent);
             m_HoldingFlights = new NativeList<Entity>(16, Allocator.Persistent);
             m_Pushbacks = new NativeParallelHashMap<Entity, Pushback>(16, Allocator.Persistent);
+            m_AtGate = new NativeParallelHashMap<Entity, uint>(32, Allocator.Persistent);
+            m_DepartureTurns = new NativeParallelHashMap<Entity, DepartureTurn>(16, Allocator.Persistent);
             m_Sequence = new NativeReference<uint>(0, Allocator.Persistent);
             m_PrefabNames = new NativeParallelHashMap<Entity, FixedString128Bytes>(64, Allocator.Persistent);
             m_AirportClosures = new NativeParallelHashMap<Entity, Entity>(4, Allocator.Persistent);
@@ -479,6 +497,7 @@ namespace RealisticAviation
             m_LastMessages = new NativeParallelHashMap<Entity, AtcMessage>(64, Allocator.Persistent);
             m_RadioLog = new NativeList<AtcMessage>(64, Allocator.Persistent);
             m_RadioVersion = new NativeReference<uint>(0, Allocator.Persistent);
+            CreateApiState();
 
             RequireForUpdate(m_AirplaneQuery);
         }
@@ -496,6 +515,8 @@ namespace RealisticAviation
             m_Flights.Dispose();
             m_HoldingFlights.Dispose();
             m_Pushbacks.Dispose();
+            m_AtGate.Dispose();
+            m_DepartureTurns.Dispose();
             m_Sequence.Dispose();
             m_AirportClosures.Dispose();
             m_HazardKinds.Dispose();
@@ -513,6 +534,7 @@ namespace RealisticAviation
             m_LastMessages.Dispose();
             m_RadioLog.Dispose();
             m_RadioVersion.Dispose();
+            DisposeApiState();
             m_PrefabNames.Dispose();
             base.OnDestroy();
         }
@@ -530,6 +552,7 @@ namespace RealisticAviation
             m_RadioLog.Clear();
             // Messages of the city before are not news to add-ons.
             m_RaisedRadioVersion = m_RadioVersion.Value;
+            ResetApiState();
             m_Radio.Reset();
             m_GroundCounts.Clear();
             m_GroundDelays.Clear();
@@ -537,6 +560,8 @@ namespace RealisticAviation
             m_Airspaces.Clear();
             m_AirportClosures.Clear();
             m_Pushbacks.Clear();
+            m_AtGate.Clear();
+            m_DepartureTurns.Clear();
             // Everything keyed by airplane: entities of the city before could match airplanes of this one.
             m_Zones.Clear();
             m_TaxiHolds.Clear();
@@ -583,11 +608,16 @@ namespace RealisticAviation
             m_TargetData.Update(this);
             m_ConnectedData.Update(this);
             m_BoardingVehicleData.Update(this);
+            m_CargoTransportData.Update(this);
+            m_PublicTransportData.Update(this);
+            m_StoppedData.Update(this);
             m_RouteLaneData.Update(this);
             m_TaxiwayData.Update(this);
 
             FillAtisStates();
+            FillApiState();
             RaiseApiEvents();
+            m_LastSettings = GetSettings();
             NativeList<Entity> airplanes = m_AirplaneQuery.ToEntityListAsync(Allocator.TempJob, out JobHandle airplanesHandle);
             NativeList<Entity> weatherEvents = m_WeatherEventQuery.ToEntityListAsync(Allocator.TempJob, out JobHandle weatherHandle);
             AtcJob job = new AtcJob
@@ -618,6 +648,9 @@ namespace RealisticAviation
                 m_TargetData = m_TargetData,
                 m_ConnectedData = m_ConnectedData,
                 m_BoardingVehicleData = m_BoardingVehicleData,
+                m_CargoTransportData = m_CargoTransportData,
+                m_PublicTransportData = m_PublicTransportData,
+                m_StoppedData = m_StoppedData,
                 m_RouteLaneData = m_RouteLaneData,
                 m_TaxiwayData = m_TaxiwayData,
                 m_WeatherEvents = weatherEvents,
@@ -641,12 +674,19 @@ namespace RealisticAviation
                 m_Flights = m_Flights,
                 m_HoldingFlights = m_HoldingFlights,
                 m_Pushbacks = m_Pushbacks,
+                m_AtGate = m_AtGate,
+                m_DepartureTurns = m_DepartureTurns,
                 m_Sequence = m_Sequence,
                 m_PrefabNames = m_PrefabNames,
                 m_GateCounts = m_GateCounts,
                 m_Airspaces = m_Airspaces,
                 m_AtisStates = m_AtisStates,
-                m_Settings = GetSettings(),
+                m_Settings = m_LastSettings,
+                m_ApiClosures = m_ApiClosures,
+                m_ApiOverrides = m_ApiOverrides,
+                m_ApiHeld = m_ApiHeld,
+                m_ApiPriority = m_ApiPriority,
+                m_ApiGoArounds = m_ApiGoArounds,
                 m_Tick = m_Tick,
                 m_Frame = m_SimulationSystem.frameIndex,
             };
@@ -749,6 +789,11 @@ namespace RealisticAviation
         /// </summary>
         private void RefreshAirspaces()
         {
+            m_PreviousClasses.Clear();
+            foreach (var pair in m_Airspaces)
+            {
+                m_PreviousClasses[pair.Key] = pair.Value.m_Class;
+            }
             m_Airspaces.Clear();
             NativeParallelHashMap<Entity, float3> sums = new NativeParallelHashMap<Entity, float3>(4, Allocator.Temp);
             NativeParallelHashMap<Entity, float> heights = new NativeParallelHashMap<Entity, float>(4, Allocator.Temp);
@@ -800,7 +845,23 @@ namespace RealisticAviation
                 }
                 Mod.Log.Info($"Airspace of airport {pair.Key}: class {space.m_Class}, radius {space.m_Radius / Setting.kMetersPerNauticalMile:F1} NM, {space.m_Runways} runways, {space.m_Gates} gates; to other airports:{distances}");
             }
+            // Tell add-ons about every airport whose class is new or changed (collected first: a handler may ask for another class).
+            m_ChangedClasses.Clear();
+            foreach (var pair in m_Airspaces)
+            {
+                if (!m_PreviousClasses.TryGetValue(pair.Key, out AirspaceClass previous) || previous != pair.Value.m_Class)
+                {
+                    m_ChangedClasses.Add((pair.Key, pair.Value.m_Class));
+                }
+            }
+            for (int i = 0; i < m_ChangedClasses.Count; i++)
+            {
+                Api.Events.RaiseAirspaceClassChanged(m_ChangedClasses[i].m_Airport, m_ChangedClasses[i].m_Class);
+            }
         }
+
+        private readonly Dictionary<Entity, AirspaceClass> m_PreviousClasses = new Dictionary<Entity, AirspaceClass>();
+        private readonly List<(Entity m_Airport, AirspaceClass m_Class)> m_ChangedClasses = new List<(Entity, AirspaceClass)>();
 
         /// <summary>Diagnostics: caches airplane prefab names whenever the set of airplane prefabs changes.</summary>
         private void RefreshPrefabNames()

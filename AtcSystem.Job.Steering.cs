@@ -112,7 +112,8 @@ namespace RealisticAviation
                             // The pilot's own decision at minimums: in rain or snow, now and then the runway isn't in sight.
                             flight.m_WeatherChecked = true;
                             m_Flights[entity] = flight;
-                            if (m_Settings.m_WeatherGoAroundChance > 0f && RollWeatherGoAround(entity))
+                            float chance = SettingsForRunway(flight.m_Runway).m_WeatherGoAroundChance;
+                            if (chance > 0f && RollWeatherGoAround(entity, chance))
                             {
                                 GoAround(entity, ref flight, m_Settings.m_Weather == WeatherKind.Clear ? "pilot decision" : "weather: " + m_Settings.m_Weather.ToString().ToLowerInvariant(), true);
                                 FlyCircuit(entity, ref flight);

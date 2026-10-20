@@ -144,53 +144,8 @@ namespace RealisticAviation
                 m_Designator = number,
                 m_Name = name,
                 m_Lateral = RunwayNames.Lateral(runway.Geometry, landing),
-                m_RightHand = IsRightHand(runway, landing),
+                m_RightHand = AirportSettings.IsRightHand(EntityManager, m_AtcSystem, runway, landing),
             });
-        }
-
-        /// <summary>The player's choice for this runway end, or else the default the tower uses (see AtcSystem).</summary>
-        private bool IsRightHand(RunwayInfo runway, float2 landing)
-        {
-            for (int i = 0; i < runway.Edges.Count; i++)
-            {
-                Entity edge = runway.Edges[i];
-                if (EntityManager.Exists(edge) && EntityManager.HasComponent<RunwayPattern>(edge) && EntityManager.HasComponent<Curve>(edge)
-                    && EntityManager.GetComponentData<RunwayPattern>(edge).TryGetRightHand(EdgeDirection(edge), landing, out bool rightHand))
-                {
-                    return rightHand;
-                }
-            }
-            return IsRightHandByDefault(runway, landing);
-        }
-
-        /// <summary>Right-hand when a parallel runway lies to the left (so the pattern stays outside), or else a neighbouring airport.</summary>
-        private bool IsRightHandByDefault(RunwayInfo runway, float2 landing)
-        {
-            float width = Mod.Setting.PatternWidthNm * Setting.kMetersPerNauticalMile;
-            float2 left = Colossal.Mathematics.MathUtils.Left(landing);
-            float2 right = -left;
-            bool parallelRight = false;
-            IReadOnlyList<RunwayInfo> runways = m_AtcSystem.RunwayList;
-            for (int i = 0; i < runways.Count; i++)
-            {
-                if (runways[i] == runway)
-                {
-                    continue;
-                }
-                if (RunwayGeometry.IsParallelOnSide(runway.Geometry, runways[i].Geometry, landing, left, width))
-                {
-                    return true;
-                }
-                parallelRight |= RunwayGeometry.IsParallelOnSide(runway.Geometry, runways[i].Geometry, landing, right, width);
-            }
-            // No parallel runway: away from a neighbouring airport on the left (the same rule as the tower's).
-            return !parallelRight && m_AtcSystem.IsNeighbourOnLeft(runway.Airport, runway.Geometry.Middle, landing);
-        }
-
-        private float2 EdgeDirection(Entity edge)
-        {
-            var bezier = EntityManager.GetComponentData<Curve>(edge).m_Bezier;
-            return bezier.d.xz - bezier.a.xz;
         }
 
         public override void OnWriteProperties(IJsonWriter writer)
@@ -240,17 +195,9 @@ namespace RealisticAviation
             writer.ArrayEnd();
         }
 
-        /// <summary>The airport's present airspace class (D without airspace data, as the tower assumes).</summary>
-        private AirspaceClass CurrentClass()
-        {
-            return m_AtcSystem.TryGetAirspace(m_Airport, out AirportSpace space) ? space.m_Class : AirspaceClass.D;
-        }
-
         private bool IsLineUpEnabled()
         {
-            bool hasSetting = EntityManager.HasComponent<LineUpSetting>(m_Airport);
-            LineUpSetting setting = hasSetting ? EntityManager.GetComponentData<LineUpSetting>(m_Airport) : default;
-            return LineUpSetting.IsEnabled(hasSetting, setting, CurrentClass());
+            return AirportSettings.IsLineUpEnabled(EntityManager, m_AtcSystem, m_Airport);
         }
 
         /// <summary>Flips line up and wait for the airport, as a choice for its present class (a class change brings back the default).</summary>
@@ -260,39 +207,19 @@ namespace RealisticAviation
             {
                 return;
             }
-            bool enable = !IsLineUpEnabled();
-            LineUpSetting setting = new LineUpSetting { m_Enabled = enable, m_Class = (byte)CurrentClass() };
-            if (EntityManager.HasComponent<LineUpSetting>(m_Airport))
-            {
-                EntityManager.SetComponentData(m_Airport, setting);
-            }
-            else
-            {
-                EntityManager.AddComponentData(m_Airport, setting);
-            }
-            Mod.Log.Info($"Line up and wait {(enable ? "enabled" : "disabled")} at airport {m_Airport}");
+            AirportSettings.SetLineUp(EntityManager, m_AtcSystem, m_Airport, !IsLineUpEnabled());
             // Re-sends every section to the UI; only marking this one dirty would leave the checkbox unchanged on screen.
             m_InfoUISystem.RequestUpdate();
         }
 
         private GroundDelaySetting GetGroundDelay()
         {
-            return EntityManager.HasComponent<GroundDelaySetting>(m_Airport)
-                ? EntityManager.GetComponentData<GroundDelaySetting>(m_Airport)
-                : GroundDelaySetting.Default(m_AtcSystem.GetGateCount(m_Airport));
+            return AirportSettings.GetGroundDelay(EntityManager, m_AtcSystem, m_Airport);
         }
 
         private void SetGroundDelay(GroundDelaySetting setting)
         {
-            if (EntityManager.HasComponent<GroundDelaySetting>(m_Airport))
-            {
-                EntityManager.SetComponentData(m_Airport, setting);
-            }
-            else
-            {
-                EntityManager.AddComponentData(m_Airport, setting);
-            }
-            Mod.Log.Info($"Ground delay at airport {m_Airport}: {(setting.m_Enabled ? "on" : "off")}, limit {setting.m_Limit}");
+            AirportSettings.SetGroundDelay(EntityManager, m_Airport, setting);
             m_InfoUISystem.RequestUpdate();
         }
 
@@ -330,27 +257,7 @@ namespace RealisticAviation
             {
                 return;
             }
-            text = text?.Trim() ?? string.Empty;
-            if (text.Length == 0)
-            {
-                if (EntityManager.HasComponent<AirportCode>(m_Airport))
-                {
-                    EntityManager.RemoveComponent<AirportCode>(m_Airport);
-                }
-                Mod.Log.Info($"Airport {m_Airport} uses its automatic code");
-            }
-            else if (AirportCode.TryCreate(text, out AirportCode code))
-            {
-                if (EntityManager.HasComponent<AirportCode>(m_Airport))
-                {
-                    EntityManager.SetComponentData(m_Airport, code);
-                }
-                else
-                {
-                    EntityManager.AddComponentData(m_Airport, code);
-                }
-                Mod.Log.Info($"Airport {m_Airport} code set to {code}");
-            }
+            AirportSettings.SetAirportCode(EntityManager, m_Airport, text);
             m_InfoUISystem.RequestUpdate();
         }
 
@@ -375,27 +282,7 @@ namespace RealisticAviation
             }
             RunwayEnd end = m_RunwayEnds[index];
             bool rightHand = !end.m_RightHand;
-            List<Entity> edges = end.m_Runway.Edges;
-            for (int i = 0; i < edges.Count; i++)
-            {
-                Entity edge = edges[i];
-                if (!EntityManager.Exists(edge) || !EntityManager.HasComponent<Curve>(edge))
-                {
-                    continue;
-                }
-                RunwayPattern pattern = EntityManager.HasComponent<RunwayPattern>(edge)
-                    ? EntityManager.GetComponentData<RunwayPattern>(edge)
-                    : default;
-                pattern.SetRightHand(EdgeDirection(edge), end.m_Landing, rightHand);
-                if (EntityManager.HasComponent<RunwayPattern>(edge))
-                {
-                    EntityManager.SetComponentData(edge, pattern);
-                }
-                else
-                {
-                    EntityManager.AddComponentData(edge, pattern);
-                }
-            }
+            AirportSettings.SetRightHand(EntityManager, end.m_Runway, end.m_Landing, rightHand);
             Mod.Log.Info($"RWY {end.m_Name} at airport {m_Airport}: {(rightHand ? "right" : "left")}-hand traffic pattern");
             m_InfoUISystem.RequestUpdate();
         }

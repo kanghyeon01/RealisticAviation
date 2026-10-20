@@ -104,6 +104,14 @@ namespace RealisticAviation
         /// <summary>The airplane is flying the traffic pattern after a go-around (see <see cref="CircuitLeg"/>).</summary>
         public bool m_InCircuit;
 
+        /// <summary>
+        /// A cleared arrival too high for the glide path descends in a hold at the final course join point (hold in lieu of
+        /// procedure turn) before turning onto final (see AtcSystem.FlyToFinalFix). It keeps its clearance.
+        /// </summary>
+        public bool m_DescentHold;
+
+        public HoldingPattern m_DescentPattern;
+
         /// <summary>This arrival has already gone around once (the practice go-around only happens once).</summary>
         public bool m_WentAround;
 
@@ -348,8 +356,20 @@ namespace RealisticAviation
         /// <summary>The weather that set <see cref="m_WeatherGoAroundChance"/> (for the log).</summary>
         public WeatherKind m_Weather;
 
+        /// <summary>Straight-in finals from the final approach fix, descending at the glide path angle (the "Glide path" option).</summary>
+        public bool m_GlidePath;
+
+        /// <summary>Departures turn onto their airway at a standard rate (the "Smooth departure turns" option).</summary>
+        public bool m_SmoothDepartureTurns;
+
+        /// <summary>Tangent of the glide path angle.</summary>
+        public float m_GlideTan;
+
         public AtcSettings(Setting setting)
         {
+            m_GlidePath = setting.GlidePath;
+            m_SmoothDepartureTurns = setting.SmoothDepartureTurns;
+            m_GlideTan = (float)System.Math.Tan(System.Math.Max(3, System.Math.Min(20, setting.GlidePathDegrees)) * System.Math.PI / 180.0);
             m_TaxiSpacing = setting.TaxiSpacing;
             m_Pushback = setting.EnablePushback;
             m_PatternWidth = setting.PatternWidthNm * Setting.kMetersPerNauticalMile;
@@ -548,6 +568,18 @@ namespace RealisticAviation
         public uint m_Tick;
     }
 
+    /// <summary>A departure turn the tower is flying at a standard rate (see AtcSystem.SmoothDepartureTurn).</summary>
+    internal struct DepartureTurn
+    {
+        /// <summary>The game's own steering target, given back once the airplane points at it.</summary>
+        public float3 m_GameTarget;
+
+        /// <summary>The heading the airplane is being turned through (unit vector).</summary>
+        public float2 m_Heading;
+
+        public uint m_Tick;
+    }
+
     /// <summary>How long the mod's taxi hold has kept an airplane behind the same other one (see AtcSystem.MayHoldBehind).</summary>
     internal struct TaxiHold
     {
@@ -612,5 +644,69 @@ namespace RealisticAviation
         public uint m_GroundRequestFrame;
 
         public uint m_OldestGroundRequestFrame;
+
+        /// <summary><see cref="m_Ground"/> was given priority by an add-on (Api.Flights.SetPriority).</summary>
+        public bool m_GroundPriority;
+    }
+}
+
+namespace RealisticAviation
+{
+    /// <summary>
+    /// An airport's operating values set by an add-on (Api.Airports.SetOverrides), for the tower job. NaN (or -1 for the glide
+    /// path switch) means the option's value.
+    /// </summary>
+    internal struct OperatingOverride
+    {
+        public float m_ArrivalSpacingSeconds;
+        public float m_DepartureGapSeconds;
+        public float m_FinalLength;
+        public float m_PatternWidth;
+        public float m_WeatherGoAroundChance;
+        public float m_GlideTan;
+
+        /// <summary>-1: the option; 0: off; 1: on.</summary>
+        public sbyte m_GlidePath;
+
+        /// <summary>The options' values with these on top.</summary>
+        public AtcSettings Apply(AtcSettings settings)
+        {
+            if (!float.IsNaN(m_ArrivalSpacingSeconds))
+            {
+                settings.m_ArrivalSpacingSeconds = m_ArrivalSpacingSeconds;
+            }
+            if (!float.IsNaN(m_DepartureGapSeconds))
+            {
+                settings.m_DepartureGapSeconds = m_DepartureGapSeconds;
+            }
+            if (!float.IsNaN(m_FinalLength))
+            {
+                settings.m_FinalLength = m_FinalLength;
+            }
+            if (!float.IsNaN(m_PatternWidth))
+            {
+                settings.m_PatternWidth = m_PatternWidth;
+            }
+            if (!float.IsNaN(m_WeatherGoAroundChance))
+            {
+                settings.m_WeatherGoAroundChance = m_WeatherGoAroundChance;
+            }
+            if (!float.IsNaN(m_GlideTan))
+            {
+                settings.m_GlideTan = m_GlideTan;
+            }
+            if (m_GlidePath >= 0)
+            {
+                settings.m_GlidePath = m_GlidePath != 0;
+            }
+            return settings;
+        }
+    }
+
+    /// <summary>An add-on's order to send an arrival around (Api.Flights.GoAround), carried out by the next tower job.</summary>
+    internal struct ApiGoAround
+    {
+        public Entity m_Airplane;
+        public Unity.Collections.FixedString128Bytes m_Reason;
     }
 }

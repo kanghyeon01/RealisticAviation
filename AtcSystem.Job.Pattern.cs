@@ -53,11 +53,12 @@ namespace RealisticAviation
                 flight.m_WeatherChecked = false;
 
                 AirplaneData airplaneData = m_PrefabAirplaneData[m_PrefabRefData[entity].m_Prefab];
+                AtcSettings settings = SettingsForRunway(flight.m_Runway);
                 float radius = GetTurnRadius(airplaneData);
                 float3 threshold = flight.m_EntryPosition;
                 float2 landing = flight.m_EntryDirection;
                 float2 side = IsRightHandPattern(entity, flight.m_Runway, landing) ? MathUtils.Right(landing) : MathUtils.Left(landing);
-                float width = math.max(m_Settings.m_PatternWidth, radius * 2.2f);
+                float width = math.max(settings.m_PatternWidth, radius * 2.2f);
 
                 // Upwind ends past the runway end (and past the airplane), leaving room for the crosswind turn.
                 float upwind = math.dot(m_TransformData[entity].m_Position.xz - threshold.xz, landing);
@@ -68,7 +69,7 @@ namespace RealisticAviation
                     upwind = math.max(upwind, math.max(math.dot(a - threshold.xz, landing), math.dot(b - threshold.xz, landing)));
                 }
                 upwind += math.max(kUpwindExtension, radius);
-                float final = math.max(m_Settings.m_FinalLength, radius * 2f);
+                float final = settings.m_GlidePath ? GetFinalFixDistance(radius, settings.m_GlideTan) : math.max(settings.m_FinalLength, radius * 2f);
                 float altitude = threshold.y + kPatternHeight;
 
                 flight.m_UpwindEnd = new float3(threshold.x + landing.x * upwind, altitude, threshold.z + landing.y * upwind);
@@ -142,12 +143,16 @@ namespace RealisticAviation
             /// </summary>
             private void EndCircuit(Entity entity, ref Flight flight)
             {
+                AtcSettings settings = SettingsForRunway(flight.m_Runway);
                 AirplaneData airplaneData = m_PrefabAirplaneData[m_PrefabRefData[entity].m_Prefab];
                 float3 threshold = flight.m_EntryPosition;
                 float2 landing = flight.m_EntryDirection;
-                float final = math.max(m_Settings.m_FinalLength, GetTurnRadius(airplaneData) * 2f);
+                // With the glide path option the final starts at the final approach fix, as for every other arrival.
+                float final = settings.m_GlidePath ? GetFinalFixDistance(GetTurnRadius(airplaneData), settings.m_GlideTan)
+                    : math.max(settings.m_FinalLength, GetTurnRadius(airplaneData) * 2f);
                 float3 finalStart = new float3(threshold.x - landing.x * final, 0f, threshold.z - landing.y * final);
-                finalStart.y = math.min(flight.m_DownwindEnd.y, threshold.y + final * math.tan(airplaneData.m_ClimbAngle));
+                finalStart.y = math.min(flight.m_DownwindEnd.y,
+                    threshold.y + final * (settings.m_GlidePath ? settings.m_GlideTan : math.tan(airplaneData.m_ClimbAngle)));
 
                 flight.m_InCircuit = false;
                 float2 downwind = math.normalizesafe(flight.m_DownwindEnd.xz - flight.m_CrosswindEnd.xz, -landing);
@@ -202,7 +207,7 @@ namespace RealisticAviation
                 }
                 foreach (var pair in m_RunwayGeometry)
                 {
-                    if (pair.Key != runway && RunwayGeometry.IsParallelOnSide(ours, pair.Value, landing, side, m_Settings.m_PatternWidth))
+                    if (pair.Key != runway && RunwayGeometry.IsParallelOnSide(ours, pair.Value, landing, side, SettingsForRunway(runway).m_PatternWidth))
                     {
                         return true;
                     }
@@ -255,6 +260,11 @@ namespace RealisticAviation
             {
                 AirplaneData airplaneData = m_PrefabAirplaneData[m_PrefabRefData[entity].m_Prefab];
                 float3 position = m_TransformData[entity].m_Position;
+                // Climb and descend gently: a target high above and close by (a high holding level near the airplane) would
+                // otherwise make it shoot up almost vertically. Even the airplane's own climb angle (20 degrees) looked like that
+                // in a hold, and the airplane overshoots the angle a little while turning.
+                float reach = math.distance(target.xz, position.xz) * kSteeringSlope;
+                target.y = math.clamp(target.y, position.y - reach, position.y + reach);
                 // The move system sets the velocity to exactly m_MaxSpeed, so it must stay inside the reachable range.
                 float maxSpeed = MathUtils.Clamp(GetHoldingSpeed(airplaneData), VehicleUtils.CalculateSpeedRange(airplaneData, GetSpeed(entity), kTimeStep));
                 AircraftNavigation navigation = m_NavigationData[entity];
@@ -288,10 +298,10 @@ namespace RealisticAviation
             }
 
             /// <summary>One roll per approach: the same airplane on the same frame always rolls the same, so the result is reproducible.</summary>
-            private bool RollWeatherGoAround(Entity entity)
+            private bool RollWeatherGoAround(Entity entity, float chance)
             {
                 Unity.Mathematics.Random random = new Unity.Mathematics.Random(math.hash(new uint2((uint)entity.Index, m_Frame)) | 1u);
-                return random.NextFloat() < m_Settings.m_WeatherGoAroundChance;
+                return random.NextFloat() < chance;
             }
 
             /// <summary>At the decision height: still in the air, below 100 ft above the runway, on short final.</summary>

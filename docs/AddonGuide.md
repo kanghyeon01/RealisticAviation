@@ -1,11 +1,13 @@
 # Writing an add-on for Realistic Aviation
 
-Realistic Aviation (RA) offers one public entry point for other mods: the static class `RealisticAviation.Api`.
-Use only `Api` and the types it hands out. Every other public type in `RealisticAviation.dll` exists for the game
-(systems, info panel sections, save components) and may change in any version.
+Realistic Aviation (RA) offers one public entry point for other mods: the static class `RealisticAviation.Api`, split by
+area. Use only `Api` and the types it hands out (`RadioMessage`, `AirportInfo`, `RunwayEndInfo`, `FlightInfo`,
+`FlightState`, `OperatingOverrides`, `OperatingValues`, `AtisState`, `AirspaceClass`, `AtcMessageKind`, `AtcFrequency`).
+Every other public type in `RealisticAviation.dll` exists for the game (systems, info panel sections, save components) and
+may change in any version.
 
-Aviation Weather Add-on ([source](https://github.com/kanghyeon01/AviationWeatherAddon)) is a complete example. It
-reads the airports through `Api` and gives the tower each airport's ATIS.
+Aviation Weather Add-on ([source](https://github.com/kanghyeon01/AviationWeatherAddon)) is a complete example. It reads
+the airports through `Api` and gives the tower each airport's ATIS.
 
 ## Setup
 
@@ -31,7 +33,7 @@ reads the airports through `Api` and gives the tower each airport's ATIS.
    <Dependency Id="164022" />
    ```
 
-3. **Check the version.** If you need something added after version 1, check it when your mod loads:
+3. **Check the version** when your mod needs something added after version 1:
 
    ```csharp
    if (RealisticAviation.Api.Version < 2) { /* tell the player to update Realistic Aviation */ }
@@ -42,35 +44,123 @@ reads the airports through `Api` and gives the tower each airport's ATIS.
 ## Rules
 
 - **Main thread only.** Call `Api` from a system's `OnUpdate`, `OnCreate` or a UI callback, never from a job.
-- **No city, no answers.** Before a city is loaded, `Api.IsReady` is false and the methods return nothing.
-- **Events come once per tower update** (every 16 simulation frames), in order, on the main thread.
+- **No city, no answers.** Before a city is loaded, `Api.IsReady` is false and the members return nothing.
+- **Orders and overrides take one tower update.** The tower runs every 16 simulation frames. What you set or order
+  reaches it at its next update.
+- **Saved or not.** The airport settings the info panel also changes are saved with the city. These are the airspace
+  class, the code, line up and wait, the ground delay and the pattern side. Everything else is not saved: closures,
+  operating overrides, holds, priorities and providers. Set them again when a city is loaded, for example in
+  `OnGameLoadingComplete`.
+- **Events come once per tower update**, in order, on the main thread.
   - Keep handlers short; they run inside the tower's update.
   - A handler that throws is logged to `RealisticAviation.log` and skipped. The tower and other add-ons go on.
 - **Unsubscribe and unregister** in your system's `OnDestroy`.
-- **Logging**: write per-airplane lines only when `Api.DetailedLog` is on (the player's "Detailed log" option).
+- **Logging**: write per-airplane lines only when `Api.Options.DetailedLog` is on (the player's "Detailed log" option).
 
 ## What `Api` offers (version 1)
 
-| Member | What it gives |
+### `Api`
+
+| Member | What it does |
 |---|---|
-| `Version`, `IsReady`, `DetailedLog` | Interface version; whether a city is loaded; the "Detailed log" option |
-| `GetAirports(List<Entity>)` | Every airport in the city (top-level buildings with airplane stops, outside connections excluded) |
-| `GetAirportOf(Entity)` | The airport an entity belongs to (the airport itself, a runway, a gate...), or `Entity.Null` |
+| `Version` | Interface version (1) |
+| `IsReady` | A city is loaded and the tower is running |
+
+### `Api.Airports`
+
+| Member | What it does |
+|---|---|
+| `GetAll(List<Entity>)` | Every airport: top-level buildings with airplane stops, outside connections excluded |
+| `Find(Entity)` | The airport an entity belongs to (the airport itself, a runway, a gate...), or `Entity.Null` |
+| `TryGetInfo(airport, out AirportInfo)` | Code, class, centre, radius, hold base, runways, gates, closure and its reason, ground delay, line up and wait |
 | `TryGetAirspaceClass(airport, out AirspaceClass)` | Class B, C or D |
-| `GetLandingRunways(airport, List<string>)` | Runway ends in use for landing, named as on the radio ("27", "09L"), sorted |
-| `IsClosed(airport, out Entity closedBy)` | Whether the tower closed the airport, and what closed it |
-| `GetAirportCode(airport)` | The ICAO code: entered by the player, or made from the name |
+| `SetAirspaceClass(airport, cls)` / `SetAutomaticAirspaceClass(airport)` | Choose the class, or follow the size again (saved; applied next frame) |
+| `GetCode(airport)` / `SetCode(airport, code)` | The ICAO code. Set 3–4 letters or digits; null brings back the automatic code (saved) |
+| `SetLineUpAndWait(airport, bool)` | Line up and wait (saved) |
+| `GetGroundDelay(airport, out limit)` / `SetGroundDelay(airport, enabled, limit)` | Ground delay (saved) |
+| `Close(airport, reason)` / `Open(airport)` | Close until opened again. The reason shows in the panel and on the radio. Not saved |
+| `IsClosed(airport, out closedBy)` | Closed, and by what (a disaster event, or the airport or runway an add-on closed) |
+| `GetLandingRunways(airport, List<string>)` | Runway ends in use for landing, named as on the radio, sorted |
+| `SetOverrides(airport, OperatingOverrides)` / `ClearOverrides(airport)` / `TryGetOverrides` | Per-airport operating values over the options. Null fields keep the options. Not saved |
+| `GetOperatingValues(airport)` | The values in use now: options, weather and overrides |
+
+`OperatingOverrides` fields:
+
+- `ArrivalSpacingSeconds`
+- `DepartureGapSeconds`
+- `GlidePath`, `GlidePathDegrees`
+- `FinalLengthMeters`
+- `PatternWidthMeters`
+- `WeatherGoAroundChance` (0–1; replaces the weather's chance)
+
+### `Api.Runways`
+
+| Member | What it does |
+|---|---|
+| `GetEnds(airport, List<RunwayEndInfo>)` | Runway ends in use (every airport for `Entity.Null`): name ("27L"), start, direction, length, pattern side, closed |
+| `Close(runway, reason)` / `Open(runway)` | Close one runway (`RunwayEndInfo.Runway`). Not saved |
+| `SetRightHandPattern(runway, direction, bool)` | Traffic pattern side for the end landing in that direction (saved) |
+
+### `Api.Flights`
+
+| Member | What it does |
+|---|---|
+| `GetAll(airport, List<FlightInfo>)` / `TryGet(airplane, out FlightInfo)` | What the tower is doing with each airplane |
+| `GoAround(airplane, reason)` | Send an arrival on final around. Other airplanes ignore the order |
+| `HoldClearance(airplane, bool)` | Hold back its next clearance: an arrival keeps holding, a departure keeps holding short. A clearance it already has is kept |
+| `SetPriority(airplane, bool)` | Ahead of every other airplane waiting for its runway (an emergency, say) |
+
+`FlightInfo` fields:
+
+- `Airplane`, `Airport`, `Runway`
+- `IsArrival`, `IsCrossing`
+- `State`: `Waiting`, `Holding`, `InPattern`, `LineUp` or `Cleared`
+- `WaitedSeconds`, `EtaSeconds`
+- `HoldAltitudeMeters`
+- `IsHeld`, `HasPriority`
+
+### `Api.Radio`
+
+| Member | What it does |
+|---|---|
+| `GetLog(airport, frequency, List<RadioMessage>, max)` | Latest transmissions on a frequency (broadcasts on all), newest first |
 | `TryGetLastMessage(airplane, out RadioMessage)` | The airplane's latest transmission |
-| `GetRadioText(message, out controller, out pilot, out pilotFirst)` | The words, as the info panels show them |
-| `MessageSent` (event) | Every transmission |
-| `GoAround` (event) | An airplane goes around, told by the tower or on its own |
-| `AirportClosed` / `AirportOpened` (events) | An airport closes (with what closed it) or opens again |
-| `RegisterAtisProvider` / `UnregisterAtisProvider` | Give the tower each airport's ATIS, for "with information X". With several providers, the latest registered one is used |
+| `GetText(message, out first, out second, out pilotFirst)` | The lines as the panels show them ("ATC: ..." and "callsign: ...") |
+| `Post(airport, frequency, airplane, callsign, controller, pilot, pilotFirst)` | Add your own transmission. It shows in the panels like the tower's. With an airplane (any entity, a helicopter too) it is on that frequency only; without one it is a broadcast |
+| `RegisterCallsignProvider` / `Unregister...` | Supply callsigns (airline codes, say). The latest registered is asked; return null to keep RA's |
+| `RegisterPhraseProvider` / `Unregister...` | Change the words of every transmission (another language or phraseology). All registered are asked, in order. Your own posts are not changed |
 
-`RadioMessage` holds `Kind` (`AtcMessageKind`), `Frequency` (`AtcFrequency`), `Airplane` (`Entity.Null` for a
-broadcast), `Airport`, `Runway`, `Event` and `Frame`.
+### `Api.Events`
 
-## Example: a go-around counter
+| Event | When |
+|---|---|
+| `MessageSent(RadioMessage)` | Every transmission, posts included |
+| `ApproachCleared`, `LandingCleared` | An arrival is cleared for the approach, or to land |
+| `GoAround` | An arrival goes around (told, or on its own) |
+| `HoldingStarted` | An airplane is told to hold |
+| `Landed` | An arrival has landed (handed to ground) |
+| `PushbackApproved`, `LineUpCleared`, `TakeoffCleared` | A departure is approved or cleared |
+| `TookOff` | A departure has taken off (handed to departure control) |
+| `AirportClosed(airport, cause)`, `AirportOpened(airport)` | Closures |
+| `GroundDelayStarted(airport)`, `GroundDelayEnded(airport)` | Ground delays |
+| `AirspaceClassChanged(airport, cls)` | A class changed (size, panel or add-on), or a new airport got one |
+| `RunwaysChanged()` | Runways were built, changed or removed |
+
+### `Api.Atis`
+
+| Member | What it does |
+|---|---|
+| `RegisterProvider(AtisProvider)` / `UnregisterProvider` | Give the tower each airport's ATIS (`AtisState`), for "with information X". The latest registered is used |
+
+### `Api.Options` (read only)
+
+`DetailedLog`, `GlidePath`, `GlidePathDegrees`, `ApproachHeightLimits`, `SmoothDepartureTurns`, `ArrivalSpacingSeconds`,
+`DepartureGapSeconds`, `FinalLengthNm`, `PatternWidthNm`, `HoldingLegNm`, `WeatherGoArounds`, `Pushback`, `TaxiSpacingMeters`,
+`HoldShortSetbackMeters`.
+
+## Example: an emergency add-on
+
+Gives priority to every arrival whose radio text says "EMERGENCY" once it is told to hold, and logs go-arounds.
 
 ```csharp
 using Game;
@@ -79,27 +169,35 @@ using Unity.Entities;
 
 namespace MyAddon // your mod's namespace, so that Mod below is your own Mod class
 {
-    public partial class GoAroundCounterSystem : GameSystemBase
+    public partial class EmergencySystem : GameSystemBase
     {
-        private int m_Count;
-
         protected override void OnCreate()
         {
             base.OnCreate();
-            Api.GoAround += OnGoAround;
+            Api.Events.HoldingStarted += OnHolding;
+            Api.Events.GoAround += OnGoAround;
         }
 
         protected override void OnDestroy()
         {
-            Api.GoAround -= OnGoAround;
+            Api.Events.HoldingStarted -= OnHolding;
+            Api.Events.GoAround -= OnGoAround;
             base.OnDestroy();
+        }
+
+        private void OnHolding(RadioMessage message)
+        {
+            Api.Radio.GetText(message, out string first, out string second, out _);
+            if ((first + second).Contains("EMERGENCY"))
+            {
+                Api.Flights.SetPriority(message.Airplane, true);
+            }
         }
 
         private void OnGoAround(RadioMessage message)
         {
-            m_Count++;
-            Api.GetRadioText(message, out string controller, out string pilot, out bool pilotFirst);
-            Mod.Log.Info($"Go-around #{m_Count} at {Api.GetAirportCode(message.Airport)}: {(pilotFirst ? pilot : controller)}");
+            Api.Radio.GetText(message, out string first, out string second, out _);
+            Mod.Log.Info($"Go-around at {Api.Airports.GetCode(message.Airport)}: {first} / {second}");
         }
 
         protected override void OnUpdate() { }
@@ -108,11 +206,18 @@ namespace MyAddon // your mod's namespace, so that Mod below is your own Mod cla
 ```
 
 Register the system in your mod's `OnLoad`, as for any system, for example
-`updateSystem.UpdateAt<GoAroundCounterSystem>(SystemUpdatePhase.GameSimulation);`.
+`updateSystem.UpdateAt<EmergencySystem>(SystemUpdatePhase.GameSimulation);`.
 
-## Do not
+## Not offered
 
-- Read or write RA's save components (`LineUpSetting`, `AirportCode` and the others) or its systems' internals. They
-  are not part of `Api`, and changing them can break saves.
-- Move airplanes that RA controls: holding, flying the pattern, or held short. RA decides their targets every update
-  and would undo yours.
+- Drawing the airplanes' paths yourself, or replacing the tower's decisions wholesale. The tower runs on a worker thread
+  and keeps every airplane it controls (holding, in the pattern, held short) on its own targets, every update. Use the
+  orders and overrides above instead.
+- Writing RA's save components (`LineUpSetting`, `AirportCode` and the others) directly. Use the setters above, which
+  keep them consistent.
+
+## Compatibility promise
+
+From version 1 on, `Api` only grows: new members and types, new fields at the end of the info structs, new enum values
+at the end. Nothing is renamed, removed or changed in shape, so an add-on built against an older version keeps working.
+Raise your check of `Api.Version` when you use something new.

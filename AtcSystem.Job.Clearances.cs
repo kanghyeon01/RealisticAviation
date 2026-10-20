@@ -150,6 +150,16 @@ namespace RealisticAviation
                         {
                             flight.m_LastDistance = scan.m_Distance;
                             flight.m_LastEta = scan.m_Flying ? EstimateArrivalSeconds(entity, scan) : 0f;
+                            if (scan.m_Flying && TryGetGlideRouteDistance(entity, flight, out float routeDistance))
+                            {
+                                flight.m_LastEta = routeDistance / EstimateSpeed(entity);
+                            }
+                            if (flight.m_DescentHold && scan.m_Flying)
+                            {
+                                // Descending in the hold before final: the path doesn't know, add the flight the descent takes.
+                                float excess = math.max(0f, m_TransformData[entity].m_Position.y - flight.m_DescentPattern.m_Fix.y);
+                                flight.m_LastEta += excess / kSteeringSlope / EstimateSpeed(entity);
+                            }
                             flight.m_EntryPosition = scan.m_EntryPosition;
                             flight.m_EntryDirection = scan.m_EntryDirection;
                             flight.m_Crossing = scan.m_Crossing;
@@ -302,8 +312,17 @@ namespace RealisticAviation
             private float EstimateArrivalSeconds(Entity entity, in FlightScan scan)
             {
                 float distance = math.max(scan.m_Distance, math.distance(m_TransformData[entity].m_Position.xz, scan.m_EntryPosition.xz));
+                return distance / EstimateSpeed(entity);
+            }
+
+            /// <summary>
+            /// Speed for an airborne ETA: the present one, but no less than the airplane's slowest flying speed (an airplane that
+            /// has just appeared is nearly at rest; dividing by that gave an ETA of 4,866 s, which held every arrival behind it).
+            /// </summary>
+            private float EstimateSpeed(Entity entity)
+            {
                 float minSpeed = m_PrefabAirplaneData[m_PrefabRefData[entity].m_Prefab].m_FlyingSpeed.x;
-                return distance / math.max(math.length(m_MovingData[entity].m_Velocity), math.max(minSpeed, 1f));
+                return math.max(math.length(m_MovingData[entity].m_Velocity), math.max(minSpeed, 1f));
             }
 
             // ------------------------------------------------------------ diagnostics

@@ -621,8 +621,7 @@ namespace RealisticAviation
             /// </summary>
             private void GrantRunways()
             {
-                float gap = m_Settings.m_DepartureGapSeconds;
-                ReleaseLinedUp(gap);
+                ReleaseLinedUp();
                 UnblockGroundQueues();
 
                 NativeParallelHashMap<Entity, Candidates> next = new NativeParallelHashMap<Entity, Candidates>(math.max(8, m_Runways.Count()), Allocator.Temp);
@@ -635,6 +634,13 @@ namespace RealisticAviation
                     {
                         continue;
                     }
+                    // Held by an add-on: it goes on waiting (holding in the air, short of the runway on the ground).
+                    if (m_ApiHeld.ContainsKey(pair.Key))
+                    {
+                        continue;
+                    }
+                    float gap = SettingsAt(state.m_Airport).m_DepartureGapSeconds;
+                    bool priority = m_ApiPriority.ContainsKey(pair.Key);
                     next.TryGetValue(flight.m_Runway, out Candidates candidates);
                     if (flight.m_LastFlying)
                     {
@@ -643,7 +649,9 @@ namespace RealisticAviation
                         {
                             continue;
                         }
-                        float ratio = ResponseRatio(WaitedSeconds(flight.m_RequestFrame), flight.m_LastEta + kLandingRunwaySeconds);
+                        // Given priority by an add-on (an emergency, say): ahead of every other arrival.
+                        float ratio = ResponseRatio(WaitedSeconds(flight.m_RequestFrame), flight.m_LastEta + kLandingRunwaySeconds)
+                            + (priority ? kPriorityRatio : 0f);
                         if (candidates.m_Air == Entity.Null || ratio > candidates.m_AirRatio)
                         {
                             candidates.m_Air = pair.Key;
@@ -676,14 +684,18 @@ namespace RealisticAviation
                         {
                             candidates.m_OldestGroundRequestFrame = flight.m_RequestFrame;
                         }
-                        // The nearest goes first; at the same spot (e.g. both at the hold-short line) the one that asked first.
-                        if (candidates.m_Ground == Entity.Null || flight.m_LastDistance < candidates.m_GroundDistance - kSameSpotDistance
-                            || (flight.m_LastDistance <= candidates.m_GroundDistance + kSameSpotDistance
-                                && (int)(flight.m_RequestFrame - candidates.m_GroundRequestFrame) < 0))
+                        // An add-on's priority airplane first; otherwise the nearest goes first, and at the same spot (e.g. both
+                        // at the hold-short line) the one that asked first.
+                        if (candidates.m_Ground == Entity.Null || (priority && !candidates.m_GroundPriority)
+                            || (priority == candidates.m_GroundPriority
+                                && (flight.m_LastDistance < candidates.m_GroundDistance - kSameSpotDistance
+                                    || (flight.m_LastDistance <= candidates.m_GroundDistance + kSameSpotDistance
+                                        && (int)(flight.m_RequestFrame - candidates.m_GroundRequestFrame) < 0))))
                         {
                             candidates.m_Ground = pair.Key;
                             candidates.m_GroundDistance = flight.m_LastDistance;
                             candidates.m_GroundRequestFrame = flight.m_RequestFrame;
+                            candidates.m_GroundPriority = priority;
                         }
                     }
                     next[flight.m_Runway] = candidates;
@@ -694,9 +706,11 @@ namespace RealisticAviation
                     Entity runway = pair.Key;
                     Candidates candidates = pair.Value;
                     RunwayState state = m_Runways[runway];
+                    float gap = SettingsAt(state.m_Airport).m_DepartureGapSeconds;
                     float groundRatio = candidates.m_Ground == Entity.Null ? 0f : ResponseRatio(
                         WaitedSeconds(candidates.m_OldestGroundRequestFrame),
-                        candidates.m_GroundDistance / kTaxiSpeedEstimate + kTakeoffRunwaySeconds);
+                        candidates.m_GroundDistance / kTaxiSpeedEstimate + kTakeoffRunwaySeconds)
+                        + (candidates.m_GroundPriority ? kPriorityRatio : 0f);
                     bool groundFirst = candidates.m_Ground != Entity.Null
                         && (candidates.m_Air == Entity.Null || groundRatio > candidates.m_AirRatio);
 
@@ -803,7 +817,7 @@ namespace RealisticAviation
             {
                 if (state.HasArrivalInSequence(m_Tick))
                 {
-                    return state.m_LastArrivalEta + m_Settings.m_ArrivalSpacingSeconds + WakeSeconds(state.m_LastArrivalSize, size);
+                    return state.m_LastArrivalEta + SettingsAt(state.m_Airport).m_ArrivalSpacingSeconds + WakeSeconds(state.m_LastArrivalSize, size);
                 }
                 return state.IsFree(m_Tick) ? 0f : gap;
             }
@@ -873,7 +887,7 @@ namespace RealisticAviation
             /// arrival goes around. One that hasn't reached the runway yet when an arrival gets within half the departure gap
             /// holds short instead, if it can still stop; one already entering carries on.
             /// </summary>
-            private void ReleaseLinedUp(float gap)
+            private void ReleaseLinedUp()
             {
                 NativeArray<Entity> runways = m_Runways.GetKeyArray(Allocator.Temp);
                 for (int i = 0; i < runways.Length; i++)
@@ -883,6 +897,7 @@ namespace RealisticAviation
                     {
                         continue;
                     }
+                    float gap = SettingsAt(state.m_Airport).m_DepartureGapSeconds;
                     float nextArrival = state.NextArrivalEta(m_Tick);
                     bool onRunway = flight.m_OnRunwayTick == m_Tick;
                     if (!onRunway && nextArrival <= gap * 0.5f)

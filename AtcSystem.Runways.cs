@@ -145,6 +145,7 @@ namespace RealisticAviation
                 Mod.Log.Info($"Found {m_Runways.Count()} runways.");
                 // After the runway list is rebuilt: the airspaces are made from it.
                 RefreshAirspaces();
+                Api.Events.RaiseRunwaysChanged();
             }
             finally
             {

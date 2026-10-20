@@ -54,6 +54,12 @@ namespace RealisticAviation
                         state.m_WaivedBy = closedBy;
                         closedBy = FindHazard(runway, state.m_Airport, closedBy);
                     }
+                    // Closed by an add-on (the runway itself, or its whole airport): no time limit, until the add-on opens it.
+                    if (closedBy == Entity.Null
+                        && (m_ApiClosures.TryGetValue(runway, out Entity byAddOn) || m_ApiClosures.TryGetValue(state.m_Airport, out byAddOn)))
+                    {
+                        closedBy = byAddOn;
+                    }
                     if (closedBy != Entity.Null && closedBy != previous)
                     {
                         state.m_ClosedFrame = m_Frame;

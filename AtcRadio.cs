@@ -70,6 +70,9 @@ namespace RealisticAviation
         AirportOpen,
         GroundDelay,
         GroundDelayEnded,
+
+        /// <summary>Posted by an add-on through Api.Radio.Post: its own words, on the frequency it chose.</summary>
+        Custom,
     }
 
     /// <summary>
@@ -159,7 +162,55 @@ namespace RealisticAviation
         private readonly HashSet<int> m_UsedNumbers = new HashSet<int>();
         private readonly List<Entity> m_Stale = new List<Entity>();
 
+        /// <summary>The words of messages posted by add-ons (<see cref="AtcMessageKind.Custom"/>), by the message's value.</summary>
+        private readonly Dictionary<int, CustomText> m_CustomTexts = new Dictionary<int, CustomText>();
+        private readonly Queue<int> m_CustomOrder = new Queue<int>();
+        private int m_NextCustomId = 1;
+
+        private struct CustomText
+        {
+            public string m_Callsign;
+            public string m_Controller;
+            public string m_Pilot;
+            public bool m_PilotFirst;
+        }
+
+        /// <summary>Keeps an add-on's words and returns the id the message carries; old ones go once the radio log no longer holds them.</summary>
+        public int AddCustomText(string callsign, string controller, string pilot, bool pilotFirst, int keep)
+        {
+            int id = m_NextCustomId++;
+            m_CustomTexts[id] = new CustomText { m_Callsign = callsign, m_Controller = controller, m_Pilot = pilot, m_PilotFirst = pilotFirst };
+            m_CustomOrder.Enqueue(id);
+            while (m_CustomOrder.Count > keep)
+            {
+                m_CustomTexts.Remove(m_CustomOrder.Dequeue());
+            }
+            return id;
+        }
+
         public string GetCallsign(EntityManager entityManager, NameSystem nameSystem, PrefabSystem prefabSystem, Entity airplane)
+        {
+            string callsign = GetOwnCallsign(entityManager, nameSystem, prefabSystem, airplane);
+            Api.CallsignProvider provider = Api.Radio.CurrentCallsignProvider;
+            if (provider != null)
+            {
+                try
+                {
+                    string chosen = provider(airplane, callsign);
+                    if (!string.IsNullOrEmpty(chosen))
+                    {
+                        callsign = chosen;
+                    }
+                }
+                catch (System.Exception e)
+                {
+                    Mod.Log.Error(e, "An add-on's callsign provider failed");
+                }
+            }
+            return callsign;
+        }
+
+        private string GetOwnCallsign(EntityManager entityManager, NameSystem nameSystem, PrefabSystem prefabSystem, Entity airplane)
         {
             if (!entityManager.TryGetComponent(airplane, out CurrentRoute currentRoute) || !entityManager.Exists(currentRoute.m_Route))
             {
@@ -280,6 +331,8 @@ namespace RealisticAviation
         public void Reset()
         {
             m_RouteNumbers.Clear();
+            m_CustomTexts.Clear();
+            m_CustomOrder.Clear();
         }
 
         /// <summary>
@@ -290,9 +343,23 @@ namespace RealisticAviation
             in AtcMessage message, AtcFrequency frequency, out string tower, out string pilot, out bool pilotFirst)
         {
             pilotFirst = false;
-            // For a handoff the "event" is the next airport, named as the player sees it.
+            if (message.m_Kind == AtcMessageKind.Custom)
+            {
+                // An add-on's own words, as it gave them.
+                m_CustomTexts.TryGetValue(message.m_Value, out CustomText custom);
+                tower = string.IsNullOrEmpty(custom.m_Controller) ? string.Empty : "ATC: " + custom.m_Controller;
+                pilot = string.IsNullOrEmpty(custom.m_Pilot) ? string.Empty : custom.m_Callsign + ": " + custom.m_Pilot;
+                pilotFirst = custom.m_PilotFirst;
+                if (pilotFirst)
+                {
+                    (tower, pilot) = (pilot, tower);
+                }
+                return;
+            }
+            // For a handoff the "event" is the next airport, named as the player sees it; for a closure by an add-on, its reason.
             string eventName = message.m_Kind == AtcMessageKind.HandoffTo
                 ? nameSystem.GetRenderedLabelName(message.m_Event)
+                : Api.Tower != null && Api.Tower.TryGetClosureReason(message.m_Event, out string reason) ? reason
                 : GetEventName(entityManager, prefabSystem, message.m_Event);
             if (message.m_Airplane == Entity.Null)
             {
@@ -303,13 +370,16 @@ namespace RealisticAviation
                     : message.m_Kind == AtcMessageKind.GroundDelay ? "ground delay in effect, arrivals expect holding"
                     : message.m_Kind == AtcMessageKind.GroundDelayEnded ? "ground delay ended"
                     : "airport open";
-                tower = $"ATC: Attention all aircraft, {station}, {news}.";
+                tower = $"Attention all aircraft, {station}, {news}.";
                 pilot = string.Empty;
+                ApplyPhraseProviders(message, ref tower, ref pilot);
+                tower = "ATC: " + tower;
                 return;
             }
             string callsign = GetCallsign(entityManager, nameSystem, prefabSystem, message.m_Airplane);
             string runway = message.m_Runway != Entity.Null ? RunwayNames.Name(runways, message.m_Runway, message.m_Direction) : string.Empty;
             Phrase(message, callsign, runway, eventName, nameSystem.GetRenderedLabelName(message.m_Airport), out tower, out pilot);
+            ApplyPhraseProviders(message, ref tower, ref pilot);
             // As written in a radio transcript: who is speaking, then what was said.
             tower = "ATC: " + tower;
             pilot = callsign + ": " + pilot;
@@ -321,6 +391,28 @@ namespace RealisticAviation
                 // The pilot speaks first; "tower" and "pilot" are then the first and second line.
                 pilotFirst = true;
                 (tower, pilot) = (pilot, tower);
+            }
+        }
+
+        /// <summary>Lets each registered add-on change the words, in the order they registered.</summary>
+        private static void ApplyPhraseProviders(in AtcMessage message, ref string controller, ref string pilot)
+        {
+            IReadOnlyList<Api.PhraseProvider> providers = Api.Radio.PhraseProviders;
+            if (providers.Count == 0)
+            {
+                return;
+            }
+            RadioMessage radio = new RadioMessage(message);
+            for (int i = 0; i < providers.Count; i++)
+            {
+                try
+                {
+                    providers[i](radio, ref controller, ref pilot);
+                }
+                catch (System.Exception e)
+                {
+                    Mod.Log.Error(e, "An add-on's phrase provider failed");
+                }
             }
         }
 
@@ -357,7 +449,7 @@ namespace RealisticAviation
         }
 
         /// <summary>The disaster's display name in the game's language, or empty.</summary>
-        private static string GetEventName(EntityManager entityManager, PrefabSystem prefabSystem, Entity hazard)
+        internal static string GetEventName(EntityManager entityManager, PrefabSystem prefabSystem, Entity hazard)
         {
             if (hazard == Entity.Null || !entityManager.TryGetComponent(hazard, out PrefabRef prefabRef))
             {

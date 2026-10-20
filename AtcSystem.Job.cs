@@ -111,6 +111,9 @@ namespace RealisticAviation
             // RunwayGeometry.IsParallelOnSide.) The landing decision is made 100 ft above
             // the runway (within 2 NM of the threshold): an arrival goes around there if the runway is not clear.
             private const float kPatternHeight = 1500f * 0.3048f;
+
+            /// <summary>Steepest climb or descent the tower steers an airplane on (holding, pattern, to the final approach fix): tan 6 degrees.</summary>
+            private const float kSteeringSlope = 0.1051f;
             private const float kUpwindExtension = 0.5f * Setting.kMetersPerNauticalMile;
             private const float kCircuitLeadFactor = 1.5f;
             private const float kDecisionHeight = 100f * 0.3048f;
@@ -176,7 +179,10 @@ namespace RealisticAviation
 
             // Radio: the airport radio log keeps this many transmissions; an airplane's latest one is forgotten after this many
             // frames without a new one (about an in-game hour).
-            private const int kRadioLogLength = 64;
+            private const int kRadioLogLength = kRadioLogCapacity;
+
+            /// <summary>Added to the response ratio of an airplane an add-on gave priority: ahead of everyone else.</summary>
+            private const float kPriorityRatio = 1000000f;
             private const uint kMessageLifetimeFrames = 60 * 60 * 3;
 
             // Diagnostics: every this many ticks, log airplanes that have waited longer than this many frames.
@@ -209,6 +215,9 @@ namespace RealisticAviation
             [ReadOnly] public ComponentLookup<Game.Common.Target> m_TargetData;
             [ReadOnly] public ComponentLookup<Game.Routes.Connected> m_ConnectedData;
             [ReadOnly] public ComponentLookup<Game.Routes.BoardingVehicle> m_BoardingVehicleData;
+            [ReadOnly] public ComponentLookup<Game.Vehicles.CargoTransport> m_CargoTransportData;
+            [ReadOnly] public ComponentLookup<Game.Vehicles.PublicTransport> m_PublicTransportData;
+            [ReadOnly] public ComponentLookup<Stopped> m_StoppedData;
             [ReadOnly] public ComponentLookup<Game.Routes.RouteLane> m_RouteLaneData;
             [ReadOnly] public ComponentLookup<Taxiway> m_TaxiwayData;
 
@@ -220,11 +229,21 @@ namespace RealisticAviation
             public NativeParallelHashMap<Entity, Flight> m_Flights;
             public NativeList<Entity> m_HoldingFlights;
             public NativeParallelHashMap<Entity, Pushback> m_Pushbacks;
+            // Airplanes standing at their gate, with the last tick they were seen there: only these are pushed back.
+            public NativeParallelHashMap<Entity, uint> m_AtGate;
+            public NativeParallelHashMap<Entity, DepartureTurn> m_DepartureTurns;
             public NativeReference<uint> m_Sequence;
             [ReadOnly] public NativeParallelHashMap<Entity, FixedString128Bytes> m_PrefabNames;
             [ReadOnly] public NativeParallelHashMap<Entity, int> m_GateCounts;
             [ReadOnly] public NativeParallelHashMap<Entity, AirportSpace> m_Airspaces;
             [ReadOnly] public NativeParallelHashMap<Entity, AtisState> m_AtisStates;
+
+            // Set by add-ons through the public Api (main thread), copied in each update by AtcSystem.FillApiState.
+            [ReadOnly] public NativeParallelHashMap<Entity, Entity> m_ApiClosures;
+            [ReadOnly] public NativeParallelHashMap<Entity, OperatingOverride> m_ApiOverrides;
+            [ReadOnly] public NativeParallelHashMap<Entity, byte> m_ApiHeld;
+            [ReadOnly] public NativeParallelHashMap<Entity, byte> m_ApiPriority;
+            public NativeList<ApiGoAround> m_ApiGoArounds;
             public NativeParallelHashMap<Entity, Entity> m_AirportClosures;
             /// <summary>Diagnostics: what the taxi spacing or a pushback held each ground airplane behind, last tick.</summary>
             public NativeParallelHashMap<Entity, Entity> m_HeldBehind;
@@ -256,6 +275,7 @@ namespace RealisticAviation
                 try
                 {
                     UpdateClosures();
+                    ApplyApiGoArounds();
                     NativeArray<FlightScan> scans = new NativeArray<FlightScan>(m_Airplanes.Length, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
                     m_GroundCounts.Clear();
                     int touched = 0;
@@ -283,10 +303,13 @@ namespace RealisticAviation
                     for (int i = 0; i < scans.Length; i++)
                     {
                         Apply(scans[i], pushbackAreas);
+                        ApplyGlidePath(scans[i]);
+                        SmoothDepartureTurn(scans[i]);
                     }
                     pushbackAreas.Dispose();
                     scans.Dispose();
                     EndPushbackTick();
+                    EndDepartureTurnTick();
                     EndTaxiHoldTick();
                     EndFreeSpeedTick();
                     EndZoneTick();

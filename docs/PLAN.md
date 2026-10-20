@@ -362,6 +362,14 @@ Idea (author): an arrival does not enter the apron while its gate is occupied, s
   → touchdown clears `Flying`.
 - UI: the game bundle is `Cities2_Data\Content\Game\UI\index.js`. Info sections are keyed by C# type full name in
   `selectedInfoSectionComponents`.
+- On a lane, an airplane reserves the lanes ahead within its braking distance (`ReserveNavigationLanes`); a ground
+  airplane can't enter a lane overlapping a reserved one (speed 0, no `Blocker`). An arrival on its runway lane far out
+  reserves the runway exit and the taxiways to its gate.
+- The UI shows half the internal speed (km/h = internal m/s × 1.8): an approach at internal 150 m/s shows 270 km/h.
+  Real turn rates therefore double in game seconds for the same circle over the city (standard rate = 6°/s).
+- Zone cells keep an absolute height limit (`Cell.m_Height`, from elevated nets such as the airspace nets);
+  `ZoneSpawnSystem` and `BuildingUpkeepSystem` read it, and vacant lots keep their own copy (`VacantLot.m_Height`).
+  Marking a block `Updated` makes the game compute its cells again.
 
 ## Coding rules (from the author)
 
@@ -626,16 +634,47 @@ From a review of the whole mod, done in this order:
 - After a game patch: both mods log the game version and their own (the add-on also RA's) right after `OnLoad`, and
   `docs/TestChecklist` section 10 lists a short check to run first.
 
-## Add-on API (2026-10-20, next version)
+## Add-on API (2026-10-20, 1.1)
 
-- One public entry point, `RealisticAviation.Api` (`Api.cs`), documented in `docs/AddonGuide.md`.
-  - `Version` is a property (1), so add-ons read the running version.
-  - Reads: airports, airspace class, landing runways, closure, ICAO code, an airplane's last message and its words.
-  - Events: `MessageSent`, `GoAround`, `AirportClosed`, `AirportOpened`. `AtcSystem.RaiseApiEvents` raises them from
-    the radio log after the tower job completes; the log's version counter tells which messages are new. Each handler
-    runs on its own in a try/catch.
-  - ATIS: `RegisterAtisProvider` replaces `AtisLink`; the latest provider registered is used.
-- Everything else that was public by accident is now internal: the tower's types (`Flight`, `RunwayState`, `AtcMessage`,
-  ...), `AirportCodes`, `HoldingPattern`, the locales, and the three old `AtcSystem` methods.
-  - Kept public: save components (changing them risks saves), info sections, systems, `Setting`, `Mod`.
-- Aviation Weather Add-on uses only `Api` now; its copy of `Airports` is gone. Both mods must be released together.
+- One public entry point, `RealisticAviation.Api`, split by area (`Airports`, `Runways`, `Flights`, `Radio`, `Events`,
+  `Atis`, `Options`); documented in `docs/AddonGuide.md`. Designed whole before release, so that it only ever grows.
+  - Reads: airports (`AirportInfo`), runway ends (`RunwayEndInfo`), flights (`FlightInfo`), radio log and words, options.
+  - Saved settings, through the same code as the airport panel (`AirportSettings`): class, code, line up, ground delay,
+    pattern side.
+  - Not saved: closures with a reason (airport or runway), per-airport operating overrides, holds, priority, go-around
+    orders, radio posts, callsign and phrase providers.
+  - Events from the radio log (`AtcSystem.RaiseApiEvents`, copied first so a handler may post), plus airspace class and
+    runway changes from the main thread.
+- No add-on code runs in the tower job: `AtcSystem.Api.cs` keeps what add-ons set and copies it into native maps each
+  update (`FillApiState`); the job reads them (`AtcSystem.Job.Api.cs`: `SettingsAt`, `ApplyApiGoArounds`; closures in
+  `UpdateClosures`; holds and priority in `GrantRunways`).
+- Everything public by accident is internal now. Kept public: save components, systems, info sections, `Setting`, `Mod`.
+- Aviation Weather Add-on uses only `Api`. Both mods must be released together.
+- `../RealisticAviationApiTest`: a development-only mod (never published) that calls every member once a city is loaded
+  and logs PASS/FAIL to `Logs/RealisticAviationApiTest.log`.
+
+## 1.1 flight changes (2026-10-20)
+
+- **Glide path option** (`AtcSystem.Job.GlidePath.cs`): join the final course outside the FAF at up to 45°, fly the
+  centerline on the airway down the glide path, hand over to the runway lane 2.5 km out (`kRunwayLaneDistance`; at the
+  FAF the long runway lane reservation blocked a cargo stand by the exit). Too high to descend at 6°: a hold in lieu of a
+  procedure turn at the join point (`FlyDescentHold`). ETAs follow the route via the join point
+  (`TryGetGlideRouteDistance`), else the next arrival could join the sequence only once the one ahead had landed.
+- **Approach height limits option** (`ApproachZoneSystem`): cells under each approach surface (FAF to runway end, 50 m
+  below the glide path, 14 CFR 77.19 width) are lowered every 32 frames; changed surfaces and every load give the
+  blocks back to the game (`Updated`).
+- **Smooth departure turns option** (`AtcSystem.Job.Departure.cs`): a commanded heading turned at 6°/s towards the
+  airway course (cut of up to 45°), handed back on the course from a point just ahead (`m_CurvePosition.x` moved on).
+- **Pushback** starts only for an airplane that stood on its gate's stand lane, not while the game holds it at the stop.
+- **VFR chart**: towers and pillars of bridges (static objects owned by nets) are obstacles, measured from the ground or
+  water below.
+- All three options are off by default; a "Reset to defaults" button sits at the bottom of the options page.
+
+## Next: approach procedure (1.1a or 1.2, decided 2026-10-20)
+
+The game's airway ends about 2.5 km beside the runway at 1,000 m, so every approach after it is a forced manoeuvre.
+Plan: an RNAV "Basic T" per runway end (AIM 5-4: IF/IAF on the centerline, left and right IAFs perpendicular, IAF
+intercept at most 90°, 90° turn at the IF), steered by the tower from the approach clearance and from hold exits;
+vectors join at most 30° at least 2 NM outside the approach gate (JO 7110.65 5-9-1/2), not above the glide path;
+gradients initial ≤ 500 ft/NM, intermediate ≤ 318 ft/NM. Scaled down to the game: angles and gradients kept, lengths
+from the turn radius and the map (intermediate about three turn radii). Only with the glide path option.

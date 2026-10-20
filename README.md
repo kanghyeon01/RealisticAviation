@@ -59,8 +59,8 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
   - built-up areas in yellow, where residents and workers reach 2,500 per km²;
   - terrain in the chart's eight elevation tints, fitted to the map's height (at least 200 ft per tint), with spot
     elevations on peaks and Maximum Elevation Figures (MEF) per quadrant;
-  - obstacles: every building at least 200 ft high, with its top above sea level and its height above the ground
-    ("1324 (312)"). The highest are shown first; a lower one within 600 m turns that symbol into the group symbol,
+  - obstacles: every building at least 200 ft high, and the towers and pillars of bridges, with the top above sea level
+    and the height above the ground or water ("1324 (312)"). The highest are shown first; a lower one within 600 m turns that symbol into the group symbol,
     so labels never overlap. Symbols follow the FAA legend:
     - the spire from 1,000 ft, else ^;
     - lightning rays above 700 ft;
@@ -80,7 +80,20 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
 - **Pushback (phase 2).** An airplane leaving a nose-in gate is pushed back a short way (about half its length,
   15–40 m) at 3 m/s with its nose locked, then swung around at 15°/s until it faces along its route, and taxis off
   after a 10 s engine start. Ground control approves the pushback only when no airplane is moving close to the area
-  (at most 60 s wait); taxiing airplanes stop short of an airplane being pushed back.
+  (at most 60 s wait); taxiing airplanes stop short of an airplane being pushed back. Only an airplane that stood on a
+  gate's stand is pushed back, once the game has finished loading it.
+- **Straight-in final with glide path (option, off by default).** Instead of the game's dive at 20° from the end of its
+  airway, an arrival joins the extended centerline outside the final approach fix (FAF, 1,500 ft above the runway) at an
+  angle, as if vectored onto a localizer, and descends at the chosen angle (3–20°, default 5°). It stays on the airway
+  until 2.5 km out, as in the game, so it doesn't reserve the runway exit for long. An arrival too high to descend in
+  time descends in a hold at the join point first (the hold in lieu of a procedure turn of an RNAV "T" approach).
+  - **Building height limits under approaches (option, off by default).** From each runway end out to the FAF, zoned
+    buildings may not be built or level up above a surface 50 m below the glide path, widening away from the runway as
+    an instrument runway's approach surface (14 CFR 77.19). Existing buildings stay; the game's own limits are only
+    ever lowered.
+- **Smooth departure turns (option, off by default).** After takeoff a departure turns onto its airway at a standard
+  rate and climbs at most 15°, joining the airway course at up to 45°, instead of the game's turns of up to 30° per
+  second.
 
 - **Traffic pattern (phase 3).** After a go-around the airplane climbs straight ahead and flies a left-hand pattern (right-hand
   where set for that runway end in the airport info panel, e.g. "RWY 27 right-hand pattern") built from its own runway: upwind past the runway end, crosswind, downwind 1,500 ft above the
@@ -99,15 +112,21 @@ after a save is loaded.
 | Holding leg length | 1.5 NM | Straight-leg length of the holding pattern |
 | Arrival spacing | 45 s (15–75) | Minimum time between two arrivals cleared to the same runway |
 | Weather go-arounds | On | An arrival sometimes goes around at 100 ft: 0.3% in clear weather, rising with the intensity to 8% (rain), 12% (snow, fog), 15% (thunderstorm) |
+| Straight-in final with glide path | Off | Arrivals join the final course outside the FAF and descend at the glide path angle |
+| Glide path angle | 5° (3–20) | Descent angle on final (with the option above) |
+| Building height limits under approaches | Off | Zoned buildings stay 50 m below the glide path out to the FAF (with the glide path) |
+| Smooth departure turns | Off | Departures turn onto their airway at a standard rate |
 | Close for tornadoes / hail storms / other disasters | On | Which disasters close an airport |
 | Limit closure time | Off | Off: closed as long as the disaster lasts. On: reopens after the maximum closure |
 | Maximum closure | 30 min | Game minutes after which a closed airport reopens (when the limit is on) |
 | Hold short setback | 30 m | Gap between a waiting airplane's nose and the runway |
 | Pushback | On | Push airplanes back out of nose-in gates instead of turning them on the spot |
 | Pattern width | 1.5 NM | Runway centerline to downwind |
-| Final length | 2 NM | Distance of the base turn before the runway |
+| Final length | 2 NM | Distance of the base turn before the runway (not used with the glide path: the final starts at the FAF) |
 | Taxi spacing | 40 m | Gap a taxiing airplane keeps behind the airplane ahead |
 | Departure gap before arrivals | 30 s (10–50) | A ground airplane may go ahead of a cleared arrival at least this far out |
+
+A **Reset to defaults** button at the bottom of the options page puts every option back, after a confirmation.
 
 ## Compatibility
 
@@ -121,7 +140,8 @@ after a save is loaded.
 
 - [Aviation Weather Add-on](https://github.com/kanghyeon01/AviationWeatherAddon): weather reports (METAR) and ATIS for
   your airports.
-- Writing your own: see [docs/AddonGuide.md](docs/AddonGuide.md) for the public `Api` (airports, radio events, ATIS).
+- Writing your own: see [docs/AddonGuide.md](docs/AddonGuide.md) for the public `Api`: airports, runways, flights,
+  radio, events, ATIS and options, with a compatibility promise (it only grows).
 
 ## How it works
 

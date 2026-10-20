@@ -50,7 +50,9 @@ namespace RealisticAviation
             m_Closed = closedBy != Entity.Null;
             if (m_Closed)
             {
-                m_ClosedBy = closedBy != airport && EntityManager.HasComponent<PrefabRef>(closedBy)
+                // An add-on's reason as it gave it; else the disaster's prefab name, which the UI translates.
+                m_ClosedBy = m_AtcSystem.TryGetClosureReason(closedBy, out string reason) ? reason
+                    : closedBy != airport && EntityManager.HasComponent<PrefabRef>(closedBy)
                     ? m_PrefabSystem.GetPrefabName(EntityManager.GetComponentData<PrefabRef>(closedBy).m_Prefab)
                     : string.Empty;
             }

@@ -8,8 +8,20 @@
 Source code (MIT): https://github.com/kanghyeon01/RealisticAviation</LongDescription>
   <Thumbnail Value="Properties/Thumbnail.png" />
   <Tag Value="Code Mod" />
-  <ModVersion Value="1.0" />
-  <ChangeLog>First public release (1.0).</ChangeLog>
+  <ModVersion Value="1.1" />
+  <ChangeLog>1.1
+- Add-on API: airports, runways, flights, radio, events, ATIS and options for other mods (guide on GitHub).
+- New options, off by default: straight-in final with glide path (3-20 degrees), building height limits under approaches, smooth departure turns.
+- "Reset to defaults" button in the options.
+- Pushback only from gate stands, once loading is done.
+- VFR chart: bridge towers and pillars are shown as obstacles.
+
+1.1
+- 애드온 API: 다른 모드가 공항, 활주로, 비행, 교신, 이벤트, ATIS, 옵션을 다룰 수 있습니다 (GitHub 가이드 참고).
+- 새 옵션 (기본 꺼짐): 직선 Final과 강하각(3-20도), 접근로 아래 건물 높이 제한, 출발기 완만한 선회.
+- 옵션에 "기본값으로 되돌리기" 버튼.
+- Pushback은 Gate에 서 있던 비행기만, 탑승·하역이 끝난 뒤에 합니다.
+- VFR 차트: 다리 주탑과 기둥을 장애물로 표시합니다.</ChangeLog>
   <GameVersion Value="1.6.*" />
   <!-- Private while testing; change to Public and run the Update command to release. -->
   <AccessLevel Value="Private" />

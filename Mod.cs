@@ -36,6 +36,7 @@ namespace RealisticAviation
             // every navigation update: one right before it, one between it and AircraftMoveSystem.
             updateSystem.UpdateBefore<AtcPreNavigationSystem, AircraftNavigationSystem>(SystemUpdatePhase.GameSimulation);
             updateSystem.UpdateAfter<AtcSystem, AircraftNavigationSystem>(SystemUpdatePhase.GameSimulation);
+            updateSystem.UpdateAt<ApproachZoneSystem>(SystemUpdatePhase.GameSimulation);
             // VFR chart infoview (phase 4-3): the button in the infoview menu, what it draws on the map, and the airport
             // buildings recoloured right after the game colours buildings for the infoview.
             AirspaceOverlaySystem.CreateInfoview(updateSystem.World.GetOrCreateSystemManaged<PrefabSystem>());

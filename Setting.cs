@@ -7,8 +7,8 @@ using Game.UI;
 namespace RealisticAviation
 {
     [FileLocation("ModsSettings/" + Mod.kName + "/" + Mod.kName)]
-    [SettingsUIGroupOrder(kArrivalGroup, kPatternGroup, kGroundGroup, kClosureGroup, kLogGroup)]
-    [SettingsUIShowGroupName(kArrivalGroup, kPatternGroup, kGroundGroup, kClosureGroup, kLogGroup)]
+    [SettingsUIGroupOrder(kArrivalGroup, kDepartureGroup, kPatternGroup, kGroundGroup, kClosureGroup, kLogGroup, kResetGroup)]
+    [SettingsUIShowGroupName(kArrivalGroup, kDepartureGroup, kPatternGroup, kGroundGroup, kClosureGroup, kLogGroup)]
     public sealed class Setting : ModSetting
     {
         public const string kSection = "Main";
@@ -17,6 +17,8 @@ namespace RealisticAviation
         public const string kPatternGroup = "Pattern";
         public const string kClosureGroup = "Closure";
         public const string kLogGroup = "Log";
+        public const string kDepartureGroup = "Departures";
+        public const string kResetGroup = "Reset";
 
         public Setting(IMod mod) : base(mod)
         {
@@ -43,6 +45,31 @@ namespace RealisticAviation
         [SettingsUISection(kSection, kArrivalGroup)]
         public bool WeatherGoArounds { get; set; }
 
+        /// <summary>
+        /// Arrivals fly a straight-in final from a fix on the extended centerline, 1,500 ft above the runway, and descend at
+        /// <see cref="GlidePathDegrees"/> instead of diving at the game's 20 degrees.
+        /// </summary>
+        [SettingsUISection(kSection, kArrivalGroup)]
+        public bool GlidePath { get; set; }
+
+        /// <summary>Descent angle on final when <see cref="GlidePath"/> is on (real approaches: 3 degrees; the game: 20).</summary>
+        [SettingsUISection(kSection, kArrivalGroup)]
+        [SettingsUISlider(min = 3, max = 20, step = 1, unit = Unit.kInteger)]
+        [SettingsUIDisableByCondition(typeof(Setting), nameof(IsGlidePathOff))]
+        public int GlidePathDegrees { get; set; }
+
+        /// <summary>
+        /// With <see cref="GlidePath"/>: zoned buildings under each approach, out to the final approach fix, may not be built
+        /// or level up above a surface 50 m below the glide path (see ApproachZoneSystem).
+        /// </summary>
+        [SettingsUISection(kSection, kArrivalGroup)]
+        [SettingsUIDisableByCondition(typeof(Setting), nameof(IsGlidePathOff))]
+        public bool ApproachHeightLimits { get; set; }
+
+        /// <summary>Departures turn onto their airway at a standard rate instead of the game's sharp turn (AtcSystem.SmoothDepartureTurn).</summary>
+        [SettingsUISection(kSection, kDepartureGroup)]
+        public bool SmoothDepartureTurns { get; set; }
+
         /// <summary>Extra gap between the nose of a waiting airplane and the edge of the runway.</summary>
         [SettingsUISection(kSection, kGroundGroup)]
         [SettingsUISlider(min = 0, max = 150, step = 5, unit = Unit.kLength)]
@@ -56,6 +83,7 @@ namespace RealisticAviation
         /// <summary>Length of the final approach after the base turn, in nautical miles.</summary>
         [SettingsUISection(kSection, kPatternGroup)]
         [SettingsUISlider(min = 1f, max = 5f, step = 0.5f, unit = Unit.kFloatSingleFraction)]
+        [SettingsUIDisableByCondition(typeof(Setting), nameof(IsGlidePathOn))]
         public float FinalLengthNm { get; set; }
 
         /// <summary>Airplanes leaving a nose-in gate are pushed back instead of turning around on the spot.</summary>
@@ -101,7 +129,24 @@ namespace RealisticAviation
         [SettingsUISection(kSection, kLogGroup)]
         public bool DetailedLog { get; set; }
 
+        /// <summary>Puts every option back to its default, after a confirmation.</summary>
+        [SettingsUISection(kSection, kResetGroup)]
+        [SettingsUIButton]
+        [SettingsUIConfirmation]
+        public bool ResetToDefaults
+        {
+            set
+            {
+                SetDefaults();
+                ApplyAndSave();
+            }
+        }
+
         public bool IsClosureTimeUnlimited() => !LimitClosureTime;
+
+        public bool IsGlidePathOn() => GlidePath;
+
+        public bool IsGlidePathOff() => !GlidePath;
 
         public override void SetDefaults()
         {
@@ -112,6 +157,10 @@ namespace RealisticAviation
             FinalLengthNm = 2f;
             ArrivalSpacingSeconds = 45;
             WeatherGoArounds = true;
+            GlidePath = false;
+            GlidePathDegrees = 5;
+            ApproachHeightLimits = false;
+            SmoothDepartureTurns = false;
             HoldingLegNm = 1.5f;
             HoldShortSetback = 30;
             CloseForTornado = true;

@@ -217,7 +217,9 @@ namespace RealisticAviation
             if (obstacles)
             {
                 JobHandle find = m_Obstacles.Update(GetComponentLookup<Game.Objects.Transform>(true), GetComponentLookup<PrefabRef>(true),
-                    GetComponentLookup<ObjectGeometryData>(true), GetComponentLookup<WindPoweredData>(true), seaLevel, urban ? m_UrbanAreas : null, Dependency);
+                    GetComponentLookup<ObjectGeometryData>(true), GetComponentLookup<WindPoweredData>(true), GetComponentLookup<Game.Common.Owner>(true),
+                    GetComponentLookup<Game.Net.Edge>(true), GetComponentLookup<Game.Net.Node>(true), m_TerrainSystem, m_WaterSystem, seaLevel,
+                    urban ? m_UrbanAreas : null, Dependency);
                 Dependency = JobHandle.CombineDependencies(Dependency, find);
             }
             bool terrain = s_TerrainInfomode != null && EntityManager.HasComponent<InfomodeActive>(m_PrefabSystem.GetEntity(s_TerrainInfomode));

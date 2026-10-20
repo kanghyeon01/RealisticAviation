@@ -79,16 +79,25 @@ namespace RealisticAviation
         private struct FindJob : IJob
         {
             [ReadOnly] public NativeList<Entity> m_Buildings;
+            [ReadOnly] public NativeList<Entity> m_NetObjects;
             [ReadOnly] public ComponentLookup<Game.Objects.Transform> m_Transforms;
             [ReadOnly] public ComponentLookup<PrefabRef> m_PrefabRefs;
             [ReadOnly] public ComponentLookup<ObjectGeometryData> m_Geometries;
             [ReadOnly] public ComponentLookup<WindPoweredData> m_WindPowered;
+            [ReadOnly] public ComponentLookup<Owner> m_Owners;
+            [ReadOnly] public ComponentLookup<Game.Net.Edge> m_Edges;
+            [ReadOnly] public ComponentLookup<Game.Net.Node> m_Nodes;
+            [ReadOnly] public Game.Simulation.TerrainHeightData m_Terrain;
+            [ReadOnly] public Game.Simulation.WaterSurfaceData<Game.Simulation.SurfaceWater> m_Water;
 
             /// <summary>Each obstacle: base (x, y, z) and height above the ground.</summary>
             public NativeList<float4> m_Found;
 
             /// <summary>For each obstacle, whether it is a wind turbine.</summary>
             public NativeList<bool> m_Turbines;
+
+            /// <summary>How many of the obstacles found are buildings (the rest belong to roads and bridges).</summary>
+            public NativeArray<int> m_BuildingCount;
 
             public void Execute()
             {
@@ -105,13 +114,37 @@ namespace RealisticAviation
                         m_Turbines.Add(m_WindPowered.HasComponent(prefab));
                     }
                 }
+                m_BuildingCount[0] = m_Found.Length;
+                // Objects of roads and bridges (a bridge's towers and pillars): they stand on the ground, or in water, which is
+                // what their height is measured from, as for an obstacle in the sea on a chart.
+                for (int i = 0; i < m_NetObjects.Length; i++)
+                {
+                    Entity entity = m_NetObjects[i];
+                    if (!m_Owners.TryGetComponent(entity, out Owner owner)
+                        || (!m_Edges.HasComponent(owner.m_Owner) && !m_Nodes.HasComponent(owner.m_Owner))
+                        || !m_Geometries.TryGetComponent(m_PrefabRefs[entity].m_Prefab, out ObjectGeometryData geometry))
+                    {
+                        continue;
+                    }
+                    float3 position = m_Transforms[entity].m_Position;
+                    float ground = Game.Simulation.WaterUtils.SampleHeight(ref m_Water, ref m_Terrain, position);
+                    float height = position.y + geometry.m_Bounds.max.y - ground;
+                    if (height > minHeight)
+                    {
+                        m_Found.Add(new float4(position.x, ground, position.z, height));
+                        m_Turbines.Add(false);
+                    }
+                }
             }
         }
 
         private NativeList<float4> m_Found;
         private NativeList<bool> m_Turbines;
+        private NativeArray<int> m_BuildingCount;
         private NativeList<Entity> m_Buildings;
+        private NativeList<Entity> m_NetObjects;
         private EntityQuery m_BuildingQuery;
+        private EntityQuery m_NetObjectQuery;
         private JobHandle m_Job;
         private bool m_Pending;
         private bool m_Started;
@@ -128,8 +161,19 @@ namespace RealisticAviation
                 All = new[] { ComponentType.ReadOnly<Building>(), ComponentType.ReadOnly<Game.Objects.Transform>(), ComponentType.ReadOnly<PrefabRef>() },
                 None = new[] { ComponentType.ReadOnly<Owner>(), ComponentType.ReadOnly<Deleted>(), ComponentType.ReadOnly<Temp>() },
             });
+            // Static objects that belong to something (FindJob keeps those of roads and bridges).
+            m_NetObjectQuery = entityManager.CreateEntityQuery(new EntityQueryDesc
+            {
+                All = new[]
+                {
+                    ComponentType.ReadOnly<Game.Objects.Static>(), ComponentType.ReadOnly<Owner>(), ComponentType.ReadOnly<Game.Objects.Transform>(),
+                    ComponentType.ReadOnly<PrefabRef>(),
+                },
+                None = new[] { ComponentType.ReadOnly<Building>(), ComponentType.ReadOnly<Deleted>(), ComponentType.ReadOnly<Temp>() },
+            });
             m_Found = new NativeList<float4>(64, Allocator.Persistent);
             m_Turbines = new NativeList<bool>(64, Allocator.Persistent);
+            m_BuildingCount = new NativeArray<int>(1, Allocator.Persistent);
         }
 
         public void Dispose()
@@ -139,8 +183,17 @@ namespace RealisticAviation
             {
                 m_Buildings.Dispose();
             }
+            if (m_NetObjects.IsCreated)
+            {
+                m_NetObjects.Dispose();
+                if (Mod.Setting != null && Mod.Setting.DetailedLog)
+                {
+                    Mod.Log.Info($"chart obstacles found: {m_BuildingCount[0]} buildings, {m_Found.Length - m_BuildingCount[0]} objects of roads and bridges");
+                }
+            }
             m_Found.Dispose();
             m_Turbines.Dispose();
+            m_BuildingCount.Dispose();
         }
 
         /// <summary>Forgets the obstacles, so they are found again as soon as the infoview opens.</summary>
@@ -152,8 +205,9 @@ namespace RealisticAviation
 
         /// <summary>Collects a finished search, or starts a new one when due. Returns the job to add to the system's dependency, or default.</summary>
         public JobHandle Update(ComponentLookup<Game.Objects.Transform> transforms, ComponentLookup<PrefabRef> prefabRefs,
-            ComponentLookup<ObjectGeometryData> geometries, ComponentLookup<WindPoweredData> windPowered, float seaLevel, UrbanAreaMap urban,
-            JobHandle dependency)
+            ComponentLookup<ObjectGeometryData> geometries, ComponentLookup<WindPoweredData> windPowered, ComponentLookup<Owner> owners,
+            ComponentLookup<Game.Net.Edge> edges, ComponentLookup<Game.Net.Node> nodes, Game.Simulation.TerrainSystem terrainSystem,
+            Game.Simulation.WaterSystem waterSystem, float seaLevel, UrbanAreaMap urban, JobHandle dependency)
         {
             if (m_Pending)
             {
@@ -165,6 +219,7 @@ namespace RealisticAviation
                 m_Job.Complete();
                 m_Pending = false;
                 m_Buildings.Dispose();
+                m_NetObjects.Dispose();
                 Declutter(seaLevel, urban);
                 Version++;
             }
@@ -175,16 +230,27 @@ namespace RealisticAviation
             }
             m_Started = true;
             m_Buildings = m_BuildingQuery.ToEntityListAsync(Allocator.Persistent, out JobHandle listed);
+            m_NetObjects = m_NetObjectQuery.ToEntityListAsync(Allocator.Persistent, out JobHandle netListed);
+            Game.Simulation.WaterSurfaceData<Game.Simulation.SurfaceWater> water = waterSystem.GetSurfaceData(out JobHandle waterDependency);
             m_Job = new FindJob
             {
                 m_Buildings = m_Buildings,
+                m_NetObjects = m_NetObjects,
                 m_Transforms = transforms,
                 m_PrefabRefs = prefabRefs,
                 m_Geometries = geometries,
                 m_WindPowered = windPowered,
+                m_Owners = owners,
+                m_Edges = edges,
+                m_Nodes = nodes,
+                m_Terrain = terrainSystem.GetHeightData(),
+                m_Water = water,
                 m_Found = m_Found,
                 m_Turbines = m_Turbines,
-            }.Schedule(JobHandle.CombineDependencies(dependency, listed));
+                m_BuildingCount = m_BuildingCount,
+            }.Schedule(JobHandle.CombineDependencies(dependency, JobHandle.CombineDependencies(listed, netListed, waterDependency)));
+            terrainSystem.AddCPUHeightReader(m_Job);
+            waterSystem.AddSurfaceReader(m_Job);
             m_Pending = true;
             return m_Job;
         }
