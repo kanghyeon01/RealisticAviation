@@ -679,9 +679,9 @@ vectors join at most 30° at least 2 NM outside the approach gate (JO 7110.65 5-
 gradients initial ≤ 500 ft/NM, intermediate ≤ 318 ft/NM. Scaled down to the game: angles and gradients kept, lengths
 from the turn radius and the map (intermediate about three turn radii). Only with the glide path option.
 
-## 1.1a (2026-10-21, feedback patch)
+## 1.1.1 (2026-10-21, feedback patch)
 
-Versions: MAJOR.MINOR plus a patch letter (1.1a, 1.1b...); new features go to the next minor.
+Versions: MAJOR.MINOR.PATCH (the patch was meant as a letter, 1.1a, but the game parses the UI module version as a number); new features go to the next minor.
 
 - "Remove this airplane" button option (`AirplaneAtcSection`): marks the airplane's path stuck (`PathFlags.Stuck`), as
   `StuckMovingObjectSystem` does, so `TransportAircraftAISystem` ends boarding and deletes it; logs its state first.

@@ -65,12 +65,12 @@ These add-ons give the mod extra features. Please recommend good add-ons!
 **1. Aviation Weather Add-on** 항공기상을 추가해 주는 모드입니다. METAR와 ATIS가 추가됩니다.(ModID: 164025)</LongDescription>
   <Thumbnail Value="Properties/Thumbnail.png" />
   <Tag Value="Code Mod" />
-  <ModVersion Value="1.1a" />
-  <ChangeLog>1.1a
+  <ModVersion Value="1.1.1" />
+  <ChangeLog>1.1.1
 - New option, off by default: a "Remove this airplane" button in every airplane's info panel, for an airplane stuck on a runway. Its state is written to the log when it is removed; please send the log if you can.
 - Glide path: arrivals keep their approach speed until just before touchdown, so they flare over the runway instead of halfway down the final.
 
-1.1a
+1.1.1
 - 새 옵션 (기본 꺼짐): 모든 비행기 정보란에 "이 비행기 제거" 버튼. 활주로에 멈춘 비행기가 있을 때 쓰세요. 제거할 때 비행기 상태가 로그에 남으니, 가능하면 로그를 보내 주세요.
 - 강하각: 도착기가 착지 직전까지 접근 속도를 유지해서, Final 중간이 아니라 활주로 위에서 플레어합니다.</ChangeLog>
   <GameVersion Value="1.6.*" />
