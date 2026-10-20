@@ -52,6 +52,9 @@ namespace RealisticAviation
             /// <summary>Closer than this to its target the game moves an approaching airplane onto the runway lane (with a margin).</summary>
             private const float kLaneSwitchRange = 300f;
 
+            /// <summary>The airplane is down to its touchdown speed this far before the touchdown point, where it flares.</summary>
+            private const float kFlareDistance = 300f;
+
             /// <summary>Holds when the height to lose exceeds this share of what kSteeringSlope allows on the way to the join point.</summary>
             private const float kDescentHoldMargin = 0.8f;
 
@@ -268,9 +271,23 @@ namespace RealisticAviation
                 navigation.m_TargetPosition.y = math.min(navigation.m_TargetPosition.y,
                     math.max(touchdown.y + math.distance(navigation.m_TargetPosition.xz, touchdown.xz) * glideTan, steepest));
 
-                // As AircraftNavigationSystem does for an approach, with the glide path angle instead of the climb angle.
+                // On its runway lane the game slows the airplane to its touchdown speed at once (it brakes for the target just
+                // ahead), and near the minimum flying speed the move system holds the nose up as in the flare: on the long final
+                // the airplane flared from halfway down. It keeps the approach speed (the level attitude speed of holds and the
+                // pattern) and slows down only in time to reach the touchdown speed kFlareDistance before the touchdown point.
                 Entity prefab = m_PrefabRefData[entity].m_Prefab;
-                float climbAngle = m_PrefabAirplaneData[prefab].m_ClimbAngle;
+                AirplaneData airplaneData = m_PrefabAirplaneData[prefab];
+                float touchdownSpeed = m_PrefabAircraftData[prefab].m_GroundMaxSpeed;
+                float toTouchdown = math.max(0f, math.distance(airplane.xz, touchdown.xz) - kFlareDistance);
+                float approachSpeed = math.min(GetHoldingSpeed(airplaneData),
+                    VehicleUtils.GetMaxBrakingSpeed(airplaneData, toTouchdown, touchdownSpeed, kTimeStep));
+                if (approachSpeed > navigation.m_MaxSpeed)
+                {
+                    navigation.m_MaxSpeed = MathUtils.Clamp(approachSpeed, VehicleUtils.CalculateSpeedRange(airplaneData, GetSpeed(entity), kTimeStep));
+                }
+
+                // As AircraftNavigationSystem does for an approach, with the glide path angle instead of the climb angle.
+                float climbAngle = airplaneData.m_ClimbAngle;
                 float3 position = m_TransformData[entity].m_Position;
                 float3 toTarget = navigation.m_TargetPosition - position;
                 float beyond = math.max(0f, math.length(toTarget.xz) - m_PrefabAircraftData[prefab].m_GroundMaxSpeed - navigation.m_MaxSpeed * kTimeStep - 1f);
