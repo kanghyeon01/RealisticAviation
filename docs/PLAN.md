@@ -843,6 +843,15 @@ Where the build differs from the draft above:
   airport's final. No mid-air collisions in the game, so it is visual only. Ideas: use the other IAF (or straight in)
   when an IAF or its hold lies in another airport's airspace; raise one same-class neighbour's hold band 1,000 ft;
   skip SID fixes over another airport's final.
+- Code review notes for the next patch (external review, checked against the code 2026-10-21):
+  - VFR chart: obstacles are found once per opening, so turning built-up areas on or off while the chart is open
+    doesn't re-apply the 299 ft urban rule until it is reopened. Re-run the obstacle search when that legend entry
+    changes. (Built-up areas off = no urban rule is intended.)
+  - Closures: an airport's closure reason is the first runway's (`TryAdd`), so an add-on's runway closure can hide a
+    disaster on another runway, and the reason isn't updated while the airport stays closed for another cause. Prefer
+    the disaster, and update the banner and broadcast when the reason changes.
+  - Checked, no change needed: ObstacleMap/UrbanAreaMap Reset while a search is pending (Update completes and disposes
+    the lists before starting another; Dispose frees them), HoldingPattern at a turn centre (atan2(0, 0) = 0, no NaN).
 
 ### Order of work
 
@@ -862,3 +871,14 @@ Versions: MAJOR.MINOR.PATCH (the patch was meant as a letter, 1.1a, but the game
 - Early flare on the long final: on the runway lane the game brakes for the target just ahead and slows to touchdown
   speed at once; near the minimum flying speed the move system holds the nose up. `FollowGlidePath` keeps the
   level-attitude approach speed and reaches touchdown speed `kFlareDistance` (300 m) before the touchdown point.
+
+## 1.2.1 (2026-10-22, hotfix)
+
+- Go-around blocked the runway: GoAround left the airplane on its runway lane, and the game doesn't advance the lanes
+  of an airplane the tower flies round the pattern, so for the whole circuit it was the vehicle ahead of everything on
+  that lane. The arrival that had landed couldn't roll out and the departure lined up couldn't take off ("blocked by"
+  the circling airplane, type Continuing) for minutes; the next arrival found the runway not clear and went around too,
+  and so on (log 2026-10-22: every blocker was an airplane that had just gone around). Likely the forum report of an
+  airplane stopped on the runway with go-arounds and no arrivals. `LeaveRunwayLane` moves it back to the end of its
+  last airway lane (the runway lane is the next path element again, queued lanes dropped), as the airway fast-forward
+  does. Uploaded without an in-game test (the user's call: hard to reproduce on purpose).

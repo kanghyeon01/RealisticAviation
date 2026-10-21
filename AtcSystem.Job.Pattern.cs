@@ -38,7 +38,8 @@ namespace RealisticAviation
                 // that state it treats being below the steering target as touchdown and drops the flying state, so the
                 // climbing airplane would turn into a ground vehicle in the air. Put the approach state it had back.
                 AircraftCurrentLane currentLane = m_CurrentLaneData[entity];
-                if ((currentLane.m_LaneFlags & AircraftLaneFlags.Landing) != 0 && (currentLane.m_LaneFlags & AircraftLaneFlags.Approaching) == 0)
+                if (!LeaveRunwayLane(entity, ref currentLane)
+                    && (currentLane.m_LaneFlags & AircraftLaneFlags.Landing) != 0 && (currentLane.m_LaneFlags & AircraftLaneFlags.Approaching) == 0)
                 {
                     currentLane.m_LaneFlags |= AircraftLaneFlags.Approaching;
                     m_CurrentLaneData[entity] = currentLane;
@@ -397,6 +398,62 @@ namespace RealisticAviation
             private struct StackLevelOrder : System.Collections.Generic.IComparer<int2>
             {
                 public int Compare(int2 a, int2 b) => a.x.CompareTo(b.x);
+            }
+
+            /// <summary>
+            /// Moves an airplane going around off its runway lane, back to the end of its last airway lane: the runway lane
+            /// becomes the next element of its path again, and its queued lanes (the runway exit and taxiways) are dropped.
+            /// While the tower flies it round the pattern the game doesn't advance its lanes, so it stayed on the runway lane
+            /// the whole circuit, as the vehicle ahead of everything rolling on it: the arrival that had landed couldn't roll
+            /// out and the departure lined up couldn't take off ("blocked by" it) for minutes, so the next arrival went around
+            /// too, and kept the runway blocked in turn. Returns false (nothing changed) when its path shows no airway lane
+            /// just before the runway lane.
+            /// </summary>
+            private bool LeaveRunwayLane(Entity entity, ref AircraftCurrentLane currentLane)
+            {
+                PathOwner pathOwner = m_PathOwnerData[entity];
+                DynamicBuffer<PathElement> path = m_PathElements[entity];
+                int runwayIndex = -1;
+                for (int i = math.min(pathOwner.m_ElementIndex, path.Length) - 1; i >= 1; i--)
+                {
+                    if (path[i].m_Target == currentLane.m_Lane)
+                    {
+                        runwayIndex = i;
+                        break;
+                    }
+                }
+                // Back over the runway's lanes (it may be on a later one already) to the airway lane before them.
+                while (runwayIndex >= 1 && !IsAirwayLane(path[runwayIndex - 1].m_Target) && runwayIndex > pathOwner.m_ElementIndex - kRunwayLanesBack)
+                {
+                    runwayIndex--;
+                }
+                if (runwayIndex < 1 || !IsAirwayLane(path[runwayIndex - 1].m_Target))
+                {
+                    return false;
+                }
+                PathElement airway = path[runwayIndex - 1];
+                Entity runwayLane = currentLane.m_Lane;
+                float start = math.lerp(airway.m_TargetDelta.y, airway.m_TargetDelta.x, kFastForwardLaneShare);
+                currentLane.m_Lane = airway.m_Target;
+                currentLane.m_CurvePosition = new float3(start, start, airway.m_TargetDelta.y);
+                currentLane.m_LaneFlags = AircraftLaneFlags.Airway | AircraftLaneFlags.Flying;
+                m_CurrentLaneData[entity] = currentLane;
+                m_NavigationLanes[entity].Clear();
+                pathOwner.m_ElementIndex = runwayIndex;
+                m_PathOwnerData[entity] = pathOwner;
+                if (m_Settings.m_DetailedLog)
+                {
+                    Mod.Log.Info($"{entity} going around: off runway lane {runwayLane}, back on airway lane {airway.m_Target}");
+                }
+                return true;
+            }
+
+            /// <summary>How far back along its path an airplane going around is looked for its last airway lane.</summary>
+            private const int kRunwayLanesBack = 8;
+
+            private bool IsAirwayLane(Entity lane)
+            {
+                return m_ConnectionLaneData.TryGetComponent(lane, out Game.Net.ConnectionLane connection) && (connection.m_Flags & ConnectionLaneFlags.Airway) != 0;
             }
 
             private void FreeStackLevel(Entity runway, byte level)
