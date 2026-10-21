@@ -1,0 +1,204 @@
+<!doctype html><html><head><meta charset="utf-8"><title>IFR chart preview</title>
+<style>
+body{margin:0;font-family:sans-serif;background:#fff;color:#222}
+h2{font-size:16px;margin:18px 12px 6px}
+.note{font-size:13px;margin:0 12px 8px;max-width:900px;line-height:1.5}
+.row{display:flex;flex-wrap:wrap;gap:10px;padding:0 12px}
+.cell{border:1px solid #ddd;border-radius:6px;padding:6px;text-align:center;font-size:12px;width:200px}
+.cell svg{display:block;margin:0 auto 4px;background:#d9d6cc}
+#chart{margin:0 12px 24px;border:1px solid #bbb;background:#d9d6cc}
+</style></head><body>
+<!-- IFR chart preview (draft 2026-10-21). Geometry: the 1.2 approach procedure constants (AtcSystem.Job.Procedures.cs) at the
+     default 5° glide path; text: the VFR chart's stroke font (ChartLabels.cs) with the new letters A, I, T, '/', '.', '°'.
+     The background stands in for the greyed game map of an infoview. -->
+<h2>1. 글꼴 (VFR 차트 선 글꼴 + 새 글자)</h2>
+<p class="note">기존 글자(숫자, S F C M D E N O ( ) -)는 그대로이고, <b>A I T / . °</b>를 새로 추가합니다. IAF, IF, FAF, 코스(070°), 거리(2.3), 고도에 씁니다.</p>
+<div class="row"><svg id="glyphs" width="900" height="70"></svg></div>
+
+<h2>2. 기호</h2>
+<div class="row" id="legend"></div>
+
+<h2>3. 예시: 활주로 07 (C 공역, 강하각 5°, STAR 켬)</h2>
+<p class="note">게임과 같은 축척 계산입니다 (1 px = 20 m). FAF는 1,500 ft에서 강하각이 닿는 곳(5.2 km), IF는 FAF + 3R(4.3 km), IAF는 IF 좌우 3R입니다. 고도는 그 위치에서 절차가 지키는 최저 고도(밑줄)입니다. 착륙에 쓰는 활주로 끝의 절차만 그립니다.</p>
+<svg id="chart" width="900" height="800"></svg>
+
+<script>
+// ---------------------------------------------------------------- stroke font (same unit box as ChartLabels.cs: 0.6 x 1)
+const kWidth = 0.6, kGap = 0.3;
+function Arc(cx, cy, rx, ry, from, to) {
+  const n = Math.max(2, Math.ceil(Math.abs(to - from) / 15)), pts = [];
+  for (let i = 0; i <= n; i++) { const a = (from + (to - from) * i / n) * Math.PI / 180; pts.push(cx + rx * Math.cos(a), cy + ry * Math.sin(a)); }
+  return pts;
+}
+const Join = (a, b) => a.concat(b);
+const G = {
+  '0': [Arc(0.3, 0.5, 0.3, 0.5, 90, 450)],
+  '1': [[0.12, 0.8, 0.34, 1, 0.34, 0]],
+  '2': [Join(Arc(0.3, 0.72, 0.28, 0.28, 160, -35), [0, 0, 0.6, 0])],
+  '3': [Join(Arc(0.3, 0.76, 0.26, 0.24, 150, -90), Arc(0.3, 0.27, 0.3, 0.27, 90, -150))],
+  '4': [[0.45, 0, 0.45, 1, 0, 0.3, 0.6, 0.3]],
+  '5': [Join([0.55, 1, 0.1, 1], Arc(0.3, 0.32, 0.3, 0.32, 128, -145))],
+  '6': [Arc(0.3, 0.5, 0.3, 0.5, 60, 200), Arc(0.3, 0.3, 0.3, 0.3, 180, 540)],
+  '7': [[0, 1, 0.6, 1, 0.2, 0]],
+  '8': [Arc(0.3, 0.77, 0.25, 0.23, 270, 630), Arc(0.3, 0.27, 0.3, 0.27, 90, 450)],
+  '9': [Arc(0.3, 0.7, 0.3, 0.3, 0, 360), Arc(0.3, 0.5, 0.3, 0.5, 25, -120)],
+  'S': [Join(Arc(0.3, 0.75, 0.28, 0.25, 30, 270), Arc(0.3, 0.25, 0.3, 0.25, 90, -150))],
+  'F': [[0.55, 1, 0, 1, 0, 0], [0, 0.52, 0.42, 0.52]],
+  'C': [Arc(0.32, 0.5, 0.3, 0.5, 45, 315)],
+  '(': [Arc(0.55, 0.5, 0.3, 0.62, 125, 235)],
+  ')': [Arc(0.05, 0.5, 0.3, 0.62, 55, -55)],
+  'M': [[0, 0, 0, 1, 0.3, 0.4, 0.6, 1, 0.6, 0]],
+  'D': [Join(Join([0, 0, 0, 1, 0.2, 1], Arc(0.2, 0.5, 0.4, 0.5, 90, -90)), [0, 0])],
+  'E': [[0.6, 1, 0, 1, 0, 0, 0.6, 0], [0, 0.52, 0.45, 0.52]],
+  'N': [[0, 0, 0, 1, 0.6, 0, 0.6, 1]],
+  '-': [[0.08, 0.5, 0.52, 0.5]],
+  // New letters.
+  'A': [[0, 0, 0.3, 1, 0.6, 0], [0.1, 0.33, 0.5, 0.33]],
+  'I': [[0.3, 0, 0.3, 1], [0.12, 1, 0.48, 1], [0.12, 0, 0.48, 0]],
+  'T': [[0, 1, 0.6, 1], [0.3, 1, 0.3, 0]],
+  '/': [[0.05, -0.05, 0.55, 1.05]],
+  '.': [Arc(0.3, 0.05, 0.05, 0.05, 0, 360)],
+  '°': [Arc(0.2, 0.86, 0.13, 0.13, 0, 360)],
+};
+G['O'] = G['0'];
+const textWidth = (s, h) => s.length ? (s.length * (kWidth + kGap) - kGap) * h : 0;
+// Text with its lower left corner at (x, y) in SVG pixels, h pixels high.
+function text(s, x, y, h, color, w) {
+  let out = '';
+  [...s].forEach((ch, i) => {
+    if (ch === ' ') return;
+    const ox = x + i * (kWidth + kGap) * h;
+    (G[ch] || []).forEach(line => {
+      const pts = [];
+      for (let k = 0; k < line.length; k += 2) pts.push(`${(ox + line[k] * h).toFixed(1)},${(y - line[k + 1] * h).toFixed(1)}`);
+      out += `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="${w || h * 0.13}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    });
+  });
+  return out;
+}
+const textC = (s, cx, cy, h, color, w) => text(s, cx - textWidth(s, h) / 2, cy + h / 2, h, color, w);
+// Minimum altitude: the figure with a bar under it (FAA: "at or above").
+function minAlt(s, cx, cy, h, color) {
+  const tw = textWidth(s, h);
+  return textC(s, cx, cy, h, color) + `<line x1="${cx - tw / 2}" y1="${cy + h * 0.85}" x2="${cx + tw / 2}" y2="${cy + h * 0.85}" stroke="${color}" stroke-width="${h * 0.13}"/>`;
+}
+
+// ---------------------------------------------------------------- colours (FAA IFR low enroute / approach chart conventions)
+const PROC = '#111111';    // approach procedure track, fixes, labels (black, as on the approach chart)
+const AIRWAY = '#1f5fa0';  // RNAV T-route blue (the game's airways have no navaids: RNAV routes)
+const AIRPORT = '#2e8b57'; // airport with an instrument approach: green (brown without one)
+const HOLD = '#111111';
+const RING = '#7a7a7a';
+
+// Fly-by waypoint: a four-pointed star with concave sides.
+function star(cx, cy, r, color) {
+  const pts = [], k = 0.28;
+  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 - Math.PI / 2, rr = i % 2 ? r * k : r; pts.push(`${(cx + rr * Math.cos(a)).toFixed(1)},${(cy + rr * Math.sin(a)).toFixed(1)}`); }
+  return `<polygon points="${pts.join(' ')}" fill="${color}"/>`;
+}
+function arrowHead(x, y, dx, dy, s, color) {
+  const n = [-dy, dx];
+  return `<polygon points="${x},${y} ${x - dx * s + n[0] * s * 0.45},${y - dy * s + n[1] * s * 0.45} ${x - dx * s - n[0] * s * 0.45},${y - dy * s - n[1] * s * 0.45}" fill="${color}"/>`;
+}
+function line(x1, y1, x2, y2, color, w, dash) {
+  return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}"` : ''} stroke-linecap="round"/>`;
+}
+// Track with an arrow in the middle.
+function track(x1, y1, x2, y2, color, w, head) {
+  const dx = x2 - x1, dy = y2 - y1, l = Math.hypot(dx, dy), ux = dx / l, uy = dy / l;
+  return line(x1, y1, x2, y2, color, w) + arrowHead((x1 + x2) / 2 + ux * head / 2, (y1 + y2) / 2 + uy * head / 2, ux, uy, head, color);
+}
+// Racetrack hold: fix, inbound unit vector (svg), right-hand turns.
+function hold(fx, fy, ix, iy, leg, r, color, w) {
+  const rx = -iy, ry = ix; // right of the inbound course in svg coordinates (y down)
+  const a = [fx - ix * leg, fy - iy * leg], b = [fx, fy];
+  const c = [fx + rx * 2 * r, fy + ry * 2 * r], d = [a[0] + rx * 2 * r, a[1] + ry * 2 * r];
+  return `<path d="M${a} L${b} A${r} ${r} 0 0 1 ${c} L${d} A${r} ${r} 0 0 1 ${a}" fill="none" stroke="${color}" stroke-width="${w}"/>`
+    + arrowHead(fx - ix * leg * 0.4, fy - iy * leg * 0.4, ix, iy, w * 5, color);
+}
+
+// ---------------------------------------------------------------- 1. glyphs
+document.getElementById('glyphs').innerHTML = text('0123456789 SFCMDEN() -', 10, 50, 30, '#444') + text('AIT/.°', 690, 50, 30, '#c03030')
+  + `<text x="690" y="66" font-size="11" fill="#c03030">새 글자</text>`;
+
+// ---------------------------------------------------------------- 2. legend cells
+const cells = [
+  ['RNAV 웨이포인트 (fly-by)', '네 꼭짓점 별. IAF, IF, FAF 모두 같은 기호 (실제 접근 차트 평면도와 같음)', s => star(100, 45, 16, PROC) + textC('IAF', 100, 82, 12, PROC)],
+  ['최저 고도', '숫자 밑의 줄 = "이 고도 이상" (FAA 표기)', s => minAlt('2500', 100, 50, 18, PROC)],
+  ['접근 절차 경로', '굵은 검은 선 + 화살표, 코스와 거리(NM)', s => track(20, 60, 180, 60, PROC, 3, 10) + textC('160°', 100, 36, 12, PROC) + textC('(2.3)', 100, 80, 10, PROC)],
+  ['Final 코스', 'FAF부터 활주로까지, 코스 표시', s => line(20, 50, 150, 50, PROC, 3) + arrowHead(150, 50, 1, 0, 10, PROC) + `<rect x="152" y="44" width="34" height="12" fill="${AIRPORT}"/>` + textC('070°', 85, 32, 12, PROC)],
+  ['Holding (STAR)', '우선회 레이스트랙, 진입 방향 화살표, Holding 고도', s => hold(150, 30, 1, 0, 90, 18, HOLD, 2) + minAlt('4000', 100, 88, 11, PROC)],
+  ['항로 (RNAV T-route)', '파란 선, 경로 이름 상자, MEA, 코스', s => line(10, 55, 190, 55, AIRWAY, 2.5) + `<rect x="80" y="40" width="40" height="18" fill="#fff" stroke="${AIRWAY}" stroke-width="1.5"/>` + textC('T1', 100, 49, 11, AIRWAY) + textC('3600', 100, 75, 11, AIRWAY) + textC('250°', 160, 42, 10, AIRWAY)],
+  ['공항', '계기 접근이 있는 공항은 초록 (VFR 차트의 파랑·자홍 대신)', s => `<rect x="40" y="44" width="120" height="14" fill="${AIRPORT}"/><rect x="85" y="30" width="30" height="12" fill="${AIRPORT}"/>`],
+  ['공역 링', 'VFR 차트와 같은 위치, 회색 가는 선', s => `<circle cx="100" cy="55" r="40" fill="none" stroke="${RING}" stroke-width="1.5"/>`],
+];
+document.getElementById('legend').innerHTML = cells.map(([title, desc, draw]) =>
+  `<div class="cell"><svg width="200" height="100">${draw()}</svg><b>${title}</b><br>${desc}</div>`).join('');
+
+// ---------------------------------------------------------------- 3. example chart with the game's geometry
+const M = 20;                         // metres per pixel
+const X0 = -14500, Y0 = 5500;         // world coordinates of the svg's top left corner
+const sx = x => (x - X0) / M, sy = y => (Y0 - y) / M;
+const ft = m => m / 0.3048;
+const R = 1430, SEG = 3 * R, glideTan = Math.tan(5 * Math.PI / 180);
+const fafDist = Math.max(457.2 / glideTan, 2 * R), ifDist = fafDist + SEG;
+const hdg = 70 * Math.PI / 180;
+const d = [Math.sin(hdg), Math.cos(hdg)];       // landing direction (x east, y north)
+const right = [d[1], -d[0]];                    // MathUtils.Right
+const at = (out, side) => [-d[0] * out + right[0] * side, -d[1] * out + right[1] * side];
+const T = [0, 0], RWY_END = [d[0] * 3000, d[1] * 3000];
+const FAF = at(fafDist, 0), IF = at(ifDist, 0), IAF_R = at(ifDist, SEG), IAF_L = at(ifDist, -SEG);
+const hFaf = 457.2, hIf = hFaf + SEG * 0.025, hIaf = hIf + SEG * 0.04;
+const up100 = m => String(Math.ceil(ft(m) / 100) * 100);
+const P = p => [sx(p[0]), sy(p[1])];
+let svg = '';
+
+// Airspace ring (class C, 3.5 NM round the airport).
+svg += `<circle cx="${sx(1400)}" cy="${sy(500)}" r="${3.5 * 1852 / M}" fill="none" stroke="${RING}" stroke-width="1.5"/>`;
+
+// Airways: two RNAV routes to the game's airway end beside the runway.
+const AWE = [d[0] * 1500 + right[0] * 2500, d[1] * 1500 + right[1] * 2500];
+const aw = (from, name, mea) => {
+  const a = P(from), b = P(AWE), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const course = Math.round(((Math.atan2(AWE[0] - from[0], AWE[1] - from[1]) * 180 / Math.PI) + 360) % 360);
+  return line(a[0], a[1], b[0], b[1], AIRWAY, 2.5)
+    + `<rect x="${m[0] - 20}" y="${m[1] - 9}" width="40" height="18" fill="#fff" stroke="${AIRWAY}" stroke-width="1.5"/>` + textC(name, m[0], m[1], 11, AIRWAY)
+    + textC(mea, m[0], m[1] + 22, 11, AIRWAY) + textC(String(course).padStart(3, '0') + '°', m[0], m[1] - 22, 10, AIRWAY);
+};
+svg += aw([-5000, 5500], 'T1', '3600') + aw([2500, -10500], 'T2', '3600');
+
+// Airport (runway) in green.
+svg += line(...P(T), ...P(RWY_END), AIRPORT, 150 / M);
+
+// STAR holds at the IAFs (inbound towards the IF) and at the IF from straight in (inbound on the final course).
+const toSvgDir = v => [v[0], -v[1]];
+const norm = v => { const l = Math.hypot(v[0], v[1]); return [v[0] / l, v[1] / l]; };
+const LEG = 2778 / M, TR = 1300 / M;
+const holdAt = (fix, inbound) => { const i = toSvgDir(norm(inbound)); return hold(...P(fix), i[0], i[1], LEG, TR, HOLD, 2); };
+svg += holdAt(IAF_R, [IF[0] - IAF_R[0], IF[1] - IAF_R[1]]);
+svg += holdAt(IAF_L, [IF[0] - IAF_L[0], IF[1] - IAF_L[1]]);
+svg += holdAt(IF, d);
+
+// Procedure tracks: IAF -> IF (both sides), IF -> FAF -> threshold (final course).
+const crs = v => String(Math.round(((Math.atan2(v[0], v[1]) * 180 / Math.PI) + 360) % 360)).padStart(3, '0') + '°';
+const nm = (a, b) => (Math.hypot(a[0] - b[0], a[1] - b[1]) / 1852).toFixed(1);
+const leg = (a, b, labelSide) => {
+  const A = P(a), B = P(b), mid = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2];
+  const n = norm([-(B[1] - A[1]), B[0] - A[0]]).map(c => c * 18 * labelSide);
+  return track(...A, ...B, PROC, 3, 11) + textC(crs([b[0] - a[0], b[1] - a[1]]), mid[0] + n[0], mid[1] + n[1] - 7, 12, PROC)
+    + textC(`(${nm(a, b)})`, mid[0] + n[0], mid[1] + n[1] + 9, 10, PROC);
+};
+svg += leg(IAF_R, IF, 1) + leg(IAF_L, IF, -1) + leg(IF, FAF, 1) + leg(FAF, T, 1);
+
+// Fixes with their names (roles) and minimum altitudes.
+const fix = (p, name, alt, dx, dy) => { const [x, y] = P(p); return star(x, y, 13, PROC) + textC(name, x + dx, y + dy, 13, PROC) + minAlt(alt, x + dx, y + dy + 22, 12, PROC); };
+svg += fix(IAF_R, 'IAF', up100(hIaf), 42, -10) + fix(IAF_L, 'IAF', up100(hIaf), 45, -20) + fix(IF, 'IF/IAF', up100(hIf), -58, -30) + fix(FAF, 'FAF', up100(hFaf), 0, 26);
+
+// Hold altitude (class C hold base 4,000 ft above the field; the stack goes up 1,000 ft per level).
+const holdLabel = (p, dx, dy) => { const [x, y] = P(p); return minAlt('4000', x + dx, y + dy, 11, PROC); };
+svg += holdLabel(IAF_R, 60, 60) + holdLabel(IAF_L, -55, 15) + holdLabel(IF, -95, 75);
+
+// Scale bar: 1 NM.
+svg += line(20, 780, 20 + 1852 / M, 780, '#333', 3) + textC('1 NM', 20 + 926 / M, 765, 10, '#333');
+document.getElementById('chart').innerHTML = svg;
+</script></body></html>

@@ -229,6 +229,19 @@ namespace RealisticAviation
             /// </summary>
             private void ReturnToPath(Entity entity, ref Flight flight)
             {
+                // With the instrument approach, an arrival leaving an airway hold doesn't fly back to where it began holding: it
+                // flies its approach procedure from where it is (FlyApproachProcedure, which also skips the rest of its airway);
+                // from a STAR hold, on from the hold's fix.
+                if (flight.m_Arrival && flight.m_StackLevel != kNoStackLevel && SettingsForRunway(flight.m_Runway).m_GlidePath
+                    && (m_CurrentLaneData[entity].m_LaneFlags & AircraftLaneFlags.Airway) != 0)
+                {
+                    FreeStackLevel(flight.m_Runway, flight.m_StackLevel);
+                    flight.m_Holding = false;
+                    flight.m_ProcStage = !flight.m_StarHold ? kStageNone : flight.m_ProcSide == 0 ? kStageToIf : kStageToIaf;
+                    flight.m_StarHold = false;
+                    m_Flights[entity] = flight;
+                    return;
+                }
                 float3 position = m_TransformData[entity].m_Position;
                 float3 resume = flight.m_ResumeTarget;
                 float radius = flight.m_Pattern.m_TurnRadius;
@@ -315,10 +328,75 @@ namespace RealisticAviation
             private byte TakeStackLevel(Entity runway)
             {
                 RunwayState state = m_Runways[runway];
-                int level = math.min(math.tzcnt(~state.m_StackMask), kMaxStackLevel);
+                // On top of the stack, one level above the highest airplane holding (not into a free level under the ones
+                // already waiting, which leave first): StepDownHolds closes any gap under it.
+                int level = state.m_StackMask == 0 ? 0 : math.min(64 - math.lzcnt(state.m_StackMask), kMaxStackLevel);
                 state.m_StackMask |= 1ul << level;
                 m_Runways[runway] = state;
                 return (byte)level;
+            }
+
+            /// <summary>
+            /// The holding stack moves down: once a level is free (the arrival under it was cleared or left), each holding
+            /// arrival above it is told to descend to the lowest free level under it, lowest airplane first, so the free levels
+            /// close up in one tick with one instruction each. Arrivals then leave the stack from low down: from the top they
+            /// reached the IF 1,000-2,000 m too high and spent a minute or two in the descent hold.
+            /// </summary>
+            private void StepDownHolds()
+            {
+                NativeList<int2> candidates = new NativeList<int2>(Allocator.Temp); // (level, index into entities)
+                NativeList<Entity> entities = new NativeList<Entity>(Allocator.Temp);
+                foreach (var pair in m_Flights)
+                {
+                    Flight flight = pair.Value;
+                    if (flight.m_Holding && flight.m_Arrival && flight.m_Clearance != Clearance.Cleared
+                        && flight.m_StackLevel != kNoStackLevel && flight.m_StackLevel > 0)
+                    {
+                        candidates.Add(new int2(flight.m_StackLevel, entities.Length));
+                        entities.Add(pair.Key);
+                    }
+                }
+                if (candidates.Length > 1)
+                {
+                    candidates.Sort(new StackLevelOrder());
+                }
+                for (int i = 0; i < candidates.Length; i++)
+                {
+                    Entity entity = entities[candidates[i].y];
+                    Flight flight = m_Flights[entity];
+                    if (!m_Runways.TryGetValue(flight.m_Runway, out RunwayState state))
+                    {
+                        continue;
+                    }
+                    // Down to the lowest free level under it, above the next airplane down: one instruction.
+                    int level = flight.m_StackLevel;
+                    while (level > 0 && (state.m_StackMask & (1ul << (level - 1))) == 0)
+                    {
+                        level--;
+                    }
+                    if (level == flight.m_StackLevel)
+                    {
+                        continue;
+                    }
+                    state.m_StackMask = (state.m_StackMask & ~(1ul << flight.m_StackLevel)) | (1ul << level);
+                    m_Runways[flight.m_Runway] = state;
+                    flight.m_Pattern.m_Fix.y -= (flight.m_StackLevel - level) * kStackSpacing;
+                    flight.m_StackLevel = (byte)level;
+                    m_Flights[entity] = flight;
+                    Say(entity, AtcMessageKind.DescendInHold, flight,
+                        (int)math.round((flight.m_Pattern.m_Fix.y - flight.m_EntryPosition.y) / (100f * 0.3048f)) * 100);
+                    if (m_Settings.m_DetailedLog)
+                    {
+                        Mod.Log.Info($"{entity} descends in the hold to level {flight.m_StackLevel} for runway {flight.m_Runway}");
+                    }
+                }
+                candidates.Dispose();
+                entities.Dispose();
+            }
+
+            private struct StackLevelOrder : System.Collections.Generic.IComparer<int2>
+            {
+                public int Compare(int2 a, int2 b) => a.x.CompareTo(b.x);
             }
 
             private void FreeStackLevel(Entity runway, byte level)

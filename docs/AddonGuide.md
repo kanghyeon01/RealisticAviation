@@ -88,7 +88,7 @@ the airports through `Api` and gives the tower each airport's ATIS.
 
 - `ArrivalSpacingSeconds`
 - `DepartureGapSeconds`
-- `GlidePath`, `GlidePathDegrees`
+- `GlidePath` (fly the instrument approach procedure at this airport), `GlidePathDegrees`
 - `FinalLengthMeters`
 - `PatternWidthMeters`
 - `WeatherGoAroundChance` (0–1; replaces the weather's chance)
@@ -137,9 +137,9 @@ the airports through `Api` and gives the tower each airport's ATIS.
 | `MessageSent(RadioMessage)` | Every transmission, posts included |
 | `ApproachCleared`, `LandingCleared` | An arrival is cleared for the approach, or to land |
 | `GoAround` | An arrival goes around (told, or on its own) |
-| `HoldingStarted` | An airplane is told to hold |
+| `HoldingStarted` | An airplane is told to hold (a descent in the holding stack, 1.2, is a `MessageSent` with `AtcMessageKind.DescendInHold`; its altitude is in the text) |
 | `Landed` | An arrival has landed (handed to ground) |
-| `PushbackApproved`, `LineUpCleared`, `TakeoffCleared` | A departure is approved or cleared |
+| `PushbackApproved`, `LineUpCleared`, `TakeoffCleared` | A departure is approved or cleared (`RadioMessage.NoDelay`: "cleared for takeoff, no delay", an arrival close behind) |
 | `TookOff` | A departure has taken off (handed to departure control) |
 | `AirportClosed(airport, cause)`, `AirportOpened(airport)` | Closures |
 | `GroundDelayStarted(airport)`, `GroundDelayEnded(airport)` | Ground delays |
@@ -154,9 +154,9 @@ the airports through `Api` and gives the tower each airport's ATIS.
 
 ### `Api.Options` (read only)
 
-`DetailedLog`, `GlidePath`, `GlidePathDegrees`, `ApproachHeightLimits`, `SmoothDepartureTurns`, `ArrivalSpacingSeconds`,
+`DetailedLog`, `InstrumentApproach`, `StandardArrival`, `StandardDeparture`, `GlidePathDegrees`, `ApproachHeightLimits`, `ArrivalSpacingSeconds`,
 `DepartureGapSeconds`, `FinalLengthNm`, `PatternWidthNm`, `HoldingLegNm`, `WeatherGoArounds`, `Pushback`, `TaxiSpacingMeters`,
-`HoldShortSetbackMeters`.
+`HoldShortSetbackMeters`. `GlidePath` (= `InstrumentApproach`) and `SmoothDepartureTurns` (= `StandardDeparture`) are kept for add-ons built for 1.1.
 
 ## Example: an emergency add-on
 

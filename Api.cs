@@ -36,6 +36,9 @@ namespace RealisticAviation
         public uint Frame => m_Message.m_Frame;
 
         public bool IsBroadcast => m_Message.m_Airplane == Entity.Null;
+
+        /// <summary>A takeoff clearance with an arrival close behind: "cleared for takeoff, no delay".</summary>
+        public bool NoDelay => m_Message.m_Kind == AtcMessageKind.ClearedForTakeoff && m_Message.m_Value == 1;
     }
 
     /// <summary>Where a flight stands with the tower.</summary>
@@ -757,13 +760,21 @@ namespace RealisticAviation
             /// <summary>Add-ons should log per-airplane lines only when this is on.</summary>
             public static bool DetailedLog => Mod.Setting != null && Mod.Setting.DetailedLog;
 
-            public static bool GlidePath => Mod.Setting != null && Mod.Setting.GlidePath;
+            /// <summary>The instrument approach procedure option (1.1: "Straight-in final with glide path").</summary>
+            public static bool GlidePath => InstrumentApproach;
+
+            public static bool InstrumentApproach => Mod.Setting != null && Mod.Setting.InstrumentApproach;
+
+            public static bool StandardArrival => Mod.Setting != null && Mod.Setting.StandardArrival && Mod.Setting.InstrumentApproach;
+
+            public static bool StandardDeparture => Mod.Setting != null && Mod.Setting.StandardDeparture;
 
             public static int GlidePathDegrees => Mod.Setting?.GlidePathDegrees ?? 0;
 
             public static bool ApproachHeightLimits => Mod.Setting != null && Mod.Setting.ApproachHeightLimits;
 
-            public static bool SmoothDepartureTurns => Mod.Setting != null && Mod.Setting.SmoothDepartureTurns;
+            /// <summary>The standard instrument departure option (1.1: "Smooth departure turns").</summary>
+            public static bool SmoothDepartureTurns => StandardDeparture;
 
             public static int ArrivalSpacingSeconds => Mod.Setting?.ArrivalSpacingSeconds ?? 0;
 

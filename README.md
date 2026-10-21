@@ -12,7 +12,9 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
   a configurable distance before the runway edge.
 - **Holding.** An arriving airplane that calls the tower while the runway is busy flies a standard right-turn
   racetrack holding pattern at its present position on the arrival path, stacked 1,000 ft above any airplane already
-  holding for that runway. When cleared it rejoins its path and the game's own approach takes over.
+  holding for that runway (on top of the stack). When a lower level frees up, the airplanes above are told to
+  descend ("descend and maintain 5,000"). When cleared it rejoins its path (with the IAP: flies its approach
+  procedure from there).
 - **Highest Response Ratio Next.** Arrivals ask the tower when they are within the contact distance; ground airplanes
   ask when they approach the runway. When the runway is free, the request with the highest
   (time waited + expected runway time) / expected runway time goes next: quick users of the runway are favored,
@@ -40,6 +42,7 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
 - **Tower radio (phase 4-2).** The airplane info panel shows the tower's latest instruction and the pilot's readback in
   standard English phraseology, e.g. "ATC: Line102, runway 07, cleared for takeoff." The callsign is the route name plus
   the airplane's number on that route (assigned by the mod). The airport info panel shows the last few exchanges.
+  A takeoff clearance with an arrival due within the departure gap plus 30 s adds "no delay".
 - **Runway numbers** come from each runway's heading on the map, with the game's own north (the north of its sky:
   the sun rises in the east). A north sign for the screen is the separate Map Compass mod; Realistic Aviation does not
   need it.
@@ -82,19 +85,27 @@ A Cities: Skylines II code mod that makes airports behave more like real ones.
   after a 10 s engine start. Ground control approves the pushback only when no airplane is moving close to the area
   (at most 60 s wait); taxiing airplanes stop short of an airplane being pushed back. Only an airplane that stood on a
   gate's stand is pushed back, once the game has finished loading it.
-- **Straight-in final with glide path (option, off by default).** Instead of the game's dive at 20° from the end of its
-  airway, an arrival joins the extended centerline outside the final approach fix (FAF, 1,500 ft above the runway) at an
-  angle, as if vectored onto a localizer, and descends at the chosen angle (3–20°, default 5°). It stays on the airway
-  until 2.5 km out, as in the game, so it doesn't reserve the runway exit for long. An arrival too high to descend in
-  time descends in a hold at the join point first (the hold in lieu of a procedure turn of an RNAV "T" approach). It
-  keeps its approach speed until just before touchdown, so it flares over the runway.
-  - **Building height limits under approaches (option, off by default).** From each runway end out to the FAF, zoned
-    buildings may not be built or level up above a surface 50 m below the glide path, widening away from the runway as
-    an instrument runway's approach surface (14 CFR 77.19). Existing buildings stay; the game's own limits are only
-    ever lowered.
-- **Smooth departure turns (option, off by default).** After takeoff a departure turns onto its airway at a standard
-  rate and climbs at most 15°, joining the airway course at up to 45°, instead of the game's turns of up to 30° per
-  second.
+- **Instrument approach procedure, IAP (option, on by default).** Instead of the game's dive at 20° from the end of its
+  airway, a cleared arrival leaves its airway and flies an RNAV "T" approach built from its runway: by its sector, to
+  the left or right initial approach fix (IAF, 3 turning radii beside the intermediate fix) or straight in to the
+  intermediate fix (IF, 3 turning radii before the FAF), turns onto the final course there and descends at the chosen
+  angle (3–20°, default 5°) from the final approach fix (FAF, 1,500 ft above the runway). Fixes are turned fly-by;
+  heights come down segment by segment to each fix's height. It takes the runway lane 2.5 km out, as in the
+  game, so it doesn't reserve the runway exit for long. An arrival too high to descend in time descends in a hold at
+  the join point first (the hold in lieu of a procedure turn). It keeps its approach speed until just before
+  touchdown, so it flares over the runway.
+  - **Standard instrument arrival, STAR (option, off by default; with the IAP).** An arrival told to hold holds at the
+    IAF of its sector (the IF from straight in), stacked 1,000 ft apart, with the next leg of the approach as the
+    inbound course, and flies the approach on from there once cleared. Without it, it holds at present position on
+    its airway.
+  - **Building height limits under approaches (option, off by default; with the IAP).** From each runway end out to
+    the FAF, zoned buildings may not be built or level up above a surface 50 m below the glide path, widening away from
+    the runway as an instrument runway's approach surface (14 CFR 77.19). Existing buildings stay; the game's own limits
+    are only ever lowered.
+- **Standard instrument departure, SID (option, on by default).** After takeoff a departure turns towards its airway at
+  a standard rate and flies direct to a fix on its airway 4 km ahead, then the game flies on from that fix, so departures
+  from one runway to one airway fly the same track. It climbs at least 200 ft/NM and at most 15°, instead of the
+  game's turns of up to 30° per second.
 
 - **Traffic pattern (phase 3).** After a go-around the airplane climbs straight ahead and flies a left-hand pattern (right-hand
   where set for that runway end in the airport info panel, e.g. "RWY 27 right-hand pattern") built from its own runway: upwind past the runway end, crosswind, downwind 1,500 ft above the
@@ -113,10 +124,11 @@ after a save is loaded.
 | Holding leg length | 1.5 NM | Straight-leg length of the holding pattern |
 | Arrival spacing | 45 s (15–75) | Minimum time between two arrivals cleared to the same runway |
 | Weather go-arounds | On | An arrival sometimes goes around at 100 ft: 0.3% in clear weather, rising with the intensity to 8% (rain), 12% (snow, fog), 15% (thunderstorm) |
-| Straight-in final with glide path | Off | Arrivals join the final course outside the FAF and descend at the glide path angle |
-| Glide path angle | 5° (3–20) | Descent angle on final (with the option above) |
-| Building height limits under approaches | Off | Zoned buildings stay 50 m below the glide path out to the FAF (with the glide path) |
-| Smooth departure turns | Off | Departures turn onto their airway at a standard rate |
+| Instrument approach procedure (IAP) | On | Cleared arrivals fly an RNAV "T" approach (IAF, IF, FAF) and descend at the glide path angle from the FAF |
+| Standard instrument arrival (STAR) | Off | Held arrivals hold at their IAF instead of at present position (with the IAP) |
+| Glide path angle | 5° (3–20) | Descent angle on final (with the IAP) |
+| Building height limits under approaches | Off | Zoned buildings stay 50 m below the glide path out to the FAF (with the IAP) |
+| Standard instrument departure (SID) | On | Departures turn at a standard rate and fly direct to a fix on their airway, climbing at least 200 ft/NM |
 | Close for tornadoes / hail storms / other disasters | On | Which disasters close an airport |
 | Limit closure time | Off | Off: closed as long as the disaster lasts. On: reopens after the maximum closure |
 | Maximum closure | 30 min | Game minutes after which a closed airport reopens (when the limit is on) |
@@ -124,7 +136,7 @@ after a save is loaded.
 | Pushback | On | Push airplanes back out of nose-in gates instead of turning them on the spot |
 | "Remove this airplane" button | Off | A button in every airplane's info panel that removes it (for one stuck on a runway; its state is logged) |
 | Pattern width | 1.5 NM | Runway centerline to downwind |
-| Final length | 2 NM | Distance of the base turn before the runway (not used with the glide path: the final starts at the FAF) |
+| Final length | 2 NM | Distance of the base turn before the runway (not used with the IAP: the final starts at the FAF) |
 | Taxi spacing | 40 m | Gap a taxiing airplane keeps behind the airplane ahead |
 | Departure gap before arrivals | 30 s (10–50) | A ground airplane may go ahead of a cleared arrival at least this far out |
 

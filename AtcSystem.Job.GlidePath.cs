@@ -85,11 +85,15 @@ namespace RealisticAviation
             /// <summary>Steers arrivals the tower is not flying itself (holding, pattern) to the FAF, and down the glide path.</summary>
             private void ApplyGlidePath(in FlightScan scan)
             {
-                if (!scan.m_Flying || scan.m_TakingOff || scan.m_PathUnknown)
+                Entity entity = scan.m_Entity;
+                // TakingOff on an airway is not a takeoff: an airplane from an outside connection starts its airway with it, and
+                // one told to hold right away kept it, so its approach procedure was never flown (and its clearance timed out).
+                // A real departure's first climb lane is an airway with TakingOff too, so this is for arrivals only.
+                if (!scan.m_Flying || scan.m_PathUnknown
+                    || (scan.m_TakingOff && (m_CurrentLaneData[entity].m_LaneFlags & AircraftLaneFlags.Airway) == 0))
                 {
                     return;
                 }
-                Entity entity = scan.m_Entity;
                 if (!m_Flights.TryGetValue(entity, out Flight flight) || !flight.m_Arrival || flight.m_Holding || flight.m_InCircuit)
                 {
                     return;
@@ -108,9 +112,17 @@ namespace RealisticAviation
                         FollowGlidePath(entity, MathUtils.Position(curve.m_Bezier, currentLane.m_CurvePosition.x), settings.m_GlideTan);
                     }
                 }
-                else if ((flags & (AircraftLaneFlags.Approaching | AircraftLaneFlags.Airway)) == (AircraftLaneFlags.Approaching | AircraftLaneFlags.Airway))
+                else if ((flags & AircraftLaneFlags.Airway) != 0)
                 {
-                    FlyToFinalFix(entity, flight, settings.m_GlideTan);
+                    // Cleared: the approach procedure up to the IF (1.2), then the final logic.
+                    if (flight.m_Clearance == Clearance.Cleared && FlyApproachProcedure(entity, ref flight, settings.m_GlideTan))
+                    {
+                        return;
+                    }
+                    if ((flags & AircraftLaneFlags.Approaching) != 0 || flight.m_ProcStage == kStageFinal)
+                    {
+                        FlyToFinalFix(entity, flight, settings.m_GlideTan);
+                    }
                 }
             }
 
@@ -167,6 +179,18 @@ namespace RealisticAviation
                     return;
                 }
 
+                // Past the IF of its approach procedure (1.2), outside the join point: along the final course, to a point
+                // kProcedureLookAhead ahead of abeam, so that it is lined up long before the runway lane. Flying straight to the
+                // join point instead, from the start of the fly-by turn at the IF (1.4 km before it), it closed the centerline
+                // at 15° and reached the runway lane still off it and crabbing; the game then snapped it straight.
+                float joinDistance = distance + radius * kJoinLead;
+                if (flight.m_ProcStage == kStageFinal && outbound > joinDistance)
+                {
+                    float2 ahead = threshold.xz + outward * math.max(outbound - kProcedureLookAhead, joinDistance);
+                    Steer(entity, new float3(ahead.x, height, ahead.y), direction);
+                    return;
+                }
+
                 float2 fromJoin = position - join;
                 float along = math.dot(fromJoin, outward);
                 float lateral = math.dot(fromJoin, side);
@@ -193,6 +217,12 @@ namespace RealisticAviation
                 if (!settings.m_GlidePath || !flight.m_Arrival || math.lengthsq(flight.m_EntryDirection) < 0.5f)
                 {
                     return false;
+                }
+                // Along its approach procedure (1.2) while it flies one.
+                routeDistance = ProcedureRouteDistance(entity, flight, settings.m_GlideTan);
+                if (routeDistance >= 0f)
+                {
+                    return true;
                 }
                 float radius = GetTurnRadius(m_PrefabAirplaneData[m_PrefabRefData[entity].m_Prefab]);
                 float2 threshold = flight.m_EntryPosition.xz;

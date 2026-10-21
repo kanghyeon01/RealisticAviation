@@ -1066,6 +1066,26 @@ namespace RealisticAviation
                 AircraftNavigation navigation = m_NavigationData[entity];
                 float2 inbound = math.normalizesafe(navigation.m_TargetPosition.xz - transform.m_Position.xz,
                     math.normalizesafe(m_MovingData[entity].m_Velocity.xz, new float2(0f, 1f)));
+                AtcSettings settings = SettingsForRunway(flight.m_Runway);
+                if (m_Settings.m_StandardArrival && settings.m_GlidePath && flight.m_Arrival && math.lengthsq(flight.m_EntryDirection) > 0.5f
+                    && (m_CurrentLaneData[entity].m_LaneFlags & AircraftLaneFlags.Airway) != 0)
+                {
+                    // STAR (1.2): it holds at the IAF of its sector (the IF from straight in), the next leg of the approach as the
+                    // inbound course. Once cleared it flies the procedure on from there (FlyApproachProcedure).
+                    int side = ChooseApproachSide(flight, settings.m_GlideTan, transform.m_Position);
+                    GetApproachFixes(flight, settings.m_GlideTan, side == 0 ? 1 : side, out float3 iaf, out float3 intermediate, out _);
+                    float2 fix = side == 0 ? intermediate.xz : iaf.xz;
+                    float2 starInbound = side == 0 ? flight.m_EntryDirection : math.normalizesafe(intermediate.xz - iaf.xz);
+                    StartHolding(entity, ref flight, navigation.m_TargetPosition, navigation.m_TargetDirection, starInbound, true, true, fix);
+                    flight.m_StarHold = true;
+                    flight.m_ProcSide = (sbyte)side;
+                    m_Flights[entity] = flight;
+                    if (m_Settings.m_DetailedLog)
+                    {
+                        Mod.Log.Info($"{entity} STAR: holding at the {(side == 0 ? "IF (straight in)" : side > 0 ? "right IAF" : "left IAF")} for runway {flight.m_Runway}, level {flight.m_StackLevel}");
+                    }
+                    return;
+                }
                 StartHolding(entity, ref flight, navigation.m_TargetPosition, navigation.m_TargetDirection, inbound, true);
             }
 
@@ -1076,13 +1096,19 @@ namespace RealisticAviation
             /// isn't: it stays at pattern altitude near the airport, apart from the arrival holds (stacking it on top of
             /// them sent the airplane climbing thousands of feet).
             /// </summary>
-            private void StartHolding(Entity entity, ref Flight flight, float3 resumeTarget, float3 resumeDirection, float2 inbound, bool stacked)
+            private void StartHolding(Entity entity, ref Flight flight, float3 resumeTarget, float3 resumeDirection, float2 inbound, bool stacked,
+                bool atFix = false, float2 fixXZ = default)
             {
                 AirplaneData airplaneData = m_PrefabAirplaneData[m_PrefabRefData[entity].m_Prefab];
                 flight.m_ResumeTarget = resumeTarget;
                 flight.m_ResumeDirection = resumeDirection;
                 flight.m_StackLevel = stacked ? TakeStackLevel(flight.m_Runway) : kNoStackLevel;
                 float3 fix = m_TransformData[entity].m_Position;
+                if (atFix)
+                {
+                    // A published holding fix (the STAR's IAF) instead of the present position.
+                    fix.xz = fixXZ;
+                }
                 if (stacked)
                 {
                     // Holds of different airports are separated by altitude: each class has its own band above its runway, B highest
@@ -1099,6 +1125,9 @@ namespace RealisticAviation
                 }
                 flight.m_Pattern = new HoldingPattern(fix, inbound, m_Settings.m_HoldingLegLength, GetTurnRadius(airplaneData));
                 flight.m_Holding = true;
+                flight.m_FastForwardTried = false;
+                flight.m_ProcStage = 0;
+                flight.m_StarHold = false;
                 m_Flights[entity] = flight;
             }
 

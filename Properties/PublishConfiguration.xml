@@ -15,7 +15,7 @@ This mod makes the aviation system in Cities: Skylines II more realistic. Airpla
 3. Pushback: Airplanes no longer make an unnatural 180° turn at the gate.
 4. Go-around: When the runway is not safe, or for other reasons such as weather, an airplane goes around.
 5. Tower radio: You can see the radio exchanges visually, including clearances and instructions.
-6. VFR chart: You can turn on a VFR chart from the info view. It shows information such as airspace.
+6. VFR chart: You can turn on a VFR chart from the info view. It shows various information such as airspace and terrain.
 
 ### II. Optional Features
 
@@ -65,14 +65,26 @@ These add-ons give the mod extra features. Please recommend good add-ons!
 **1. Aviation Weather Add-on** 항공기상을 추가해 주는 모드입니다. METAR와 ATIS가 추가됩니다.(ModID: 164025)</LongDescription>
   <Thumbnail Value="Properties/Thumbnail.png" />
   <Tag Value="Code Mod" />
-  <ModVersion Value="1.1.1" />
-  <ChangeLog>1.1.1
-- New option, off by default: a "Remove this airplane" button in every airplane's info panel, for an airplane stuck on a runway. Its state is written to the log when it is removed; please send the log if you can.
-- Glide path: arrivals keep their approach speed until just before touchdown, so they flare over the runway instead of halfway down the final.
+  <ModVersion Value="1.2.0" />
+  <ChangeLog>1.2.0
+- Instrument approach procedure (IAP, option, on by default): a cleared arrival leaves its airway and flies an RNAV "T" approach — to the left or right IAF, or straight in to the IF — turns onto final and descends at the glide path angle from the FAF. Replaces "Straight-in final with glide path".
+- Standard instrument arrival (STAR, option, off by default; with the IAP): an arrival told to hold holds at the IAF of its sector and flies the approach on from there.
+- Standard instrument departure (SID, option, on by default): after takeoff a departure turns at a standard rate and flies direct to a fix on its airway, climbing at least 200 ft/NM. Replaces "Smooth departure turns".
+- Holding stack: when a lower level frees up, the airplanes above are told to descend ("descend and maintain 5,000"); a new hold joins on top of the stack.
+- Takeoff clearance adds "no delay" when an arrival is due soon.
+- Fixed: an arrival from an outside connection that was told to hold right away could not start its approach after clearance.
+- Add-on API: options InstrumentApproach, StandardArrival, StandardDeparture; RadioMessage.NoDelay; AtcMessageKind.DescendInHold.
+- The two replaced options start at the new defaults.
 
-1.1.1
-- 새 옵션 (기본 꺼짐): 모든 비행기 정보란에 "이 비행기 제거" 버튼. 활주로에 멈춘 비행기가 있을 때 쓰세요. 제거할 때 비행기 상태가 로그에 남으니, 가능하면 로그를 보내 주세요.
-- 강하각: 도착기가 착지 직전까지 접근 속도를 유지해서, Final 중간이 아니라 활주로 위에서 플레어합니다.</ChangeLog>
+1.2.0
+- 계기 접근 절차 (IAP, 옵션, 기본 켜짐): 접근 허가를 받은 도착기가 항로를 벗어나 RNAV "T" 접근을 비행합니다. 좌·우 IAF 또는 정면에서 IF로 가서 Final로 돌고, FAF부터 강하각으로 내려옵니다. "강하각 직진 Final" 옵션을 대신합니다.
+- 표준 계기 도착 (STAR, 옵션, 기본 꺼짐, IAP와 함께): 대기 지시를 받은 도착기가 자기 구역의 IAF에서 Holding하고, 허가 후 거기서 접근을 이어 갑니다.
+- 표준 계기 출발 (SID, 옵션, 기본 켜짐): 이륙 후 표준 선회율로 돌아 항로 위 픽스로 직행하며, 최소 200 ft/NM으로 상승합니다. "출발기 완만한 선회" 옵션을 대신합니다.
+- Holding 스택: 아래층이 비면 위층 비행기에 "descend and maintain 5,000" 지시가 나가고, 새 Holding 비행기는 스택 맨 위로 들어갑니다.
+- 도착기가 곧 들어올 때 이륙 허가에 "no delay"가 붙습니다.
+- 수정: 맵 바깥에서 들어오자마자 대기 지시를 받은 도착기가, 허가 후에도 접근을 시작하지 못하던 문제.
+- 애드온 API: 옵션 InstrumentApproach, StandardArrival, StandardDeparture, RadioMessage.NoDelay, AtcMessageKind.DescendInHold.
+- 바뀐 두 옵션은 새 기본값으로 시작합니다.</ChangeLog>
   <GameVersion Value="1.6.*" />
   <!-- Public on the site; NewVersion writes this back too. -->
   <AccessLevel Value="Public" />

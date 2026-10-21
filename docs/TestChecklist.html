@@ -23,7 +23,7 @@
 </head>
 <body>
 <h1>Realistic Aviation 테스트 체크리스트</h1>
-<div class="sub">2026-10-21 기준 (1.1.1) · ✓ = 확인 완료 · 테스트 맵: 공항 5곳(가운데 국제공항 B, 소형 D) · 이상한 장면은 시각을 적어 두면 로그로 추적합니다.</div>
+<div class="sub">2026-10-21 기준 (1.2 테스트) · ✓ = 확인 완료 · 테스트 맵: 공항 5곳(가운데 국제공항 B, 소형 D) · 이상한 장면은 시각을 적어 두면 로그로 추적합니다.</div>
 
 <h2>1. 공역 (4-3)</h2>
 <ul>
@@ -135,6 +135,20 @@
 <ul>
 <li class="done"><span class="box">✓</span><span class="item"><b>"이 비행기 제거" 버튼</b>(옵션, 기본 꺼짐): 모든 비행기 정보란에 나오고, 한 번 누르면 제거된다 · 로그에 <code>removed by the player</code> 줄<span class="hint">구독판과 로컬 빌드가 함께 켜져 있으면 정보란에 Unknown element type이 뜬다: 테스트할 때는 구독을 끈다</span></span></li>
 <li class="done"><span class="box">✓</span><span class="item"><b>강하각 옵션 플레어</b>: Final 중간이 아니라 활주로 직전에 기수를 든다</span></li>
+</ul>
+
+<h2>1.2 새 기능 <span class="new">NEW</span></h2>
+<ul>
+<li><span class="box"></span><span class="item"><b>옵션</b>: IAP 기본 켜짐 · STAR 기본 꺼짐(IAP를 끄면 회색) · SID 기본 켜짐 · 강하각과 건물 높이 제한은 IAP를 끄면 회색 · Final 길이는 IAP를 켜면 회색</span></li>
+<li><span class="box"></span><span class="item"><b>IAP</b>: 허가받은 도착기가 항로를 벗어나 자기 구역의 좌·우 IAF 또는 IF로 바로 가고, IF에서 Final로 돌아 FAF부터 강하각으로 내려온다 <span class="hint">로그 <code>approach procedure: right IAF</code> → <code>IAF passed</code> → <code>IF passed, onto final</code></span></span></li>
+<li><span class="box"></span><span class="item">IAP 도착기가 활주로 2.5km 앞에서 활주로 차선으로 넘어가 Go-around 없이 내린다 <span class="hint">로그 <code>fast-forward</code> 줄 뒤 Approaching</span></span></li>
+<li><span class="box"></span><span class="item">IAP 중 고도: 픽스마다 계단처럼 내려오고, 갑자기 치솟거나 급강하하지 않는다</span></li>
+<li><span class="box"></span><span class="item">여러 도착기가 IAP로 줄지어 들어와도 간격(45초)이 유지된다</span></li>
+<li><span class="box"></span><span class="item"><b>STAR</b>(켰을 때): 대기 지시받은 도착기가 제자리가 아니라 자기 IAF(정면이면 IF)에서 1,000ft 간격으로 Holding · 허가 후 거기서 바로 절차를 잇는다 <span class="hint">로그 <code>STAR: holding at the right IAF</code></span></span></li>
+<li><span class="box"></span><span class="item"><b>SID</b>: 이륙 후 6°/s로 돌아 항로 위 4 km 앞 픽스로 직행하고, 그 뒤는 게임이 항로를 따라간다 · 좌우로 흔들리거나 빙빙 돌지 않는다 · 같은 활주로·같은 항로 출발기는 같은 궤적 · 상승이 멈추지 않는다 <span class="hint">로그 <code>SID: turn of</code></span></span></li>
+<li><span class="box"></span><span class="item"><b>No delay</b>: 도착기가 약 60초(출발 간격 + 30초) 안에 올 때 이륙 허가가 <code>cleared for takeoff, no delay</code>로 나오고, 복창에도 붙는다 · 도착기가 멀면 안 붙는다</span></li>
+<li><span class="box"></span><span class="item"><b>Holding 층 내리기</b>: 아래층 비행기가 허가받아 나가면 위층 비행기에 <code>descend and maintain 5,000</code> 교신이 나오고 실제로 내려온다 · 접근 허가가 낮은 층에서 나가 하강 Holding이 줄어든다 <span class="hint">로그 <code>descends in the hold to level</code></span></span></li>
+<li><span class="box"></span><span class="item">IAP·SID를 끄면 1.1.1과 똑같이 동작한다</span></li>
 </ul>
 
 <h2>10. 게임 패치 후 빠른 확인</h2>

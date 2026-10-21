@@ -822,6 +822,16 @@ namespace RealisticAviation
                 return state.IsFree(m_Tick) ? 0f : gap;
             }
 
+            /// <summary>
+            /// 1 ("cleared for takeoff, no delay") when an arrival in sequence is due within the departure gap plus
+            /// kNoDelayMarginSeconds, else 0.
+            /// </summary>
+            private int TakeoffNoDelay(Entity runway)
+            {
+                return m_Runways.TryGetValue(runway, out RunwayState state) && state.HasArrivalInSequence(m_Tick)
+                    && state.NextArrivalEta(m_Tick) <= SettingsAt(state.m_Airport).m_DepartureGapSeconds + kNoDelayMarginSeconds ? 1 : 0;
+            }
+
             private static float WakeSeconds(SizeClass leader, SizeClass follower)
             {
                 int steps = SizeRank(leader) - SizeRank(follower);
@@ -942,7 +952,8 @@ namespace RealisticAviation
                 }
                 else
                 {
-                    Say(entity, flight.m_Crossing ? AtcMessageKind.CrossRunway : AtcMessageKind.ClearedForTakeoff, flight);
+                    Say(entity, flight.m_Crossing ? AtcMessageKind.CrossRunway : AtcMessageKind.ClearedForTakeoff, flight,
+                        flight.m_Crossing ? 0 : TakeoffNoDelay(runway));
                 }
                 LogEvent(entity, $"cleared {what} ({Describe(flight)}, ETA {flight.m_LastEta:F0} s, waited {(m_Frame - flight.m_RequestFrame) / 60} s, ratio {ratio:F2}) runway", runway);
             }

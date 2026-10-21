@@ -59,6 +59,7 @@ namespace RealisticAviation
         private ComponentLookup<Owner> m_OwnerData;
         private ComponentLookup<Curve> m_CurveData;
         private ComponentLookup<Game.Net.CarLane> m_CarLaneData;
+        private ComponentLookup<Game.Net.ConnectionLane> m_ConnectionLaneData;
         private ComponentLookup<PrefabRef> m_PrefabRefData;
         private ComponentLookup<AircraftData> m_PrefabAircraftData;
         private ComponentLookup<AirplaneData> m_PrefabAirplaneData;
@@ -442,16 +443,17 @@ namespace RealisticAviation
             m_OwnerData = GetComponentLookup<Owner>(true);
             m_CurveData = GetComponentLookup<Curve>(true);
             m_CarLaneData = GetComponentLookup<Game.Net.CarLane>(true);
+            m_ConnectionLaneData = GetComponentLookup<Game.Net.ConnectionLane>(true);
             m_PrefabRefData = GetComponentLookup<PrefabRef>(true);
             m_PrefabAircraftData = GetComponentLookup<AircraftData>(true);
             m_PrefabAirplaneData = GetComponentLookup<AirplaneData>(true);
             m_PrefabGeometryData = GetComponentLookup<ObjectGeometryData>(true);
             m_TransformData = GetComponentLookup<Transform>(true);
             m_MovingData = GetComponentLookup<Moving>(true);
-            m_PathOwnerData = GetComponentLookup<PathOwner>(true);
+            m_PathOwnerData = GetComponentLookup<PathOwner>(false);
             m_CurrentLaneData = GetComponentLookup<AircraftCurrentLane>(false);
             m_NavigationData = GetComponentLookup<AircraftNavigation>(false);
-            m_NavigationLanes = GetBufferLookup<AircraftNavigationLane>(true);
+            m_NavigationLanes = GetBufferLookup<AircraftNavigationLane>(false);
             m_PathElements = GetBufferLookup<PathElement>(true);
             m_LaneObjects = GetBufferLookup<LaneObject>(true);
             m_LaneOverlaps = GetBufferLookup<LaneOverlap>(true);
@@ -585,6 +587,7 @@ namespace RealisticAviation
             m_OwnerData.Update(this);
             m_CurveData.Update(this);
             m_CarLaneData.Update(this);
+            m_ConnectionLaneData.Update(this);
             m_PrefabRefData.Update(this);
             m_PrefabAircraftData.Update(this);
             m_PrefabAirplaneData.Update(this);
@@ -625,6 +628,7 @@ namespace RealisticAviation
                 m_OwnerData = m_OwnerData,
                 m_CurveData = m_CurveData,
                 m_CarLaneData = m_CarLaneData,
+                m_ConnectionLaneData = m_ConnectionLaneData,
                 m_PrefabRefData = m_PrefabRefData,
                 m_PrefabAircraftData = m_PrefabAircraftData,
                 m_PrefabAirplaneData = m_PrefabAirplaneData,

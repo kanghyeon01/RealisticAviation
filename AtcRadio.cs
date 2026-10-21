@@ -73,6 +73,9 @@ namespace RealisticAviation
 
         /// <summary>Posted by an add-on through Api.Radio.Post: its own words, on the frequency it chose.</summary>
         Custom,
+
+        /// <summary>A level below in the holding stack is free: descend to it (the value is the altitude in feet). 1.2.</summary>
+        DescendInHold,
     }
 
     /// <summary>
@@ -137,6 +140,7 @@ namespace RealisticAviation
                 case AtcMessageKind.ContactTower:
                     return AtcFrequency.Ground;
                 case AtcMessageKind.HoldAtPresentPosition:
+                case AtcMessageKind.DescendInHold:
                 case AtcMessageKind.ClearedApproach:
                 case AtcMessageKind.InitialContact:
                 case AtcMessageKind.HandoffTo:
@@ -484,8 +488,9 @@ namespace RealisticAviation
                     pilot = $"Runway {runway}, line up and wait, {callsign}.";
                     break;
                 case AtcMessageKind.ClearedForTakeoff:
-                    tower = $"{callsign}, runway {runway}, cleared for takeoff.";
-                    pilot = $"Runway {runway}, cleared for takeoff, {callsign}.";
+                    string noDelay = message.m_Value == 1 ? ", no delay" : string.Empty;
+                    tower = $"{callsign}, runway {runway}, cleared for takeoff{noDelay}.";
+                    pilot = $"Runway {runway}, cleared for takeoff{noDelay}, {callsign}.";
                     break;
                 case AtcMessageKind.CrossRunway:
                     tower = $"{callsign}, cross runway {runway}.";
@@ -494,6 +499,10 @@ namespace RealisticAviation
                 case AtcMessageKind.HoldAtPresentPosition:
                     tower = $"{callsign}, hold at present position, maintain {message.m_Value:N0}, expect further clearance.";
                     pilot = $"Hold at present position, maintain {message.m_Value:N0}, {callsign}.";
+                    break;
+                case AtcMessageKind.DescendInHold:
+                    tower = $"{callsign}, descend and maintain {message.m_Value:N0}.";
+                    pilot = $"Descend and maintain {message.m_Value:N0}, {callsign}.";
                     break;
                 case AtcMessageKind.ClearedApproach:
                     string number = message.m_Value > 1 ? $"number {NumberWord(message.m_Value)}, " : string.Empty;

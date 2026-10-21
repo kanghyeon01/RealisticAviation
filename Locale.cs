@@ -105,12 +105,19 @@ namespace RealisticAviation
                 "Now and then an arriving airplane goes around at 100 ft on the pilot's own decision: 0.3% of approaches in clear weather, " +
                 "more the worse the weather, up to 8% in the heaviest rain, 12% in heavy snow or thick fog and 15% in a thunderstorm."
             },
-            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.GlidePath)), "Straight-in final with glide path" },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.InstrumentApproach)), "Instrument approach procedure (IAP)" },
             {
-                m_Setting.GetOptionDescLocaleID(nameof(Setting.GlidePath)),
-                "Arrivals leave the airway for a fix on the extended runway centerline, 1,500 ft above the runway, and descend from " +
-                "there at the angle below, instead of diving at the game's 20 degrees. The final length then follows from the angle " +
-                "(5 degrees: about 2.8 NM), also after a go-around."
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.InstrumentApproach)),
+                "Arrivals fly an RNAV \"T\" approach: to an initial approach fix (left, right or straight in, by where they come " +
+                "from), then the intermediate fix on the extended runway centerline, then the final approach fix 1,500 ft above the " +
+                "runway, and descend from there at the angle below instead of diving at the game's 20 degrees. The final length " +
+                "follows from the angle, also after a go-around."
+            },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.StandardArrival)), "Standard instrument arrival (STAR)" },
+            {
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.StandardArrival)),
+                "With the instrument approach: from its first call an arrival leaves the airway for its initial approach fix, and " +
+                "when the runway is busy it holds there, stacked 1,000 ft apart, instead of where it happens to be."
             },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.GlidePathDegrees)), "Glide path angle (degrees)" },
             {
@@ -126,11 +133,11 @@ namespace RealisticAviation
                 "surface. Existing buildings stay. Only lowers the game's own limits, never raises them."
             },
             { m_Setting.GetOptionGroupLocaleID(Setting.kDepartureGroup), "Departures" },
-            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.SmoothDepartureTurns)), "Smooth departure turns" },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.StandardDeparture)), "Standard instrument departure (SID)" },
             {
-                m_Setting.GetOptionDescLocaleID(nameof(Setting.SmoothDepartureTurns)),
-                "After takeoff, departures turn onto their airway at a standard rate (a turn about 1.4 km in radius) and climb at " +
-                "most 15 degrees, instead of the game's sharp turns of up to 30 degrees per second."
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.StandardDeparture)),
+                "After takeoff, departures turn at a standard rate (a turn about 1.4 km in radius) onto a course that joins their " +
+                "airway, and climb at most 15 degrees, instead of the game's sharp turns of up to 30 degrees per second."
             },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.ResetToDefaults)), "Reset to defaults" },
             { m_Setting.GetOptionDescLocaleID(nameof(Setting.ResetToDefaults)), "Puts every option on this page back to its default value." },
@@ -287,11 +294,18 @@ namespace RealisticAviation
                 "도착기 조종사가 100ft에서 가끔 스스로 Go-around 합니다. 맑은 날은 접근의 0.3%이고, " +
                 "날씨가 나쁠수록 늘어나 가장 강한 비에서 8%, 폭설이나 짙은 안개에서 12%, 뇌우에서 15%까지 올라갑니다."
             },
-            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.GlidePath)), "직선 Final과 강하각" },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.InstrumentApproach)), "계기 접근 절차 (IAP)" },
             {
-                m_Setting.GetOptionDescLocaleID(nameof(Setting.GlidePath)),
-                "도착기가 항로를 벗어나 활주로 연장선 위, 활주로보다 1,500ft 높은 지점으로 간 다음, 게임 기본 20도 급강하 대신 " +
-                "아래 각도로 내려옵니다. Final 길이는 각도에 따라 정해지며(5도: 약 2.8NM), Go-around 후 재접근에도 적용됩니다."
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.InstrumentApproach)),
+                "도착기가 RNAV \"T\"자형 접근을 합니다. 들어오는 방향에 따라 왼쪽·오른쪽·직진 IAF로 간 뒤, 활주로 연장선 위의 IF, " +
+                "활주로보다 1,500ft 높은 FAF를 거쳐, 게임 기본 20도 급강하 대신 아래 각도로 내려옵니다. Final 길이는 각도에 따라 " +
+                "정해지며, Go-around 후 재접근에도 적용됩니다."
+            },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.StandardArrival)), "표준 계기 도착 (STAR)" },
+            {
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.StandardArrival)),
+                "계기 접근 절차와 함께 씁니다. 도착기가 첫 교신 때부터 항로를 벗어나 자기 IAF로 가고, 활주로가 바쁘면 " +
+                "아무 데서나 대기하지 않고 IAF에서 1,000ft 간격으로 층을 쌓아 Holding합니다."
             },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.GlidePathDegrees)), "강하각(도)" },
             {
@@ -307,11 +321,11 @@ namespace RealisticAviation
                 "게임의 기존 제한보다 낮추기만 하고, 높이지는 않습니다."
             },
             { m_Setting.GetOptionGroupLocaleID(Setting.kDepartureGroup), "출발" },
-            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.SmoothDepartureTurns)), "출발기 완만한 선회" },
+            { m_Setting.GetOptionLabelLocaleID(nameof(Setting.StandardDeparture)), "표준 계기 출발 (SID)" },
             {
-                m_Setting.GetOptionDescLocaleID(nameof(Setting.SmoothDepartureTurns)),
-                "이륙한 비행기가 항로로 들어갈 때 게임 기본의 급선회(초당 최대 30도) 대신 표준 선회율(반경 약 1.4km)로 돌고, " +
-                "15도보다 가파르게 상승하지 않습니다."
+                m_Setting.GetOptionDescLocaleID(nameof(Setting.StandardDeparture)),
+                "이륙한 비행기가 게임 기본의 급선회(초당 최대 30도) 대신 표준 선회율(반경 약 1.4km)로 돌아 항로에 합류하는 " +
+                "코스로 가고, 15도보다 가파르게 상승하지 않습니다."
             },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.ResetToDefaults)), "기본값으로 되돌리기" },
             { m_Setting.GetOptionDescLocaleID(nameof(Setting.ResetToDefaults)), "이 페이지의 모든 옵션을 기본값으로 되돌립니다." },

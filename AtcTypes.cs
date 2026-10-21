@@ -112,6 +112,18 @@ namespace RealisticAviation
 
         public HoldingPattern m_DescentPattern;
 
+        /// <summary>The airway was fast-forwarded (or tried) for this approach (AtcSystem.TryFastForwardAirway).</summary>
+        public bool m_FastForwardTried;
+
+        /// <summary>Stage of the instrument approach procedure: 0 none yet, 1 to the IAF, 2 to the IF, 3 past the IF (final logic).</summary>
+        public byte m_ProcStage;
+
+        /// <summary>The IAF it was sent to: +1 / -1 along Right(course), or 0 straight in to the IF.</summary>
+        public sbyte m_ProcSide;
+
+        /// <summary>The hold is the STAR's, at the IAF of <see cref="m_ProcSide"/> (the IF from straight in).</summary>
+        public bool m_StarHold;
+
         /// <summary>This arrival has already gone around once (the practice go-around only happens once).</summary>
         public bool m_WentAround;
 
@@ -362,13 +374,17 @@ namespace RealisticAviation
         /// <summary>Departures turn onto their airway at a standard rate (the "Smooth departure turns" option).</summary>
         public bool m_SmoothDepartureTurns;
 
+        /// <summary>Arrivals fly to their initial approach fix from their first call and hold there (the STAR option, with the IAP).</summary>
+        public bool m_StandardArrival;
+
         /// <summary>Tangent of the glide path angle.</summary>
         public float m_GlideTan;
 
         public AtcSettings(Setting setting)
         {
-            m_GlidePath = setting.GlidePath;
-            m_SmoothDepartureTurns = setting.SmoothDepartureTurns;
+            m_GlidePath = setting.InstrumentApproach;
+            m_SmoothDepartureTurns = setting.StandardDeparture;
+            m_StandardArrival = setting.StandardArrival && setting.InstrumentApproach;
             m_GlideTan = (float)System.Math.Tan(System.Math.Max(3, System.Math.Min(20, setting.GlidePathDegrees)) * System.Math.PI / 180.0);
             m_TaxiSpacing = setting.TaxiSpacing;
             m_Pushback = setting.EnablePushback;
@@ -565,6 +581,9 @@ namespace RealisticAviation
         public byte m_DepartureControl;
         public uint m_TakeoffFrame;
 
+        /// <summary>The SID has brought this departure onto its airway once (AtcSystem.SmoothDepartureTurn).</summary>
+        public bool m_SidJoined;
+
         public uint m_Tick;
     }
 
@@ -576,6 +595,17 @@ namespace RealisticAviation
 
         /// <summary>The heading the airplane is being turned through (unit vector).</summary>
         public float2 m_Heading;
+
+        /// <summary>The SID's fix on the airway: its position, lane and place on the lane.</summary>
+        public float3 m_Fix;
+        public Entity m_FixLane;
+        public float m_FixT;
+
+        /// <summary>When the SID began (safety net: it hands over after AtcSystem's kDepartureMaxSeconds).</summary>
+        public uint m_StartFrame;
+
+        /// <summary>Flying straight on until the fix is outside the turning circle (see kDepartureCircleInside).</summary>
+        public bool m_Straight;
 
         public uint m_Tick;
     }

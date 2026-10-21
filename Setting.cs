@@ -46,29 +46,42 @@ namespace RealisticAviation
         public bool WeatherGoArounds { get; set; }
 
         /// <summary>
-        /// Arrivals fly a straight-in final from a fix on the extended centerline, 1,500 ft above the runway, and descend at
-        /// <see cref="GlidePathDegrees"/> instead of diving at the game's 20 degrees.
+        /// Instrument approach procedure (1.2): arrivals fly an RNAV "Basic T" (initial approach fix, intermediate fix, final
+        /// approach fix 1,500 ft above the runway) and descend on final at <see cref="GlidePathDegrees"/> instead of diving at
+        /// the game's 20 degrees. Replaces 1.1's "Straight-in final with glide path" (a new name, so that the new default
+        /// reaches settings files that saved the old option off).
         /// </summary>
         [SettingsUISection(kSection, kArrivalGroup)]
-        public bool GlidePath { get; set; }
+        public bool InstrumentApproach { get; set; }
 
-        /// <summary>Descent angle on final when <see cref="GlidePath"/> is on (real approaches: 3 degrees; the game: 20).</summary>
+        /// <summary>Descent angle on final with <see cref="InstrumentApproach"/> (real approaches: 3 degrees; the game: 20).</summary>
         [SettingsUISection(kSection, kArrivalGroup)]
         [SettingsUISlider(min = 3, max = 20, step = 1, unit = Unit.kInteger)]
-        [SettingsUIDisableByCondition(typeof(Setting), nameof(IsGlidePathOff))]
+        [SettingsUIDisableByCondition(typeof(Setting), nameof(IsInstrumentApproachOff))]
         public int GlidePathDegrees { get; set; }
 
         /// <summary>
-        /// With <see cref="GlidePath"/>: zoned buildings under each approach, out to the final approach fix, may not be built
-        /// or level up above a surface 50 m below the glide path (see ApproachZoneSystem).
+        /// Standard instrument arrival (1.2): from its first call an arrival flies to its initial approach fix and, when it
+        /// has to wait, holds there (stacked) instead of at its present position on the airway.
         /// </summary>
         [SettingsUISection(kSection, kArrivalGroup)]
-        [SettingsUIDisableByCondition(typeof(Setting), nameof(IsGlidePathOff))]
+        [SettingsUIDisableByCondition(typeof(Setting), nameof(IsInstrumentApproachOff))]
+        public bool StandardArrival { get; set; }
+
+        /// <summary>
+        /// With <see cref="InstrumentApproach"/>: zoned buildings under each approach, out to the final approach fix, may not
+        /// be built or level up above a surface 50 m below the glide path (see ApproachZoneSystem).
+        /// </summary>
+        [SettingsUISection(kSection, kArrivalGroup)]
+        [SettingsUIDisableByCondition(typeof(Setting), nameof(IsInstrumentApproachOff))]
         public bool ApproachHeightLimits { get; set; }
 
-        /// <summary>Departures turn onto their airway at a standard rate instead of the game's sharp turn (AtcSystem.SmoothDepartureTurn).</summary>
+        /// <summary>
+        /// Standard instrument departure (1.2): after takeoff, a turn of standard rate onto a course that joins the airway,
+        /// handed back where it meets it. Replaces 1.1's "Smooth departure turns".
+        /// </summary>
         [SettingsUISection(kSection, kDepartureGroup)]
-        public bool SmoothDepartureTurns { get; set; }
+        public bool StandardDeparture { get; set; }
 
         /// <summary>Extra gap between the nose of a waiting airplane and the edge of the runway.</summary>
         [SettingsUISection(kSection, kGroundGroup)]
@@ -83,7 +96,7 @@ namespace RealisticAviation
         /// <summary>Length of the final approach after the base turn, in nautical miles.</summary>
         [SettingsUISection(kSection, kPatternGroup)]
         [SettingsUISlider(min = 1f, max = 5f, step = 0.5f, unit = Unit.kFloatSingleFraction)]
-        [SettingsUIDisableByCondition(typeof(Setting), nameof(IsGlidePathOn))]
+        [SettingsUIDisableByCondition(typeof(Setting), nameof(IsInstrumentApproachOn))]
         public float FinalLengthNm { get; set; }
 
         /// <summary>Airplanes leaving a nose-in gate are pushed back instead of turning around on the spot.</summary>
@@ -148,9 +161,9 @@ namespace RealisticAviation
 
         public bool IsClosureTimeUnlimited() => !LimitClosureTime;
 
-        public bool IsGlidePathOn() => GlidePath;
+        public bool IsInstrumentApproachOn() => InstrumentApproach;
 
-        public bool IsGlidePathOff() => !GlidePath;
+        public bool IsInstrumentApproachOff() => !InstrumentApproach;
 
         public override void SetDefaults()
         {
@@ -161,10 +174,11 @@ namespace RealisticAviation
             FinalLengthNm = 2f;
             ArrivalSpacingSeconds = 45;
             WeatherGoArounds = true;
-            GlidePath = false;
+            InstrumentApproach = true;
             GlidePathDegrees = 5;
             ApproachHeightLimits = false;
-            SmoothDepartureTurns = false;
+            StandardDeparture = true;
+            StandardArrival = false;
             RemoveAirplaneButton = false;
             HoldingLegNm = 1.5f;
             HoldShortSetback = 30;

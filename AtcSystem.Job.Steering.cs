@@ -81,7 +81,7 @@ namespace RealisticAviation
                     flight.m_Told = false;
                     flight.m_ClearedFrame = m_Frame;
                     m_Flights[entity] = flight;
-                    Say(entity, AtcMessageKind.ClearedForTakeoff, flight);
+                    Say(entity, AtcMessageKind.ClearedForTakeoff, flight, TakeoffNoDelay(flight.m_Runway));
                     StandStill(entity);
                     return;
                 }

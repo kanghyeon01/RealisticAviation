@@ -670,14 +670,187 @@ From a review of the whole mod, done in this order:
   water below.
 - All three options are off by default; a "Reset to defaults" button sits at the bottom of the options page.
 
-## Next: approach procedure (1.2, decided 2026-10-20)
+## 1.2 design: SID, STAR and IAP (draft 2026-10-21)
 
-The game's airway ends about 2.5 km beside the runway at 1,000 m, so every approach after it is a forced manoeuvre.
-Plan: an RNAV "Basic T" per runway end (AIM 5-4: IF/IAF on the centerline, left and right IAFs perpendicular, IAF
-intercept at most 90°, 90° turn at the IF), steered by the tower from the approach clearance and from hold exits;
-vectors join at most 30° at least 2 NM outside the approach gate (JO 7110.65 5-9-1/2), not above the glide path;
-gradients initial ≤ 500 ft/NM, intermediate ≤ 318 ft/NM. Scaled down to the game: angles and gradients kept, lengths
-from the turn radius and the map (intermediate about three turn radii). Only with the glide path option.
+Why: the game's airway ends about 2.5 km beside the runway at 1,000 m, and departures are turned onto their airway at up
+to 30°/s, so both ends of a flight are forced manoeuvres. 1.2 gives every runway end published-style procedures, scaled
+down to the game. References: AIM 5-4 (TAA, Basic T), JO 7110.65 5-9-1/5-9-2 (vectors to final), TERPS 8260.3
+(segment gradients), 14 CFR 77.19 (approach surface).
+
+```
+departure: runway -> SID -> airway
+arrival:   airway -> STAR (option) or direct -> IAF -> IAP -> runway
+```
+
+### Options
+
+| Option | Default | Notes |
+|---|---|---|
+| Instrument approach procedure (IAP) | On | Replaces "Straight-in final with glide path" (it becomes part of the IAP) |
+| Glide path angle | 5° (3–20) | Unchanged |
+| Standard instrument arrival (STAR) | Off | Enabled only with the IAP |
+| Standard instrument departure (SID) | On | Replaces "Smooth departure turns" |
+| Building height limits under approaches | Off | Enabled only with the IAP; unchanged |
+
+- New setting names (e.g. `InstrumentApproach`, `StandardDeparture`, `StandardArrival`), so that the new defaults reach
+  players whose settings file already holds `GlidePath: false` / `SmoothDepartureTurns: false`. The old names go.
+- `Api.Options.GlidePath` and `Api.Options.SmoothDepartureTurns` stay (add-only promise) and return the new options;
+  `OperatingOverrides.GlidePath` keeps meaning "fly the IAP at this airport". New members are added for STAR and SID.
+
+### Scale
+
+Lengths come from a reference turn radius r: a standard rate turn at the displayed approach speed, i.e. 6°/s in game
+seconds at internal 150 m/s, r ≈ 1.4 km. Angles and gradients are kept from the rules; only lengths are scaled.
+
+| Item | Rule (real) | Game |
+|---|---|---|
+| FAF | 1,500 ft on the centerline | unchanged: max(1,500 ft / tan θ, 2r) out |
+| IF (intermediate fix) | intermediate segment ≥ 5–6 NM, IF turn 90° | FAF + 3r on the centerline |
+| IAF left / right | perpendicular to the intermediate course at the IF | IF ± 3r to each side |
+| IAF straight-in | the IF itself (IF/IAF) | same |
+| Intermediate gradient | ≤ 318 ft/NM, optimum 150 | FAF height + 3r × 2.5 % at the IF |
+| Initial gradient | ≤ 500 ft/NM, optimum 250 | IF height + 3r × 4 % at the IAFs |
+| Turns at fixes | fly-by, ≤ 90° | path following with a look-ahead of about r |
+
+### IAP (Basic T)
+
+1. Sector by where the arrival is when it is cleared (or leaves its hold), as the TAA areas: behind the line through the
+   IF perpendicular to the course → straight-in, direct to the IF/IAF; otherwise the left or right base IAF on its side.
+   Intercept at an IAF at most 90° (AIM 5-4).
+2. Route: present position → IAF → IF (90° fly-by onto the intermediate course) → FAF → down the glide path → runway lane
+   2.5 km out (as in 1.1) → approach speed held until 300 m before touchdown (1.1.1).
+3. Heights: each fix has a "not above" height from the gradients above; between fixes the target height follows the
+   route with the segment's maximum gradient, never below the glide path once past the FAF.
+4. The descent hold (1.1's HILPT) moves to the IF: a racetrack with the intermediate course as its inbound leg, used when
+   the arrival reaches the IF too high (AIM: "hold in lieu of procedure turn ... for course alignment and/or descent").
+5. ETA = remaining route length / approach speed (replaces `TryGetGlideRouteDistance`), so sequencing stays right.
+6. Radio: the approach clearance names the procedure ("cleared RNAV runway 07 approach") as now; no fix names yet.
+
+### STAR (option)
+
+1. From its first call (initial contact) an arrival leaves the airway and flies to its sector's IAF, descending to the
+   arrival hold height (class base: D 2,000 / C 4,000 / B 6,000 ft, as now).
+2. Holding fix = its IAF. Not cleared yet: it holds there, stacked 1,000 ft apart with the existing stack code, with the
+   initial leg (towards the IF) as the inbound course. Cleared: it leaves the hold onto the IAP from the IAF.
+3. Without STAR: as now, it holds at present position on the airway and is sent direct to its IAF when cleared.
+
+### SID
+
+1. Straight ahead on the runway heading until the game ends its takeoff phase (about 460 m, above the 400 ft rule).
+2. A turn of radius r towards the destination airway, on the side that gives the shorter path.
+3. The tangent from the turn circle to the airway course (the airway lane ahead), flown straight; the airway is joined at
+   that tangent point ("where the departure path comes closest to its own airway"). If the airway lies inside the turn
+   circle, it flies on straight until it can turn onto it.
+4. Climb at most 15°, never less than 200 ft/NM, up to the airway height (1,000 m above the ground).
+5. Hand-back at the join point from a point on the lane just ahead (as 1.1's departure turn). The path is computed once
+   per departure, so departures from one runway towards one airway always fly the same track.
+
+### Main technical risk: the airway is frozen while the tower steers
+
+The game sets `Approaching` only when its steering target reaches the end of the airway (`UpdateNavigationTarget`: next
+navigation lane not an airway), and only then moves the airplane onto its runway lane. While the tower steers an
+airplane (holds today), the game does not advance its airway (`AtcPreNavigationSystem`). Today the IAP logic starts only
+after the airway end, so this never mattered; an IAP or STAR taken over mid-airway would never reach `Approaching`.
+
+- **Plan A (try first):** at the hand-over point on final, fast-forward the airplane's path to the last airway lane:
+  current lane = that lane near its end, navigation lanes cleared, `PathOwner.m_ElementIndex` moved past it, so the game's
+  next update reaches the runway lane by itself. 1.1's departure hand-back already moves `m_CurvePosition.x` on one lane;
+  this goes further (the 1.0 notes warn that editing lane buffers once caused speed jumps), so it is prototyped first
+  with temporary trajectory logs.
+- **Plan B (fallback):** keep the game on its airway to its end, take over from there (as 1.1), and fly the IAP from that
+  point. Simpler, but the arrival flies from beside the runway out to its IAF, and the STAR is not possible.
+
+**Result (2026-10-21): Plan A works.** Prototype in `AtcSystem.Job.Procedures.cs` (`TryFastForwardAirway`), tried when a
+held arrival is cleared: the last airway lane is found in the current lane, the queued navigation lanes (the game
+queues the next airway lane ahead) or the path elements; the airplane's lane state is moved there near its end. Five of
+five arrivals, 5.5–8.6 km from the airway end, got `Approaching` 19–33 s later as they approached, and landed without a
+go-around; no speed jumps. The game sets `Approaching` when its target, within a braking distance of at least 1,500 m
+of the airplane, reaches the airway end; once `Approaching`, it switches to the runway lane when the target is within
+about 350 m. So the tower's steering target is kept 800–1,200 m ahead: close enough that `Approaching` comes right after
+a fast-forward, far enough that the runway lane comes only at the 2.5 km hand-over.
+
+### As built (2026-10-21, before the test round)
+
+Where the build differs from the draft above:
+
+- IAP: the descent hold stays at the final course join point (1.1's HILPT), not at the IF. The IF is already flown
+  fly-by with the segment gradients, so an arrival reaches the join point too high only from a short procedure.
+- IAP: the sector is chosen when the procedure starts (cleared, or leaving a present-position hold); the airway is
+  fast-forwarded once then (`m_FastForwardTried`). The tower's target is kept `kProcedureLookAhead` (1,000 m) ahead.
+- STAR: the IAF hold starts when the tower tells an arrival to hold (`StartHolding`), not from initial contact; an
+  arrival cleared at once flies the IAP from the airway, which is the same route. From a STAR hold the procedure goes
+  on at the hold's fix (`m_StarHold`, `m_ProcSide`), not from a new sector choice. The radio still says "hold at
+  present position".
+- SID (first build, replaced after testing, see below): the heading stepped at 6°/s towards the airway course, cutting at 45° until within
+  r × (1 − cos 45°) of it, then at the angle of an arc of radius r that ends on the course (acos(1 − off / r)). With
+  the same geometry every time, departures from one runway to one airway fly the same track. Least climb 200 ft/NM
+  (`m_MinClimbAngle` floor) below the airway height; at most 15°.
+- First test round (2026-10-21): arrivals reached the IF 550–930 m too high (the airway is some 1,500 m above the
+  runway; the TERPS maximum descents, 8 % and 5.2 %, are too shallow over the scaled segments) and every one went into
+  the descent hold; a held arrival's ETA came from the game's airway beside the runway, so the next could join the
+  sequence only once the one ahead had landed (waits of 140–357 s, one arrival every 2–3 min). Fixed: the procedure
+  descends at up to `kSteeringSlope` (6°), and an arrival still on its airway counts the procedure route it will fly.
+- Takeoff "no delay" (user request, 2026-10-21): "cleared for takeoff, no delay" (FAA phraseology; ICAO says "cleared for
+  immediate takeoff") when an arrival in sequence is due within the departure gap + 30 s (`kNoDelayMarginSeconds`).
+  `AtcMessage.m_Value` = 1; add-ons read `RadioMessage.NoDelay`. No option: the wording changes, not the behaviour.
+- IFR chart (user idea, 2026-10-21): a 1.2 patch after 1.2 ships, reviewed symbol by symbol with the user. First draft:
+  `docs/ifr-chart-preview.html` (procedure fixes, tracks and holds at the game's geometry, RNAV airways, green IAP
+  airports; stroke font letters A, I, T, '/', '.', '°'). Not built.
+- SID loop (test 2026-10-21, cargo route 1): after a 150° turn the departure was 3.7 km off its airway, and the game's
+  current lane ended ~2 km past its target; the 45° cut passed abeam of that end, the SID switched to "fly to the lane
+  end" with the point inside its turn circle, flew straight away and came back in a 6 km loop. Fixed: the course to join
+  is the first of the current, queued and path airway lanes (8 elements) the airplane isn't abeam past the end of; on
+  hand-back on a later lane, the lane state moves on to it (`AdvanceDepartureLane`, as the airway fast-forward).
+- Holding stack step-down (user request, 2026-10-21): each tick, holding arrivals (not cleared) move down to the
+  lowest free level under them, lowest first (`StepDownHolds`), with "descend and maintain N" (`AtcMessageKind.
+  DescendInHold`, appended after `Custom` so existing values stay). Arrivals leave the stack from low down instead of
+  reaching the IF from 2,000+ m and spending a minute or two in the descent hold. A new hold joins on top of the stack
+  (one level above the highest), not in a free level under airplanes already waiting.
+- UPS stuck after clearance (same test): airplanes from an outside connection start on their airway lane with
+  `TakingOff`; told to hold at once they kept it, and the approach logic skips takeoffs, so nothing flew them and their
+  ETA blocked the sequence until the clearance timed out. `FlightScan.m_TakingOff` is now false on airway lanes.
+- Final snap (test 2026-10-21, per-tick log): "IF passed" fires at the start of the fly-by turn, 1.4 km before the IF;
+  FlyToFinalFix then flew straight to the join point, closed the centerline at 15° and reached the runway lane 45 m off
+  and crabbing 14°, so the game snapped it straight (bank -8° then +13° within a second). Past the IF the final logic now
+  tracks the centerline (target `kProcedureLookAhead` ahead of abeam) until the join point.
+- Departure weaving (same test): (1) the UPS fix made TakingOff false on all airway lanes, but a real departure's first
+  climb lane is an airway with TakingOff, so the SID took it right at liftoff; the exception is now in ApplyGlidePath, for
+  arrivals only. (2) The airway after the climb was a zigzag of ~1 km lanes (135° and 180° pieces of a 157° route) and
+  the SID chased each lane's course; a 2 km look-ahead course still swung ±20° at each bend. The SID is now a turn and
+  "direct to" a fix on the airway 4 km ahead (`FindDepartureFix`); pointing at it, the game takes over with the fix as
+  its target (`HandOverAtFix` moves the lane state there). After that (`ZoneState.m_SidJoined`) the SID steps in
+  again only for bends over 30°.
+- SID circling again (same day): the move system turns an airplane at most `AirplaneData.m_FlyingTurning` rad/s
+  (AircraftMoveSystem); a 787 manages about 3°/s, so planned with 6°/s the fix looked reachable and it circled it. The
+  SID now plans with min(6°/s, m_FlyingTurning), and hands over at its fix after 90 s whatever happens.
+- SID jerks (same day): handed over within 10° of the fix, the game turned the rest at its own rate (15-18°/s) in half a
+  second; and a path update at a lane change (PathUnknown) ended the turn and gave the game its old target back. Now the
+  hand-over waits until the actual heading is within 2° of the fix (`kDepartureAlignedAngle`), and a path update no
+  longer ends a turn under way.
+- SID, per-tick attitude log (same day): turning was smooth (6°/s, bank 10-14°), but airliners reach ~240 m/s on the
+  airway, so the turning circle is 2.3 km, and a fix 4 km along the airway from its nearest point lay inside it for a
+  big turn: the airplane flew straight, then circled the fix through 270°; then "too close" picked a new fix from the
+  nearest airway point, behind it, and the bank reversed (+14° to -9°). Now the fix is the first airway point from 4 km
+  on (500 m steps, up to 15 km) outside the turning circle at the airplane's top flying speed (`IsReachable`), and a
+  fix is never re-picked mid-turn (close to it, the game takes over). The straight/turn switch has hysteresis.
+- SID after hand-over (same day): turns are now one smooth 6°/s turn (bank up to 14°). Right after a hand-over, the
+  rejoin check computed a new fix 4 km on, past a bend just beyond the handed-over fix, and started a turn the other
+  way (bank -14° to +4°). Once handed over, the SID now steps in again only when the game's own target is more than 30°
+  off the nose.
+- Procedures of nearby airports can overlap (decided 2026-10-21: handled in the 1.2 patch together with the IFR chart,
+  where the overlaps show). A procedure spans ~10 km out and ±4.3 km beside the runway (5°), beyond a class C/D
+  radius; holds are separated only by class band (same-class neighbours share 4,000 ft); SID fixes may cross another
+  airport's final. No mid-air collisions in the game, so it is visual only. Ideas: use the other IAF (or straight in)
+  when an IAF or its hold lies in another airport's airspace; raise one same-class neighbour's hold band 1,000 ft;
+  skip SID fixes over another airport's final.
+
+### Order of work
+
+1. Prototype the fast-forward (Plan A) on one arrival, with trajectory logs; decide A or B.
+2. Fix geometry per runway end (+ ETA), IAP route following, descent hold at the IF.
+3. SID.
+4. STAR and holds at the IAFs.
+5. Options, locales (EN/KO), API members, README, PLAN; remove the temporary logs; version 1.2.
 
 ## 1.1.1 (2026-10-21, feedback patch)
 

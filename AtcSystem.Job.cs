@@ -124,6 +124,9 @@ namespace RealisticAviation
             private const float kLandingRunwaySeconds = 30f;
             private const float kTakeoffRunwaySeconds = 30f;
 
+            /// <summary>A takeoff clearance says "no delay" when the next arrival is due within the departure gap plus this.</summary>
+            private const float kNoDelayMarginSeconds = 30f;
+
             // In-trail spacing: extra seconds per size class when a larger airplane lands ahead of a smaller one (wake turbulence).
             private const float kWakeSecondsPerClass = 20f;
             private const float kTaxiSpeedEstimate = 10f;
@@ -192,16 +195,17 @@ namespace RealisticAviation
             [ReadOnly] public ComponentLookup<Owner> m_OwnerData;
             [ReadOnly] public ComponentLookup<Curve> m_CurveData;
             [ReadOnly] public ComponentLookup<Game.Net.CarLane> m_CarLaneData;
+            [ReadOnly] public ComponentLookup<Game.Net.ConnectionLane> m_ConnectionLaneData;
             [ReadOnly] public ComponentLookup<PrefabRef> m_PrefabRefData;
             [ReadOnly] public ComponentLookup<AircraftData> m_PrefabAircraftData;
             [ReadOnly] public ComponentLookup<AirplaneData> m_PrefabAirplaneData;
             [ReadOnly] public ComponentLookup<ObjectGeometryData> m_PrefabGeometryData;
             [ReadOnly] public ComponentLookup<Transform> m_TransformData;
             [ReadOnly] public ComponentLookup<Moving> m_MovingData;
-            [ReadOnly] public ComponentLookup<PathOwner> m_PathOwnerData;
+            public ComponentLookup<PathOwner> m_PathOwnerData;
             public ComponentLookup<AircraftCurrentLane> m_CurrentLaneData;
             public ComponentLookup<AircraftNavigation> m_NavigationData;
-            [ReadOnly] public BufferLookup<AircraftNavigationLane> m_NavigationLanes;
+            [NativeDisableParallelForRestriction] public BufferLookup<AircraftNavigationLane> m_NavigationLanes;
             [ReadOnly] public BufferLookup<PathElement> m_PathElements;
             [ReadOnly] public BufferLookup<LaneObject> m_LaneObjects;
             [ReadOnly] public BufferLookup<LaneOverlap> m_LaneOverlaps;
@@ -308,6 +312,7 @@ namespace RealisticAviation
                     }
                     pushbackAreas.Dispose();
                     scans.Dispose();
+                    StepDownHolds();
                     EndPushbackTick();
                     EndDepartureTurnTick();
                     EndTaxiHoldTick();
