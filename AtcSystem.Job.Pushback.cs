@@ -32,7 +32,7 @@ namespace RealisticAviation
             /// where the path turns onto the taxiway, and is swung around until it faces along the path. Only the speed
             /// and the facing direction the game computed are replaced; its path and lane state are untouched.
             /// </summary>
-            private void UpdatePushback(Entity entity)
+            private void UpdatePushback(Entity entity, float fixedDistance)
             {
                 bool active = m_Pushbacks.TryGetValue(entity, out Pushback pushback);
                 if (!active)
@@ -114,8 +114,8 @@ namespace RealisticAviation
                         m_Heading = forward,
                         m_Phase = PushbackPhase.AwaitingApproval,
                         m_PhaseFrame = m_Frame,
-                        // A short push, about half the airplane's length, then it turns towards the taxiway.
-                        m_MaxDistance = math.clamp(size.y * kPushbackLengthFactor, kMinPushbackDistance, kMaxPushbackDistance),
+                        // A short push, about half the airplane's length (or the airport's fixed distance), then it turns towards the taxiway.
+                        m_MaxDistance = fixedDistance > 0f ? fixedDistance : math.clamp(size.y * kPushbackLengthFactor, kMinPushbackDistance, kMaxPushbackDistance),
                         m_Radius = 0.5f * math.cmax(size) + kPushbackClearance,
                     };
                     if (m_Settings.m_DetailedLog)
@@ -806,13 +806,12 @@ namespace RealisticAviation
             /// On taxiways the game lets an airplane roll up almost to the tail of the one ahead. This keeps the configured
             /// gap between its nose and the nearest tail ahead on its path, the way real taxiing aircraft keep their distance.
             /// </summary>
-            private void KeepTaxiSpacing(Entity entity)
+            private void KeepTaxiSpacing(Entity entity, float spacing)
             {
                 Entity prefab = m_PrefabRefData[entity].m_Prefab;
                 AircraftData aircraftData = m_PrefabAircraftData[prefab];
                 AircraftNavigation navigation = m_NavigationData[entity];
                 float nose = GetNoseLength(prefab);
-                float spacing = m_Settings.m_TaxiSpacing;
                 // Nothing beyond the point where the airplane could still stop with the gap to spare matters this tick.
                 float limit = nose + spacing + VehicleUtils.GetBrakingDistance(aircraftData, navigation.m_MaxSpeed, kTimeStep) + kTaxiScanMargin;
 
@@ -1026,7 +1025,7 @@ namespace RealisticAviation
             private float GetHoldShortSpeed(Entity entity, float distance)
             {
                 Entity prefab = m_PrefabRefData[entity].m_Prefab;
-                float stopDistance = math.max(0f, distance - GetNoseLength(prefab) - m_Settings.m_HoldShortSetback);
+                float stopDistance = math.max(0f, distance - GetNoseLength(prefab) - HoldShortSetback(entity));
                 return VehicleUtils.GetMaxBrakingSpeed(m_PrefabAircraftData[prefab], stopDistance, kTimeStep);
             }
 
@@ -1067,7 +1066,7 @@ namespace RealisticAviation
                 float2 inbound = math.normalizesafe(navigation.m_TargetPosition.xz - transform.m_Position.xz,
                     math.normalizesafe(m_MovingData[entity].m_Velocity.xz, new float2(0f, 1f)));
                 AtcSettings settings = SettingsForRunway(flight.m_Runway);
-                if (m_Settings.m_StandardArrival && settings.m_GlidePath && flight.m_Arrival && math.lengthsq(flight.m_EntryDirection) > 0.5f
+                if (settings.m_StandardArrival && settings.m_GlidePath && flight.m_Arrival && math.lengthsq(flight.m_EntryDirection) > 0.5f
                     && (m_CurrentLaneData[entity].m_LaneFlags & AircraftLaneFlags.Airway) != 0)
                 {
                     // STAR (1.2): it holds at the IAF of its sector (the IF from straight in), the next leg of the approach as the
@@ -1123,7 +1122,7 @@ namespace RealisticAviation
                         Say(entity, AtcMessageKind.HoldAtPresentPosition, flight, (int)math.round((fix.y - flight.m_EntryPosition.y) / (100f * 0.3048f)) * 100);
                     }
                 }
-                flight.m_Pattern = new HoldingPattern(fix, inbound, m_Settings.m_HoldingLegLength, GetTurnRadius(airplaneData));
+                flight.m_Pattern = new HoldingPattern(fix, inbound, SettingsForRunway(flight.m_Runway).m_HoldingLegLength, GetTurnRadius(airplaneData));
                 flight.m_Holding = true;
                 flight.m_FastForwardTried = false;
                 flight.m_ProcStage = 0;

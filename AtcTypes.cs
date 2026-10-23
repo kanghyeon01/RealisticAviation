@@ -380,11 +380,28 @@ namespace RealisticAviation
         /// <summary>Tangent of the glide path angle.</summary>
         public float m_GlideTan;
 
+        /// <summary>Building height limits under the approaches (with the instrument approach).</summary>
+        public bool m_ApproachHeightLimits;
+
+        /// <summary>Weather go-arounds on: <see cref="m_WeatherGoAroundChance"/> is the climate's chance, else 0.</summary>
+        public bool m_WeatherGoArounds;
+
+        /// <summary>The climate's go-around chance, kept even with weather go-arounds off (an add-on may turn them on per airport).</summary>
+        public float m_ClimateGoAroundChance;
+
+        /// <summary>Fixed pushback distance in metres; 0 = half the airplane's length (AtcJob.kMin..kMaxPushbackDistance).</summary>
+        public float m_PushbackDistance;
+
         public AtcSettings(Setting setting)
         {
+            m_ApproachHeightLimits = setting.ApproachHeightLimits;
+            m_WeatherGoArounds = setting.WeatherGoArounds;
+            m_ClimateGoAroundChance = 0f;
+            m_PushbackDistance = 0f;
             m_GlidePath = setting.InstrumentApproach;
             m_SmoothDepartureTurns = setting.StandardDeparture;
-            m_StandardArrival = setting.StandardArrival && setting.InstrumentApproach;
+            // The option as set; it applies only where the instrument approach is flown (an add-on may turn that on per airport).
+            m_StandardArrival = setting.StandardArrival;
             m_GlideTan = (float)System.Math.Tan(System.Math.Max(3, System.Math.Min(20, setting.GlidePathDegrees)) * System.Math.PI / 180.0);
             m_TaxiSpacing = setting.TaxiSpacing;
             m_Pushback = setting.EnablePushback;
@@ -698,9 +715,86 @@ namespace RealisticAviation
         /// <summary>-1: the option; 0: off; 1: on.</summary>
         public sbyte m_GlidePath;
 
+        // API version 2: NaN / -1 keep the option.
+        public sbyte m_StandardArrival;
+        public sbyte m_StandardDeparture;
+        public sbyte m_ApproachHeightLimits;
+        public sbyte m_WeatherGoArounds;
+        public sbyte m_Pushback;
+        public sbyte m_CloseForTornado;
+        public sbyte m_CloseForHail;
+        public sbyte m_CloseForOtherDisasters;
+        public sbyte m_LimitClosureTime;
+        public float m_HoldingLegLength;
+        public float m_HoldShortSetback;
+        public float m_TaxiSpacing;
+        public float m_PushbackDistance;
+        public float m_MaxClosureMinutes;
+
         /// <summary>The options' values with these on top.</summary>
         public AtcSettings Apply(AtcSettings settings)
         {
+            if (m_WeatherGoArounds >= 0)
+            {
+                settings.m_WeatherGoArounds = m_WeatherGoArounds != 0;
+                settings.m_WeatherGoAroundChance = settings.m_WeatherGoArounds ? settings.m_ClimateGoAroundChance : 0f;
+            }
+            if (m_StandardArrival >= 0)
+            {
+                settings.m_StandardArrival = m_StandardArrival != 0;
+            }
+            if (m_StandardDeparture >= 0)
+            {
+                settings.m_SmoothDepartureTurns = m_StandardDeparture != 0;
+            }
+            if (m_ApproachHeightLimits >= 0)
+            {
+                settings.m_ApproachHeightLimits = m_ApproachHeightLimits != 0;
+            }
+            if (m_Pushback >= 0)
+            {
+                settings.m_Pushback = m_Pushback != 0;
+            }
+            if (m_CloseForTornado >= 0)
+            {
+                settings.m_ClosureHazards = m_CloseForTornado != 0 ? settings.m_ClosureHazards | HazardKinds.Tornado : settings.m_ClosureHazards & ~HazardKinds.Tornado;
+            }
+            if (m_CloseForHail >= 0)
+            {
+                settings.m_ClosureHazards = m_CloseForHail != 0 ? settings.m_ClosureHazards | HazardKinds.Hail : settings.m_ClosureHazards & ~HazardKinds.Hail;
+            }
+            if (m_CloseForOtherDisasters >= 0)
+            {
+                settings.m_ClosureHazards = m_CloseForOtherDisasters != 0 ? settings.m_ClosureHazards | HazardKinds.Other : settings.m_ClosureHazards & ~HazardKinds.Other;
+            }
+            // The closure limit: switched off, switched on with the option's minutes (or the given ones), or just new minutes
+            // while the limit is on.
+            if (m_LimitClosureTime == 0)
+            {
+                settings.m_MaxClosureFrames = 0u;
+            }
+            else if (m_LimitClosureTime == 1 || (!float.IsNaN(m_MaxClosureMinutes) && settings.m_MaxClosureFrames != 0u))
+            {
+                float minutes = !float.IsNaN(m_MaxClosureMinutes) ? m_MaxClosureMinutes
+                    : settings.m_MaxClosureFrames != 0u ? settings.m_MaxClosureFrames / Setting.kFramesPerGameMinute : Setting.kDefaultMaxClosureMinutes;
+                settings.m_MaxClosureFrames = (uint)(System.Math.Max(1f, minutes) * Setting.kFramesPerGameMinute);
+            }
+            if (!float.IsNaN(m_HoldingLegLength))
+            {
+                settings.m_HoldingLegLength = m_HoldingLegLength;
+            }
+            if (!float.IsNaN(m_HoldShortSetback))
+            {
+                settings.m_HoldShortSetback = m_HoldShortSetback;
+            }
+            if (!float.IsNaN(m_TaxiSpacing))
+            {
+                settings.m_TaxiSpacing = m_TaxiSpacing;
+            }
+            if (!float.IsNaN(m_PushbackDistance))
+            {
+                settings.m_PushbackDistance = m_PushbackDistance;
+            }
             if (!float.IsNaN(m_ArrivalSpacingSeconds))
             {
                 settings.m_ArrivalSpacingSeconds = m_ArrivalSpacingSeconds;

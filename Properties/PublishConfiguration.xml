@@ -69,12 +69,16 @@ These add-ons give the mod extra features. Please recommend good add-ons!
   <Tag Value="Aircraft" />
   <Tag Value="Airplane" />
   <Tag Value="PublicTransportAirplane" />
-  <ModVersion Value="1.2.1" />
-  <ChangeLog>1.2.1
-- Fixed: an airplane going around kept blocking its runway while it flew the pattern, so landed and departing airplanes on that runway were stuck.
+  <ModVersion Value="1.2.2" />
+  <ChangeLog>1.2.2
+- Add-on API version 2: every option can be set per airport by add-ons, including a fixed pushback distance.
+- VFR chart: obstacles are found again when built-up areas are switched on or off with the chart open.
+- Airport closures: a disaster's reason is shown before an add-on's runway closure.
 
-1.2.1
-- 수정: Go-around한 비행기가 장주를 도는 동안 활주로를 계속 막아서, 그 활주로의 착륙기와 출발기가 멈추던 문제.</ChangeLog>
+1.2.2
+- 애드온 API 버전 2: 모든 옵션을 애드온이 공항별로 바꿀 수 있습니다 (고정 Pushback 거리 포함).
+- VFR 차트: 차트를 연 채로 시가지를 켜거나 끄면 장애물을 다시 찾습니다.
+- 공항 폐쇄: 애드온의 활주로 폐쇄보다 재난 사유를 먼저 표시합니다.</ChangeLog>
   <GameVersion Value="1.6.*" />
   <!-- Public on the site; NewVersion writes this back too. -->
   <AccessLevel Value="Public" />

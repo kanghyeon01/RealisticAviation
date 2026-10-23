@@ -163,6 +163,47 @@ namespace RealisticAviation
 
         /// <summary>Chance (0–1) that an arrival goes around at the decision height on its own; replaces the weather's.</summary>
         public float? WeatherGoAroundChance;
+
+        // Added in API version 2 (1.2.2): every option that can be set per airport. Null keeps the option.
+
+        /// <summary>The instrument approach procedure (the same as <see cref="GlidePath"/>, which counts when this is null).</summary>
+        public bool? InstrumentApproach;
+
+        /// <summary>Held arrivals hold at their IAF (only with the instrument approach).</summary>
+        public bool? StandardArrival;
+
+        /// <summary>Departures fly the SID (standard rate turn, direct to a fix on their airway).</summary>
+        public bool? StandardDeparture;
+
+        /// <summary>Building height limits under the approaches of this airport's runways (with the instrument approach).</summary>
+        public bool? ApproachHeightLimits;
+
+        /// <summary>Weather go-arounds: off makes the chance 0, on uses the climate's; <see cref="WeatherGoAroundChance"/> replaces either.</summary>
+        public bool? WeatherGoArounds;
+
+        /// <summary>Straight-leg length of holding patterns.</summary>
+        public float? HoldingLegLengthMeters;
+
+        /// <summary>Gap between a waiting airplane's nose and the runway.</summary>
+        public float? HoldShortSetbackMeters;
+
+        /// <summary>Gap a taxiing airplane keeps behind the airplane ahead; 0 turns the taxi spacing off.</summary>
+        public float? TaxiSpacingMeters;
+
+        /// <summary>Pushback out of nose-in gates.</summary>
+        public bool? Pushback;
+
+        /// <summary>How far an airplane is pushed back (by default half its length, 15–40 m). Clamped to 5–100 m.</summary>
+        public float? PushbackDistanceMeters;
+
+        /// <summary>Which disasters close the airport.</summary>
+        public bool? CloseForTornado;
+        public bool? CloseForHail;
+        public bool? CloseForOtherDisasters;
+
+        /// <summary>A closure for one disaster ends after <see cref="MaxClosureMinutes"/> game minutes.</summary>
+        public bool? LimitClosureTime;
+        public float? MaxClosureMinutes;
     }
 
     /// <summary>The operating values in use at an airport: the options, the weather and any add-on's overrides.</summary>
@@ -175,6 +216,26 @@ namespace RealisticAviation
         public float FinalLengthMeters;
         public float PatternWidthMeters;
         public float WeatherGoAroundChance;
+
+        // API version 2 (1.2.2).
+        public bool InstrumentApproach;
+        public bool StandardArrival;
+        public bool StandardDeparture;
+        public bool ApproachHeightLimits;
+        public bool WeatherGoArounds;
+        public float HoldingLegLengthMeters;
+        public float HoldShortSetbackMeters;
+        public float TaxiSpacingMeters;
+        public bool Pushback;
+
+        /// <summary>The fixed pushback distance, or 0 for the default (half the airplane's length, 15–40 m).</summary>
+        public float PushbackDistanceMeters;
+        public bool CloseForTornado;
+        public bool CloseForHail;
+        public bool CloseForOtherDisasters;
+
+        /// <summary>Longest closure for one disaster in game minutes; 0 = as long as the disaster lasts.</summary>
+        public float MaxClosureMinutes;
     }
 
     /// <summary>
@@ -190,7 +251,7 @@ namespace RealisticAviation
         /// The version of this interface: raised when something is added, so an add-on can check for what it needs. A property,
         /// not a constant, so an add-on reads the version of the Realistic Aviation that is running, not the one it was built with.
         /// </summary>
-        public static int Version => 1;
+        public static int Version => 2;
 
         /// <summary>The tower is running (a city is loaded or loading). Until then the members return nothing.</summary>
         public static bool IsReady => Tower != null;

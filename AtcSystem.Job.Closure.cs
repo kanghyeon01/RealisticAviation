@@ -46,13 +46,14 @@ namespace RealisticAviation
                     Entity runway = runways[i];
                     RunwayState state = m_Runways[runway];
                     Entity previous = state.m_ClosedTick == m_Tick - 1 ? state.m_ClosedBy : Entity.Null;
-                    Entity closedBy = FindHazard(runway, state.m_Airport, state.m_WaivedBy);
-                    if (closedBy != Entity.Null && closedBy == previous && m_Settings.m_MaxClosureFrames != 0
-                        && m_Frame - state.m_ClosedFrame >= m_Settings.m_MaxClosureFrames)
+                    AtcSettings airportSettings = SettingsAt(state.m_Airport);
+                    Entity closedBy = FindHazard(runway, state.m_Airport, state.m_WaivedBy, airportSettings.m_ClosureHazards);
+                    if (closedBy != Entity.Null && closedBy == previous && airportSettings.m_MaxClosureFrames != 0
+                        && m_Frame - state.m_ClosedFrame >= airportSettings.m_MaxClosureFrames)
                     {
                         LogEvent(closedBy, "reached the closure time limit; no longer closes runway", runway);
                         state.m_WaivedBy = closedBy;
-                        closedBy = FindHazard(runway, state.m_Airport, closedBy);
+                        closedBy = FindHazard(runway, state.m_Airport, closedBy, airportSettings.m_ClosureHazards);
                     }
                     // Closed by an add-on (the runway itself, or its whole airport): no time limit, until the add-on opens it.
                     if (closedBy == Entity.Null
@@ -69,7 +70,13 @@ namespace RealisticAviation
                     m_Runways[runway] = state;
                     if (closedBy != Entity.Null && state.m_Airport != Entity.Null)
                     {
-                        m_AirportClosures.TryAdd(state.m_Airport, closedBy);
+                        // The airport's reason is a disaster before an add-on's closure: one add-on closing a runway must not
+                        // hide a disaster closing another (an add-on's cause is the closed runway or airport itself).
+                        if (!m_AirportClosures.TryGetValue(state.m_Airport, out Entity shown)
+                            || (m_ApiClosures.ContainsKey(shown) && !m_ApiClosures.ContainsKey(closedBy)))
+                        {
+                            m_AirportClosures[state.m_Airport] = closedBy;
+                        }
                     }
                     if (closedBy != previous)
                     {
@@ -86,7 +93,8 @@ namespace RealisticAviation
                 runways.Dispose();
                 foreach (var pair in m_AirportClosures)
                 {
-                    if (!before.ContainsKey(pair.Key))
+                    // Newly closed, or still closed for another reason (the first one is over): announced with the reason now.
+                    if (!before.TryGetValue(pair.Key, out Entity was) || was != pair.Value)
                     {
                         Broadcast(pair.Key, AtcMessageKind.AirportClosed, pair.Value);
                     }
@@ -106,16 +114,16 @@ namespace RealisticAviation
             /// counts from the moment it is announced: the game may delay its start by the disaster warning time (early warning
             /// facilities), and an airport closes on the warning, not when the storm hits.
             /// </summary>
-            private Entity FindHazard(Entity runway, Entity airport, Entity waived)
+            private Entity FindHazard(Entity runway, Entity airport, Entity waived, HazardKinds hazards)
             {
-                if (m_Settings.m_ClosureHazards == HazardKinds.None)
+                if (hazards == HazardKinds.None)
                 {
                     return Entity.Null;
                 }
                 if (airport != Entity.Null && m_InDangerData.TryGetComponent(airport, out Game.Events.InDanger danger) && danger.m_EndFrame > m_Frame)
                 {
                     Entity hazard = danger.m_Event != Entity.Null ? danger.m_Event : airport;
-                    if (hazard != waived && ClosesAirport(hazard))
+                    if (hazard != waived && ClosesAirport(hazard, hazards))
                     {
                         return hazard;
                     }
@@ -131,7 +139,7 @@ namespace RealisticAviation
                         || !m_DurationData.TryGetComponent(hazard, out Game.Events.Duration duration)
                         || m_Frame >= duration.m_EndFrame
                         || !m_WeatherPhenomenonData.TryGetComponent(hazard, out Game.Events.WeatherPhenomenon phenomenon)
-                        || !ClosesAirport(hazard))
+                        || !ClosesAirport(hazard, hazards))
                     {
                         continue;
                     }
@@ -147,11 +155,11 @@ namespace RealisticAviation
             }
 
             /// <summary>The event (or an airport in danger without one, counted as "other") is a kind chosen to close airports.</summary>
-            private bool ClosesAirport(Entity hazard)
+            private bool ClosesAirport(Entity hazard, HazardKinds hazards)
             {
                 HazardKinds kind = m_PrefabRefData.TryGetComponent(hazard, out PrefabRef prefabRef)
                     && m_HazardKinds.TryGetValue(prefabRef.m_Prefab, out HazardKinds known) ? known : HazardKinds.Other;
-                return (m_Settings.m_ClosureHazards & kind) != 0;
+                return (hazards & kind) != 0;
             }
 
             // ------------------------------------------------------------ ground flow control (phase 4-5)

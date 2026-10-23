@@ -83,8 +83,8 @@ namespace RealisticAviation
                 float3 gameTarget = departureTurn.m_GameTarget;
                 // A path being updated (often as the game moves on to its next lane) doesn't end a turn under way: handed back then,
                 // the game got its old target back and swung towards it before the SID took over again.
-                if (!m_Settings.m_SmoothDepartureTurns || !scan.m_Flying || scan.m_TakingOff || (scan.m_PathUnknown && !active)
-                    || !m_Zones.TryGetValue(entity, out ZoneState zone) || zone.m_TakeoffFrame == 0
+                if (!scan.m_Flying || scan.m_TakingOff || (scan.m_PathUnknown && !active)
+                    || !m_Zones.TryGetValue(entity, out ZoneState zone) || zone.m_TakeoffFrame == 0 || !SettingsAt(zone.m_Airport).m_SmoothDepartureTurns
                     || (m_Frame - zone.m_TakeoffFrame) * kSecondsPerFrame > kDepartureTurnSeconds
                     || (m_Flights.TryGetValue(entity, out Flight flight) && (flight.m_Arrival || flight.m_Holding || flight.m_InCircuit)))
                 {

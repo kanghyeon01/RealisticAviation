@@ -3,7 +3,7 @@
  *
  * Id: RealisticAviation
  * Author: Boing787(kanghyeon01)
- * Version: 1.2.1
+ * Version: 1.2.2
  * Dependencies:
  */
 // Hand-written (no bundler): uses only the globals the game exposes to UI mods.

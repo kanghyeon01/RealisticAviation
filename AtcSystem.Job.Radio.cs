@@ -763,7 +763,7 @@ namespace RealisticAviation
             /// <summary>Path distance to the runway within which a ground airplane can get its clearance: its hold-short point plus a margin.</summary>
             private float ClearanceDistance(Entity entity)
             {
-                return GetNoseLength(m_PrefabRefData[entity].m_Prefab) + m_Settings.m_HoldShortSetback + kGroundClearanceMargin;
+                return GetNoseLength(m_PrefabRefData[entity].m_Prefab) + HoldShortSetback(entity) + kGroundClearanceMargin;
             }
 
             /// <summary>

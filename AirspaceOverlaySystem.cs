@@ -107,6 +107,9 @@ namespace RealisticAviation
         private int m_MefObstacleVersion = -1;
         private bool m_WasActive;
 
+        /// <summary>Built-up areas were shown last update (the obstacles depend on them).</summary>
+        private bool m_WasUrban;
+
         /// <summary>
         /// Adds the infoview to the game's prefabs, with its legend: airports of class B and D (blue) and of class C (magenta), as
         /// their airspace on the map, built-up areas (yellow) and obstacles (navy). They are building-colour infomodes of a type
@@ -204,8 +207,16 @@ namespace RealisticAviation
                 }
                 return;
             }
+            bool justOpened = !m_WasActive;
             m_WasActive = true;
             bool urban = s_UrbanInfomode != null && EntityManager.HasComponent<InfomodeActive>(m_PrefabSystem.GetEntity(s_UrbanInfomode));
+            // The obstacles are found once per opening, with the built-up areas' 299 ft rule only while those are shown: switched
+            // on or off with the chart open, the obstacles are found again (they kept the old rule until the chart was reopened).
+            if (!justOpened && urban != m_WasUrban)
+            {
+                m_Obstacles.Reset();
+            }
+            m_WasUrban = urban;
             if (urban)
             {
                 JobHandle count = m_UrbanAreas.Update(GetComponentLookup<Game.Objects.Transform>(true), GetBufferLookup<Game.Buildings.Renter>(true),

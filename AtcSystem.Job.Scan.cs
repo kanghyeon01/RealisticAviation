@@ -55,7 +55,7 @@ namespace RealisticAviation
                     AircraftData aircraftData = m_PrefabAircraftData[prefab];
                     scan.m_RequestDistance = math.max(kMinGroundRequestDistance,
                         VehicleUtils.GetBrakingDistance(aircraftData, aircraftData.m_GroundMaxSpeed, kTimeStep)
-                        + GetNoseLength(prefab) + m_Settings.m_HoldShortSetback + kGroundRequestMargin);
+                        + GetNoseLength(prefab) + HoldShortSetback(entity) + kGroundRequestMargin);
                 }
                 float limit = scan.m_RequestDistance * kKeepRequestFactor;
 

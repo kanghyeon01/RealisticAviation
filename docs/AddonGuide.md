@@ -57,13 +57,13 @@ the airports through `Api` and gives the tower each airport's ATIS.
 - **Unsubscribe and unregister** in your system's `OnDestroy`.
 - **Logging**: write per-airplane lines only when `Api.Options.DetailedLog` is on (the player's "Detailed log" option).
 
-## What `Api` offers (version 1)
+## What `Api` offers (version 2)
 
 ### `Api`
 
 | Member | What it does |
 |---|---|
-| `Version` | Interface version (1) |
+| `Version` | Interface version (2 from Realistic Aviation 1.2.2) |
 | `IsReady` | A city is loaded and the tower is running |
 
 ### `Api.Airports`
@@ -92,6 +92,18 @@ the airports through `Api` and gives the tower each airport's ATIS.
 - `FinalLengthMeters`
 - `PatternWidthMeters`
 - `WeatherGoAroundChance` (0–1; replaces the weather's chance)
+
+Added in version 2 (Realistic Aviation 1.2.2), so that every option can be set per airport:
+
+- `InstrumentApproach` (the same as `GlidePath`, which counts when this is null), `StandardArrival`, `StandardDeparture`
+- `ApproachHeightLimits`
+- `WeatherGoArounds` (off makes the chance 0, on uses the climate's; `WeatherGoAroundChance` replaces either)
+- `HoldingLegLengthMeters`, `HoldShortSetbackMeters`, `TaxiSpacingMeters` (0 turns the taxi spacing off)
+- `Pushback`, `PushbackDistanceMeters` (fixed distance, 5–100 m; null keeps half the airplane's length, 15–40 m)
+- `CloseForTornado`, `CloseForHail`, `CloseForOtherDisasters`, `LimitClosureTime`, `MaxClosureMinutes`
+
+`OperatingValues` has the same members (`PushbackDistanceMeters` 0 = the default length rule, `MaxClosureMinutes` 0 = no
+limit). Not per airport: "Detailed log" and the "Remove this airplane" button (read them from `Api.Options`).
 
 ### `Api.Runways`
 

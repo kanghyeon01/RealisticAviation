@@ -255,7 +255,7 @@ namespace RealisticAviation
                         return false;
                     }
                     flight.m_DescentHold = true;
-                    flight.m_DescentPattern = new HoldingPattern(fix, course, m_Settings.m_HoldingLegLength, radius);
+                    flight.m_DescentPattern = new HoldingPattern(fix, course, SettingsForRunway(flight.m_Runway).m_HoldingLegLength, radius);
                     m_Flights[entity] = flight;
                     if (m_Settings.m_DetailedLog)
                     {

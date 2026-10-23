@@ -111,8 +111,28 @@ namespace RealisticAviation
                 m_GlideTan = values.GlidePathDegrees.HasValue
                     ? math.tan(math.radians(math.clamp(values.GlidePathDegrees.Value, 1f, 30f)))
                     : float.NaN,
-                m_GlidePath = values.GlidePath.HasValue ? (sbyte)(values.GlidePath.Value ? 1 : 0) : (sbyte)-1,
+                m_GlidePath = Toggle(values.InstrumentApproach ?? values.GlidePath),
+                m_StandardArrival = Toggle(values.StandardArrival),
+                m_StandardDeparture = Toggle(values.StandardDeparture),
+                m_ApproachHeightLimits = Toggle(values.ApproachHeightLimits),
+                m_WeatherGoArounds = Toggle(values.WeatherGoArounds),
+                m_Pushback = Toggle(values.Pushback),
+                m_CloseForTornado = Toggle(values.CloseForTornado),
+                m_CloseForHail = Toggle(values.CloseForHail),
+                m_CloseForOtherDisasters = Toggle(values.CloseForOtherDisasters),
+                m_LimitClosureTime = Toggle(values.LimitClosureTime),
+                m_HoldingLegLength = values.HoldingLegLengthMeters.HasValue ? math.max(100f, values.HoldingLegLengthMeters.Value) : float.NaN,
+                m_HoldShortSetback = values.HoldShortSetbackMeters.HasValue ? math.max(0f, values.HoldShortSetbackMeters.Value) : float.NaN,
+                m_TaxiSpacing = values.TaxiSpacingMeters.HasValue ? math.max(0f, values.TaxiSpacingMeters.Value) : float.NaN,
+                m_PushbackDistance = values.PushbackDistanceMeters.HasValue ? math.clamp(values.PushbackDistanceMeters.Value, 5f, 100f) : float.NaN,
+                m_MaxClosureMinutes = values.MaxClosureMinutes ?? float.NaN,
             };
+        }
+
+        /// <summary>A nullable switch for the job: -1 keeps the option, 0 off, 1 on.</summary>
+        private static sbyte Toggle(bool? value)
+        {
+            return value.HasValue ? (sbyte)(value.Value ? 1 : 0) : (sbyte)-1;
         }
 
         // ---- Closures
@@ -183,6 +203,20 @@ namespace RealisticAviation
                 WeatherGoAroundChance = settings.m_WeatherGoAroundChance,
                 GlidePath = settings.m_GlidePath,
                 GlidePathDegrees = math.degrees(math.atan(settings.m_GlideTan)),
+                InstrumentApproach = settings.m_GlidePath,
+                StandardArrival = settings.m_StandardArrival && settings.m_GlidePath,
+                StandardDeparture = settings.m_SmoothDepartureTurns,
+                ApproachHeightLimits = settings.m_ApproachHeightLimits && settings.m_GlidePath,
+                WeatherGoArounds = settings.m_WeatherGoArounds,
+                HoldingLegLengthMeters = settings.m_HoldingLegLength,
+                HoldShortSetbackMeters = settings.m_HoldShortSetback,
+                TaxiSpacingMeters = settings.m_TaxiSpacing,
+                Pushback = settings.m_Pushback,
+                PushbackDistanceMeters = settings.m_PushbackDistance,
+                CloseForTornado = (settings.m_ClosureHazards & HazardKinds.Tornado) != 0,
+                CloseForHail = (settings.m_ClosureHazards & HazardKinds.Hail) != 0,
+                CloseForOtherDisasters = (settings.m_ClosureHazards & HazardKinds.Other) != 0,
+                MaxClosureMinutes = settings.m_MaxClosureFrames / Setting.kFramesPerGameMinute,
             };
         }
 
@@ -348,8 +382,9 @@ namespace RealisticAviation
         /// <summary>The approach of every runway end in use at an airport flying the glide path (see <see cref="ApproachZoneSystem"/>).</summary>
         internal void GetApproachCorridors(List<ApproachCorridor> corridors)
         {
-            // The "Approach height limits" option off: no surfaces, and those applied are given back to the game.
-            if (Mod.Setting == null || !Mod.Setting.ApproachHeightLimits)
+            // Where the "Approach height limits" option (or an add-on's override) is off: no surfaces, and those applied are
+            // given back to the game.
+            if (Mod.Setting == null)
             {
                 return;
             }
@@ -358,7 +393,7 @@ namespace RealisticAviation
             for (int i = 0; i < ends.Count; i++)
             {
                 OperatingValues values = GetOperatingValues(ends[i].Airport);
-                if (!values.GlidePath)
+                if (!values.ApproachHeightLimits)
                 {
                     continue;
                 }

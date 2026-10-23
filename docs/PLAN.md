@@ -882,3 +882,40 @@ Versions: MAJOR.MINOR.PATCH (the patch was meant as a letter, 1.1a, but the game
   airplane stopped on the runway with go-arounds and no arrivals. `LeaveRunwayLane` moves it back to the end of its
   last airway lane (the runway lane is the next path element again, queued lanes dropped), as the airway fast-forward
   does. Uploaded without an in-game test (the user's call: hard to reproduce on purpose).
+
+## Known issue: an arrival already on final when a save loads (2026-10-22, not fixed)
+
+- Seen once: right after loading a save, a departure was cleared and a landing airplane touched down on the runway
+  with it (ground overlap, no go-around).
+- Cause: an airplane already on its runway lane when the tower starts (on final inside the 2.5 km hand-over, or the
+  mod turned on mid-game) is never tracked. `Scan` skips the occupied runway's lanes when it looks for the upcoming
+  runway, so `TryRequest` has no runway for it; and airborne airplanes on a runway lane don't count as occupants
+  (`UpdateFlight`: only ground ones and TakingOff), so the runway looks free and departures are cleared. Untracked, it
+  gets no decision-height check either.
+- Possible fix (only if it is reported): count an untracked airborne airplane on a runway lane as an occupant
+  (`!scan.m_Flying || scan.m_TakingOff || !hasFlight`), or adopt it as a cleared arrival.
+
+## Next patch: tuning values through the add-on API (decided 2026-10-23)
+
+- Forum request (bouquet1, 2026-10-23): pushback distance per airport. Today it is fixed in the core (half the airplane
+  length, 15-40 m) and the API can't change it.
+- Decision: simple value changes belong in add-ons, not in the core. The core opens its tunable values as per-airport
+  `OperatingOverrides` (add-only, null = the option or built-in value); per-airport settings, their UI and saving live in
+  an add-on (a "tuning" add-on), the core panel stays as it is.
+- Candidates: pushback distance and speed, taxi spacing, hold-short setback, holding leg length, stack spacing, hold base
+  altitude (per class today), IAP / STAR / SID on or off, FAF height, line up and wait.
+
+## 1.2.2 (built 2026-10-23, patch: no visible change)
+
+- API version 2: `OperatingOverrides` / `OperatingValues` gain every option that can be set per airport (IAP, STAR,
+  SID, approach height limits, weather go-arounds, holding leg, hold-short setback, taxi spacing, pushback and a fixed
+  pushback distance, closure kinds and limit). The job reads them through `SettingsAt` / `SettingsForRunway` instead of
+  the global `m_Settings` (closures per airport; SID by the takeoff airport; ground settings by the airport the airplane
+  is at, `GetAirportOf`, skipped while no add-on set anything). The climate's go-around chance is kept with the option
+  off (`m_ClimateGoAroundChance`) so an add-on can turn weather go-arounds on at one airport. STAR's option is kept as
+  set and applies where the IAP is flown. Approach height limits per airport (`GetApproachCorridors`). Detailed log and
+  the remove button stay global. A pushback distance over 40 m may reach an arrival waiting 100 m before the stand.
+- Review fixes from the notes above: the VFR chart finds obstacles again when built-up areas are switched with the chart
+  open; an airport's closure reason prefers a disaster over an add-on's runway closure, and a changed reason is
+  announced again (banner follows).
+- RealisticAviationApiTest: version 2 members, clamping, clearing.

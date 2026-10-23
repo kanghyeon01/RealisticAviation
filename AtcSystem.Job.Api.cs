@@ -15,6 +15,12 @@ namespace RealisticAviation
                 return m_ApiOverrides.TryGetValue(airport, out OperatingOverride overrides) ? overrides.Apply(m_Settings) : m_Settings;
             }
 
+            /// <summary>The hold-short setback at the airport a ground airplane is at.</summary>
+            private float HoldShortSetback(Entity airplane)
+            {
+                return m_ApiOverrides.IsEmpty ? m_Settings.m_HoldShortSetback : SettingsAt(GetAirportOf(airplane)).m_HoldShortSetback;
+            }
+
             /// <summary>The operating values at the airport of a runway.</summary>
             private AtcSettings SettingsForRunway(Entity runway)
             {

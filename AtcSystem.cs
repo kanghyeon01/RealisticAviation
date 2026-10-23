@@ -736,10 +736,6 @@ namespace RealisticAviation
         private AtcSettings GetSettings()
         {
             AtcSettings settings = new AtcSettings(Mod.Setting);
-            if (!Mod.Setting.WeatherGoArounds)
-            {
-                return settings;
-            }
             float precipitation = math.saturate(m_ClimateSystem.precipitation);
             float fog = math.saturate(m_ClimateSystem.fog);
             float thunder = math.saturate(m_ClimateSystem.thunder);
@@ -753,6 +749,12 @@ namespace RealisticAviation
             {
                 m_LoggedGoAroundChance = settings.m_WeatherGoAroundChance;
                 Mod.Log.Info($"Weather go-around chance {settings.m_WeatherGoAroundChance * 100f:F1}% ({settings.m_Weather}; precipitation {precipitation:F2}{(snowing ? " snow" : string.Empty)}, fog {fog:F2}, thunder {thunder:F2})");
+            }
+            // Kept with the option off too: an add-on may turn weather go-arounds on at one airport.
+            settings.m_ClimateGoAroundChance = settings.m_WeatherGoAroundChance;
+            if (!settings.m_WeatherGoArounds)
+            {
+                settings.m_WeatherGoAroundChance = 0f;
             }
             return settings;
         }

@@ -33,9 +33,11 @@ namespace RealisticAviation
                 {
                     PassAirborneBlocker(entity);
                 }
-                if (!scan.m_Flying && m_Settings.m_Pushback)
+                // Ground settings are those of the airport the airplane is at (an add-on may set them per airport).
+                AtcSettings ground = scan.m_Flying || m_ApiOverrides.IsEmpty ? m_Settings : SettingsAt(GetAirportOf(entity));
+                if (!scan.m_Flying && ground.m_Pushback)
                 {
-                    UpdatePushback(entity);
+                    UpdatePushback(entity, ground.m_PushbackDistance);
                     if (pushbackAreas.Length != 0 && scan.m_Occupied == Entity.Null && !m_Pushbacks.ContainsKey(entity))
                     {
                         GiveWayToPushbacks(entity, pushbackAreas);
@@ -54,9 +56,9 @@ namespace RealisticAviation
                     }
                     HoldForGate(entity);
                 }
-                if (!scan.m_Flying && scan.m_Occupied == Entity.Null && m_Settings.m_TaxiSpacing > 0f)
+                if (!scan.m_Flying && scan.m_Occupied == Entity.Null && ground.m_TaxiSpacing > 0f)
                 {
-                    KeepTaxiSpacing(entity);
+                    KeepTaxiSpacing(entity, ground.m_TaxiSpacing);
                 }
                 if (!m_Flights.TryGetValue(entity, out Flight flight))
                 {
