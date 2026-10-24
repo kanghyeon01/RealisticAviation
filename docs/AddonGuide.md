@@ -57,13 +57,13 @@ the airports through `Api` and gives the tower each airport's ATIS.
 - **Unsubscribe and unregister** in your system's `OnDestroy`.
 - **Logging**: write per-airplane lines only when `Api.Options.DetailedLog` is on (the player's "Detailed log" option).
 
-## What `Api` offers (version 2)
+## What `Api` offers (version 3)
 
 ### `Api`
 
 | Member | What it does |
 |---|---|
-| `Version` | Interface version (2 from Realistic Aviation 1.2.2) |
+| `Version` | Interface version (2 from Realistic Aviation 1.2.2, 3 from 1.2.3) |
 | `IsReady` | A city is loaded and the tower is running |
 
 ### `Api.Airports`
@@ -139,6 +139,7 @@ limit). Not per airport: "Detailed log" and the "Remove this airplane" button (r
 | `TryGetLastMessage(airplane, out RadioMessage)` | The airplane's latest transmission |
 | `GetText(message, out first, out second, out pilotFirst)` | The lines as the panels show them ("ATC: ..." and "callsign: ...") |
 | `Post(airport, frequency, airplane, callsign, controller, pilot, pilotFirst)` | Add your own transmission. It shows in the panels like the tower's. With an airplane (any entity, a helicopter too) it is on that frequency only; without one it is a broadcast |
+| `AreaCode` | The city's telephone area code in the tower's phone number (pilot deviation calls; the number is always <area code>-555-01XX, a range set aside for fiction). Reads the one in use. Set 3 digits (NXX: 2–9, 0–8, 0–9, not N11), or null for the one made up from the city's name. Version 3 |
 | `RegisterCallsignProvider` / `Unregister...` | Supply callsigns (airline codes, say). The latest registered is asked; return null to keep RA's |
 | `RegisterPhraseProvider` / `Unregister...` | Change the words of every transmission (another language or phraseology). All registered are asked, in order. Your own posts are not changed |
 
@@ -149,7 +150,7 @@ limit). Not per airport: "Detailed log" and the "Remove this airplane" button (r
 | `MessageSent(RadioMessage)` | Every transmission, posts included |
 | `ApproachCleared`, `LandingCleared` | An arrival is cleared for the approach, or to land |
 | `GoAround` | An arrival goes around (told, or on its own) |
-| `HoldingStarted` | An airplane is told to hold (a descent in the holding stack, 1.2, is a `MessageSent` with `AtcMessageKind.DescendInHold`; its altitude is in the text) |
+| `HoldingStarted` | An airplane is told to hold (a descent in the holding stack, 1.2, is a `MessageSent` with `AtcMessageKind.DescendInHold`; its altitude is in the text; version 3 adds `PilotDeviation`, also only a `MessageSent`) |
 | `Landed` | An arrival has landed (handed to ground) |
 | `PushbackApproved`, `LineUpCleared`, `TakeoffCleared` | A departure is approved or cleared (`RadioMessage.NoDelay`: "cleared for takeoff, no delay", an arrival close behind) |
 | `TookOff` | A departure has taken off (handed to departure control) |

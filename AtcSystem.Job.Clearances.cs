@@ -257,8 +257,163 @@ namespace RealisticAviation
                 return scan.m_Distance <= AirportSpace.RadiusOf(AirspaceClass.C) + AirportSpace.kContactMargin;
             }
 
+            /// <summary>
+            /// An airplane already landing when the tower starts (a city just loaded, or the mod turned on mid-game) is on its
+            /// runway lane, so no runway lies ahead for it to ask for: it is taken as an arrival cleared to land. Untracked, the
+            /// runway looked free to departures and it got no decision-height check: it once landed on a departure.
+            /// </summary>
+            private bool AdoptLandingAirplane(in FlightScan scan)
+            {
+                Entity entity = scan.m_Entity;
+                AircraftCurrentLane currentLane = m_CurrentLaneData[entity];
+                if ((currentLane.m_LaneFlags & (AircraftLaneFlags.Landing | AircraftLaneFlags.Approaching)) == 0
+                    || !m_Runways.ContainsKey(scan.m_Occupied) || !m_CurveData.TryGetComponent(currentLane.m_Lane, out Curve curve))
+                {
+                    return false;
+                }
+                // The runway lane starts at the threshold, where a landing airplane's place on it stays until touchdown.
+                float3 entry = MathUtils.Position(curve.m_Bezier, currentLane.m_CurvePosition.x);
+                float2 tangent = MathUtils.Tangent(curve.m_Bezier, currentLane.m_CurvePosition.x).xz;
+                float distance = math.distance(m_TransformData[entity].m_Position.xz, entry.xz);
+                Flight flight = new Flight
+                {
+                    m_Runway = scan.m_Occupied,
+                    m_Sequence = NextSequence(),
+                    m_RequestFrame = m_Frame,
+                    m_ClearedFrame = m_Frame,
+                    m_LastTick = m_Tick,
+                    m_LastDistance = distance,
+                    m_LastFlying = true,
+                    m_LastEta = distance / EstimateSpeed(entity),
+                    m_EntryPosition = entry,
+                    m_EntryDirection = math.normalizesafe(currentLane.m_CurvePosition.z >= currentLane.m_CurvePosition.x ? tangent : -tangent),
+                    m_Clearance = Clearance.Cleared,
+                    m_Size = m_PrefabAircraftData[m_PrefabRefData[entity].m_Prefab].m_SizeClass,
+                    m_Arrival = true,
+                    m_SeenOnRunway = true,
+                    m_ProcStage = kStageFinal,
+                    m_FastForwardTried = true,
+                };
+                m_Flights.Add(entity, flight);
+                LogEvent(entity, "was already landing when the tower started; taken as cleared to land on runway", flight.m_Runway);
+                return true;
+            }
+
+            /// <summary>
+            /// An airplane already on a runway on the ground when the tower starts (not landing) has no runway ahead to ask for
+            /// either. One past its line-up point is on its takeoff roll: taken as cleared for takeoff, it holds the runway; one short
+            /// of it is told to line up and wait, stops there and goes once the runway is free. Two past it both keep rolling
+            /// (stopped halfway down the runway and started again would look stranger): a serious incident, and the one behind
+            /// gets a pilot deviation call. Untracked, both were left to the game: right after loading, a departure at the
+            /// threshold started its takeoff roll while the one ahead was rolling.
+            /// </summary>
+            private bool AdoptRunwayGroundAirplane(in FlightScan scan)
+            {
+                Entity entity = scan.m_Entity;
+                AircraftCurrentLane currentLane = m_CurrentLaneData[entity];
+                if ((currentLane.m_LaneFlags & AircraftLaneFlags.Landing) != 0 || !m_Runways.TryGetValue(scan.m_Occupied, out RunwayState state)
+                    || !m_CurveData.TryGetComponent(currentLane.m_Lane, out Curve curve))
+                {
+                    return false;
+                }
+                // Past its line-up point it is on its takeoff roll; short of it (or still entering), it stops there. (By speed, one
+                // just starting to roll counted as rolling too, found the runway taken and was left to the game.)
+                bool rolling = RunwayProgress(entity, out float progress, out float lineUpPoint) && progress > lineUpPoint;
+                bool alsoRolling = false, behindHolder = false;
+                if (rolling && state.m_Holder != Entity.Null)
+                {
+                    if (m_Flights.TryGetValue(state.m_Holder, out Flight holder) && !holder.m_Arrival && !holder.m_LastFlying
+                        && RunwayProgress(state.m_Holder, out float holderProgress, out _))
+                    {
+                        // Another departure is rolling on this runway: both go, whichever the tower saw first. The holder keeps
+                        // the runway; the ground occupants keep it closed to others until both are off it.
+                        alsoRolling = true;
+                        behindHolder = holderProgress >= progress;
+                        Mod.Log.Info($"Serious incident: {(behindHolder ? entity : state.m_Holder)} started its takeoff roll while " +
+                            $"{(behindHolder ? state.m_Holder : entity)} was still rolling on runway {scan.m_Occupied}");
+                        if (!behindHolder)
+                        {
+                            Say(state.m_Holder, AtcMessageKind.PilotDeviation, holder);
+                        }
+                    }
+                    else
+                    {
+                        rolling = false;
+                    }
+                }
+                if (!rolling && state.m_LineUp != Entity.Null)
+                {
+                    return false;
+                }
+                float2 tangent = MathUtils.Tangent(curve.m_Bezier, currentLane.m_CurvePosition.x).xz;
+                Flight flight = new Flight
+                {
+                    m_Runway = scan.m_Occupied,
+                    m_Sequence = NextSequence(),
+                    m_RequestFrame = m_Frame,
+                    m_ClearedFrame = m_Frame,
+                    m_LastTick = m_Tick,
+                    m_EntryPosition = MathUtils.Position(curve.m_Bezier, currentLane.m_CurvePosition.x),
+                    m_EntryDirection = math.normalizesafe(currentLane.m_CurvePosition.z >= currentLane.m_CurvePosition.x ? tangent : -tangent),
+                    m_Clearance = rolling ? Clearance.Cleared : Clearance.LineUp,
+                    m_Size = m_PrefabAircraftData[m_PrefabRefData[entity].m_Prefab].m_SizeClass,
+                    m_SeenOnRunway = true,
+                    m_OnRunwayTick = m_Tick,
+                    // Not for one rolling: "told" and cleared on the runway reads as a takeoff clearance cancelled for a closure,
+                    // which cleared it again and stopped it for the readback, halfway down the runway.
+                    m_Told = !rolling,
+                };
+                m_Flights.Add(entity, flight);
+                if (alsoRolling)
+                {
+                    if (behindHolder)
+                    {
+                        Say(entity, AtcMessageKind.PilotDeviation, flight);
+                    }
+                    LogEvent(entity, "was already rolling with another departure when the tower started; taken as cleared for takeoff on runway", flight.m_Runway);
+                }
+                else if (rolling)
+                {
+                    state.m_Holder = entity;
+                    LogEvent(entity, "was already rolling when the tower started; taken as cleared for takeoff on runway", flight.m_Runway);
+                }
+                else
+                {
+                    state.m_LineUp = entity;
+                    Say(entity, AtcMessageKind.LineUpAndWait, flight);
+                    LogEvent(entity, "was already on the runway when the tower started; told to line up and wait on runway", flight.m_Runway);
+                }
+                m_Runways[flight.m_Runway] = state;
+                return true;
+            }
+
+            /// <summary>
+            /// How far a ground airplane has come along its runway lane from the end it entered at, and where its line-up point
+            /// is (as AtcJob.HoldAtLineUpPoint measures). False when it isn't on a runway lane yet (still entering).
+            /// </summary>
+            private bool RunwayProgress(Entity entity, out float progress, out float lineUpPoint)
+            {
+                Entity prefab = m_PrefabRefData[entity].m_Prefab;
+                float tail = m_PrefabGeometryData.TryGetComponent(prefab, out ObjectGeometryData geometry) ? math.max(0f, -geometry.m_Bounds.min.z) : 0f;
+                lineUpPoint = tail + kLineUpInset;
+                progress = 0f;
+                AircraftCurrentLane currentLane = m_CurrentLaneData[entity];
+                if ((currentLane.m_LaneFlags & AircraftLaneFlags.Runway) == 0 || !m_CurveData.TryGetComponent(currentLane.m_Lane, out Curve curve))
+                {
+                    return false;
+                }
+                float start = math.select(1f, 0f, currentLane.m_CurvePosition.z >= currentLane.m_CurvePosition.x);
+                progress = math.abs(currentLane.m_CurvePosition.x - start) * curve.m_Length;
+                return true;
+            }
+
             private bool TryRequest(ref FlightScan scan)
             {
+                if (!scan.m_PathUnknown && scan.m_Occupied != Entity.Null
+                    && (scan.m_Flying ? !scan.m_TakingOff && AdoptLandingAirplane(scan) : AdoptRunwayGroundAirplane(scan)))
+                {
+                    return true;
+                }
                 if (scan.m_PathUnknown || scan.m_Upcoming == Entity.Null
                     || (scan.m_Flying ? !IsWithinContact(scan) || IsClimbingOut(scan.m_Entity) : scan.m_Distance > scan.m_RequestDistance || !HasTaxiClearance(scan.m_Entity)))
                 {

@@ -251,7 +251,7 @@ namespace RealisticAviation
         /// The version of this interface: raised when something is added, so an add-on can check for what it needs. A property,
         /// not a constant, so an add-on reads the version of the Realistic Aviation that is running, not the one it was built with.
         /// </summary>
-        public static int Version => 2;
+        public static int Version => 3;
 
         /// <summary>The tower is running (a city is loaded or loading). Until then the members return nothing.</summary>
         public static bool IsReady => Tower != null;
@@ -566,6 +566,21 @@ namespace RealisticAviation
             public static void Post(Entity airport, AtcFrequency frequency, Entity airplane, string callsign, string controller, string pilot, bool pilotFirst)
             {
                 Tower?.PostRadio(airport, frequency, airplane, callsign, controller, pilot, pilotFirst);
+            }
+
+            /// <summary>
+            /// The city's telephone area code in the tower's phone number (pilot deviation calls), 3 digits: NXX, N 2–9, X 0–8,
+            /// not N11. The number is always &lt;area code&gt;-555-01XX, a range set aside for fiction. Reads the one in use;
+            /// set null, or a code that isn't valid, for the one made up from the city's name. Not saved. Version 3.
+            /// </summary>
+            public static string AreaCode
+            {
+                get => AtcRadio.AreaCode();
+                set
+                {
+                    string code = value?.Trim();
+                    AtcRadio.s_AreaCode = AtcRadio.IsAreaCode(code) ? code : null;
+                }
             }
 
             /// <summary>Supplies the callsigns; the latest registered is asked.</summary>

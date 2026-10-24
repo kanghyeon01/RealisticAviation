@@ -76,6 +76,12 @@ namespace RealisticAviation
 
         /// <summary>A level below in the holding stack is free: descend to it (the value is the altitude in feet). 1.2.</summary>
         DescendInHold,
+
+        /// <summary>
+        /// The FAA "Brasher" notice to a pilot who broke a rule: here, one found rolling behind another departure on the
+        /// same runway when the tower started. 1.2.3.
+        /// </summary>
+        PilotDeviation,
     }
 
     /// <summary>
@@ -298,18 +304,76 @@ namespace RealisticAviation
         }
 
         /// <summary>
-        /// The airport's frequency in MHz, e.g. "118.300": made up from the airport entity so that it stays the same while
-        /// playing, in the usual VHF ranges (tower 118.000–121.400, ground 121.600–121.900, approach 124.000–127.975;
-        /// 25 kHz steps).
+        /// The airport's frequency in MHz, e.g. "118.300": made up from the airport (<see cref="AirportSeed"/>), in the usual
+        /// VHF ranges (tower 118.000–121.400, ground 121.600–121.900, approach 124.000–127.975; 25 kHz steps).
         /// </summary>
         public static string FrequencyNumber(Entity airport, AtcFrequency frequency)
         {
-            uint hash = math.hash(new int2(airport.Index, airport.Version));
+            uint hash = AirportSeed(airport);
             float megahertz = frequency == AtcFrequency.Ground ? 121.6f + hash % 13u * 0.025f
                 : frequency == AtcFrequency.Approach ? 124f + (hash >> 8) % 160u * 0.025f
                 : frequency == AtcFrequency.Departure ? 124f + ((hash >> 8) % 160u + 40u) % 160u * 0.025f
                 : 118f + hash % 137u * 0.025f;
             return megahertz.ToString("F3", CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>
+        /// The tower's telephone number for a pilot deviation call: the city's area code, then 555-0100 to 555-0199 (set aside
+        /// for fiction in every North American area code, so it can't be anyone's real number), the last two digits by airport.
+        /// </summary>
+        private static string TowerTelephone(Entity airport)
+        {
+            return $"{AreaCode()}-555-01{(AirportSeed(airport) >> 16) % 100u:D2}";
+        }
+
+        /// <summary>
+        /// The seed of an airport's made-up numbers (frequencies, telephone): where it stands, so they stay the same for that
+        /// airport. Not its entity, numbered anew when a save is loaded again in the same session, nor its name: one the player
+        /// didn't give follows the game's language.
+        /// </summary>
+        private static uint AirportSeed(Entity airport)
+        {
+            EntityManager? entityManager = World.DefaultGameObjectInjectionWorld?.EntityManager;
+            return entityManager.HasValue && entityManager.Value.TryGetComponent(airport, out Game.Objects.Transform transform)
+                ? math.hash((int2)math.round(transform.m_Position.xz))
+                : math.hash(new int2(airport.Index, airport.Version));
+        }
+
+        /// <summary>An add-on's area code (Api.Radio.AreaCode), null for none; cleared when a city is loaded.</summary>
+        internal static string s_AreaCode;
+
+        /// <summary>
+        /// One area code for the whole city: an add-on's when it set one, else made up from the city's name, so it stays the
+        /// same for that city.
+        /// </summary>
+        internal static string AreaCode()
+        {
+            if (s_AreaCode != null)
+            {
+                return s_AreaCode;
+            }
+            uint hash = StableHash(CenterName());
+            uint middle = (hash >> 4) % 9u;
+            uint last = (hash >> 8) % 10u;
+            return ((2u + hash % 8u) * 100u + middle * 10u + (middle == 1u && last == 1u ? 0u : last)).ToString(CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>A North American area code, NXX: N 2–9, X 0–8 (N9X is reserved), and not N11 (service codes such as 911).</summary>
+        public static bool IsAreaCode(string code)
+        {
+            return code != null && code.Length == 3 && code[0] >= '2' && code[0] <= '9' && code[1] >= '0' && code[1] <= '8'
+                && code[2] >= '0' && code[2] <= '9' && !(code[1] == '1' && code[2] == '1');
+        }
+
+        /// <summary>A stable hash (string.GetHashCode may differ between runs), so made-up numbers stay the same.</summary>
+        private static uint StableHash(string text)
+        {
+            uint hash = 2166136261u;
+            for (int i = 0; i < text.Length; i++)
+            {
+                hash = (hash ^ text[i]) * 16777619u;
+            }
+            return hash;
         }
 
         /// <summary>The en-route center is named after the city (outside every airport zone is class A, phase 4-3).</summary>
@@ -322,13 +386,7 @@ namespace RealisticAviation
         /// <summary>The center's frequency, made up from its name in the en-route range (128.000–134.975, 25 kHz).</summary>
         private static string CenterFrequency(string center)
         {
-            // A stable hash (string.GetHashCode may differ between runs), so the frequency stays the same.
-            uint hash = 2166136261u;
-            for (int i = 0; i < center.Length; i++)
-            {
-                hash = (hash ^ center[i]) * 16777619u;
-            }
-            return (128f + hash % 280u * 0.025f).ToString("F3", CultureInfo.InvariantCulture);
+            return (128f + StableHash(center) % 280u * 0.025f).ToString("F3", CultureInfo.InvariantCulture);
         }
 
         /// <summary>Clears the numbering (a different city was loaded).</summary>
@@ -337,6 +395,7 @@ namespace RealisticAviation
             m_RouteNumbers.Clear();
             m_CustomTexts.Clear();
             m_CustomOrder.Clear();
+            s_AreaCode = null;
         }
 
         /// <summary>
@@ -499,6 +558,11 @@ namespace RealisticAviation
                 case AtcMessageKind.HoldAtPresentPosition:
                     tower = $"{callsign}, hold at present position, maintain {message.m_Value:N0}, expect further clearance.";
                     pilot = $"Hold at present position, maintain {message.m_Value:N0}, {callsign}.";
+                    break;
+                case AtcMessageKind.PilotDeviation:
+                    string telephone = TowerTelephone(message.m_Airport);
+                    tower = $"{callsign}, possible pilot deviation, advise you contact {airportName} Tower at {telephone}.";
+                    pilot = $"Wilco, {telephone}, {callsign}.";
                     break;
                 case AtcMessageKind.DescendInHold:
                     tower = $"{callsign}, descend and maintain {message.m_Value:N0}.";

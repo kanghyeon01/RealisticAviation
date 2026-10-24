@@ -883,7 +883,7 @@ Versions: MAJOR.MINOR.PATCH (the patch was meant as a letter, 1.1a, but the game
   last airway lane (the runway lane is the next path element again, queued lanes dropped), as the airway fast-forward
   does. Uploaded without an in-game test (the user's call: hard to reproduce on purpose).
 
-## Known issue: an arrival already on final when a save loads (2026-10-22, not fixed)
+## Known issue: an arrival already on final when a save loads (2026-10-22; fixed in 1.2.3)
 
 - Seen once: right after loading a save, a departure was cleared and a landing airplane touched down on the runway
   with it (ground overlap, no go-around).
@@ -919,3 +919,37 @@ Versions: MAJOR.MINOR.PATCH (the patch was meant as a letter, 1.1a, but the game
   open; an airport's closure reason prefers a disaster over an add-on's runway closure, and a changed reason is
   announced again (banner follows).
 - RealisticAviationApiTest: version 2 members, clamping, clearing.
+
+## 1.2.3 (built 2026-10-24)
+
+- Fixed the known issue above (the user saw it again: the first airplane after loading wasn't handled; log
+  2026-10-24 18:56: an airplane got "taxi to the gate" without ever being an arrival). `AdoptLandingAirplane`
+  (`TryRequest`): an untracked airplane in the air on a runway lane with Landing/Approaching is taken as an arrival
+  cleared to land on that runway (entry at its place on the lane, i.e. the threshold; procedure stage final). From then
+  on it counts in the runway's arrivals, gets "cleared to land", the decision-height check and touchdown as any other.
+- Also departures (user's screenshots, load at 20:44:27): a Spirit already rolling mid-runway and a UPS standing at the
+  threshold when the save loaded were both untracked (the Spirit appears only as a transit contact once airborne, the UPS
+  never); the game rolled the UPS before the Spirit had lifted off. `AdoptRunwayGroundAirplane` (`TryRequest`): an
+  untracked airplane on a runway on the ground, not landing, is taken as cleared for takeoff and runway holder when
+  rolling (≥ kRollingSpeed), or told to line up and wait (runway line-up slot) when standing, so it goes only once the
+  runway is free (`ReleaseLinedUp`).
+- Test (20:56): the Spirit was taken as rolling, but the UPS was moving too (entering, starting to roll) and so counted
+  as rolling; the runway holder was taken, so it was left untracked and rolled. Now (the user's rule) past its line-up point it
+  counts as on its takeoff roll, short of it (or still entering) it stops there; of two past it the one further along
+  holds the runway and the other is lined up (`RunwayProgress`), whichever the tower sees first.
+- Then (user's call): two both past the line-up point both keep rolling; stopping one halfway down the runway and starting
+  it again looks stranger. The log says "Serious incident: X started its takeoff roll while Y was still rolling", and the
+  one behind gets the FAA Brasher notice, new `AtcMessageKind.PilotDeviation` (appended after `DescendInHold`): "possible
+  pilot deviation, advise you contact <airport> Tower at <telephone>." / "Wilco, <telephone>" (a made-up number per airport position
+  in the 555-0100–0199 range set aside for fiction, `TowerTelephone`; one area code per city, made up from the city name;
+  no option (only this rare call uses it), but add-ons can set it: `Api.Radio.AreaCode`, API version 3). The first one keeps the
+  runway holder; the second is cleared but holds nothing, and the ground occupants keep the runway closed until both are
+  off it.
+- Log check (21:46 / 21:48): every adopted rolling airplane got a "cleared for takeoff" right after, and a short stop:
+  adoption set `m_Told`, and told + cleared on the runway is the closure-over path in Steering (clear again, stand still
+  for the readback). Rolling ones are now adopted with `m_Told` false: no clearance call, no stop. The phone number's last
+  two digits come from where the airport stands, not its entity (the airport was Entity 1754497:1, then 1757281:3 after a
+  reload in the same session) nor its name (a name the player didn't give follows the game language). Then (user's call)
+  the tower frequencies too: `AtcRadio.AirportSeed`, the airport's position, seeds both (frequencies change once).
+- ICAO code tooltip no longer says it is for weather reports (that is the weather add-on): "Add-ons can use it." /
+  "다양한 애드온에서 활용할 수 있습니다."

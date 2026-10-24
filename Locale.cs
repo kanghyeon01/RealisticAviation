@@ -178,7 +178,7 @@ namespace RealisticAviation
                 "Gap between the nose of an airplane holding short and the edge of the runway it is waiting for."
             },
             { "RealisticAviation.Code.Label", "ICAO code" },
-            { "RealisticAviation.Code.Tooltip", "The airport's location code (3 or 4 letters or digits), used in its weather reports. Leave it empty for an automatic code from the airport's name." },
+            { "RealisticAviation.Code.Tooltip", "The airport's location code (3 or 4 letters or digits). Add-ons can use it. Leave it empty for an automatic code from the airport's name." },
             { "RealisticAviation.LineUp.Label", "Line up and wait" },
             {
                 "RealisticAviation.LineUp.Tooltip",
@@ -366,7 +366,7 @@ namespace RealisticAviation
                 "활주로 진입을 기다리는 비행기의 기수와 활주로 가장자리 사이에 두는 거리입니다."
             },
             { "RealisticAviation.Code.Label", "ICAO 코드" },
-            { "RealisticAviation.Code.Tooltip", "공항 식별 코드(영문자나 숫자 3~4자리)입니다. 기상 관측 보고에 쓰입니다. 비워 두면 공항 이름으로 자동 코드를 만듭니다." },
+            { "RealisticAviation.Code.Tooltip", "공항 식별 코드(영문자나 숫자 3~4자리)입니다. 다양한 애드온에서 활용할 수 있습니다. 비워 두면 공항 이름으로 자동 코드를 만듭니다." },
             { "RealisticAviation.LineUp.Label", "Line Up and Wait" },
             {
                 "RealisticAviation.LineUp.Tooltip",
