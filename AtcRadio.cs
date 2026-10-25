@@ -12,6 +12,86 @@ using Unity.Mathematics;
 
 namespace RealisticAviation
 {
+    /// <summary>
+    /// The weights by which a pilot's own go-around picks its <see cref="GoAroundReason"/> in each weather, for the whole city
+    /// (main thread; copied into the tower's settings each update). 0 never picks a reason. Add-ons change them through
+    /// Api.Radio; back to the defaults when a city is loaded.
+    /// </summary>
+    internal static class GoAroundReasons
+    {
+        public const int kCount = (int)GoAroundReason.BirdsOnRunway + 1;
+        private const int kWeathers = (int)WeatherKind.Thunderstorm + 1;
+
+        // Rows: Clear, Rain, Snow, Fog, Thunderstorm. Columns: unstable approach, runway not in sight, windshear, gusty winds,
+        // wake turbulence, birds on the runway. On an ILS the runway is out of sight at minimums only in fog or very heavy
+        // rain or snow; wind comes with rain, snow and thunderstorms.
+        private static readonly float[] s_Defaults =
+        {
+            60f, 0f, 0f, 10f, 20f, 10f,
+            40f, 10f, 10f, 40f, 0f, 0f,
+            40f, 10f, 0f, 50f, 0f, 0f,
+            10f, 90f, 0f, 0f, 0f, 0f,
+            25f, 5f, 45f, 25f, 0f, 0f,
+        };
+
+        private static readonly float[] s_Weights = (float[])s_Defaults.Clone();
+
+        public static float Get(GoAroundReason reason, WeatherKind weather)
+        {
+            return IsValid(reason, weather) ? s_Weights[(int)weather * kCount + (int)reason] : 0f;
+        }
+
+        public static void Set(GoAroundReason reason, WeatherKind weather, float weight)
+        {
+            if (IsValid(reason, weather))
+            {
+                s_Weights[(int)weather * kCount + (int)reason] = math.max(0f, weight);
+            }
+        }
+
+        public static void Reset()
+        {
+            System.Array.Copy(s_Defaults, s_Weights, s_Weights.Length);
+        }
+
+        /// <summary>The weights in one weather, by reason, for the tower job.</summary>
+        public static void Fill(WeatherKind weather, ref Unity.Collections.FixedList64Bytes<float> weights)
+        {
+            weights.Clear();
+            for (int i = 0; i < kCount; i++)
+            {
+                weights.Add(Get((GoAroundReason)i, weather));
+            }
+        }
+
+        /// <summary>The words a pilot adds to "going around" (not required, but usual; the tower asks for it otherwise).</summary>
+        public static string Words(GoAroundReason reason)
+        {
+            switch (reason)
+            {
+                case GoAroundReason.UnstableApproach:
+                    return "unstable approach";
+                case GoAroundReason.RunwayNotInSight:
+                    return "runway not in sight";
+                case GoAroundReason.Windshear:
+                    return "windshear";
+                case GoAroundReason.GustyWinds:
+                    return "gusty winds";
+                case GoAroundReason.WakeTurbulence:
+                    return "wake turbulence";
+                case GoAroundReason.BirdsOnRunway:
+                    return "birds on the runway";
+                default:
+                    return null;
+            }
+        }
+
+        private static bool IsValid(GoAroundReason reason, WeatherKind weather)
+        {
+            return (int)reason < kCount && (int)weather < kWeathers;
+        }
+    }
+
     /// <summary>What the tower said to an airplane (phase 4-2); the words are built on the main thread when shown.</summary>
     public enum AtcMessageKind : byte
     {
@@ -112,7 +192,10 @@ namespace RealisticAviation
         /// <summary>The disaster event for closure messages, else Entity.Null.</summary>
         public Entity m_Event;
 
-        /// <summary>Altitude in feet (hold), position in the landing sequence (cleared to land), or 1 for right-hand traffic (go-around).</summary>
+        /// <summary>
+        /// Altitude in feet (hold), position in the landing sequence (cleared to land), or for a go-around bit 0 = right-hand
+        /// traffic and, for the pilot's own, its <see cref="GoAroundReason"/> + 1 above it (0: none given).
+        /// </summary>
         public int m_Value;
 
         /// <summary>The airplane's height above the airport, in feet rounded to 100, when the message was said (for check-ins).</summary>
@@ -339,6 +422,14 @@ namespace RealisticAviation
                 : math.hash(new int2(airport.Index, airport.Version));
         }
 
+        /// <summary>", &lt;reason&gt;" for a pilot's own go-around: the message value above the right-hand bit is the reason + 1, 0 for none.</summary>
+        private static string PilotGoAroundWords(int value)
+        {
+            int reason = (value >> 1) - 1;
+            string words = reason >= 0 ? GoAroundReasons.Words((GoAroundReason)reason) : null;
+            return words != null ? ", " + words : string.Empty;
+        }
+
         /// <summary>An add-on's area code (Api.Radio.AreaCode), null for none; cleared when a city is loaded.</summary>
         internal static string s_AreaCode;
 
@@ -396,6 +487,7 @@ namespace RealisticAviation
             m_CustomTexts.Clear();
             m_CustomOrder.Clear();
             s_AreaCode = null;
+            GoAroundReasons.Reset();
         }
 
         /// <summary>
@@ -597,9 +689,9 @@ namespace RealisticAviation
                     pilot = $"Going around, {side} traffic runway {runway}, {callsign}.";
                     break;
                 case AtcMessageKind.GoingAround:
-                    string traffic = message.m_Value != 0 ? "right" : "left";
+                    string traffic = (message.m_Value & 1) != 0 ? "right" : "left";
                     tower = $"{callsign}, roger, climb and maintain 1,500, make {traffic} traffic runway {runway}.";
-                    pilot = $"Tower, {callsign}, going around.";
+                    pilot = $"Tower, {callsign}, going around{PilotGoAroundWords(message.m_Value)}.";
                     break;
                 case AtcMessageKind.HoldInPattern:
                     tower = $"{callsign}, hold at present position, maintain 1,500, expect further clearance.";

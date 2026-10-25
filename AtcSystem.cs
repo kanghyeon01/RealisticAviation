@@ -118,6 +118,7 @@ namespace RealisticAviation
         private NativeParallelHashMap<Entity, TaxiHold> m_TaxiHolds;
         private NativeParallelHashMap<Entity, FreeSpeed> m_FreeSpeeds;
         private NativeParallelHashMap<Entity, ZoneState> m_Zones;
+        private NativeParallelHashMap<Entity, RunwayExit> m_RunwayExits;
 
         /// <summary>Who each airplane waiting for its gate waits for (last tick), and airplanes released from a deadlock (until frame).</summary>
         private NativeParallelHashMap<Entity, Entity> m_GateHolds;
@@ -489,6 +490,7 @@ namespace RealisticAviation
             m_TaxiHolds = new NativeParallelHashMap<Entity, TaxiHold>(32, Allocator.Persistent);
             m_FreeSpeeds = new NativeParallelHashMap<Entity, FreeSpeed>(8, Allocator.Persistent);
             m_Zones = new NativeParallelHashMap<Entity, ZoneState>(32, Allocator.Persistent);
+            m_RunwayExits = new NativeParallelHashMap<Entity, RunwayExit>(8, Allocator.Persistent);
             m_GateHolds = new NativeParallelHashMap<Entity, Entity>(8, Allocator.Persistent);
             m_Released = new NativeParallelHashMap<Entity, DeadlockRelease>(8, Allocator.Persistent);
             m_GroundCounts = new NativeParallelHashMap<Entity, int>(4, Allocator.Persistent);
@@ -526,6 +528,7 @@ namespace RealisticAviation
             m_TaxiHolds.Dispose();
             m_FreeSpeeds.Dispose();
             m_Zones.Dispose();
+            m_RunwayExits.Dispose();
             m_GateHolds.Dispose();
             m_Released.Dispose();
             m_GroundCounts.Dispose();
@@ -566,6 +569,7 @@ namespace RealisticAviation
             m_DepartureTurns.Clear();
             // Everything keyed by airplane: entities of the city before could match airplanes of this one.
             m_Zones.Clear();
+            m_RunwayExits.Clear();
             m_TaxiHolds.Clear();
             m_FreeSpeeds.Clear();
             m_HeldBehind.Clear();
@@ -664,6 +668,7 @@ namespace RealisticAviation
                 m_TaxiHolds = m_TaxiHolds,
                 m_FreeSpeeds = m_FreeSpeeds,
                 m_Zones = m_Zones,
+                m_RunwayExits = m_RunwayExits,
                 m_GateHolds = m_GateHolds,
                 m_Released = m_Released,
                 m_GroundCounts = m_GroundCounts,
@@ -745,6 +750,7 @@ namespace RealisticAviation
             ConsiderWeather(ref settings, snowing ? WeatherKind.Snow : WeatherKind.Rain, precipitation, snowing ? kSnowGoAroundChance : kRainGoAroundChance);
             ConsiderWeather(ref settings, WeatherKind.Fog, fog, kFogGoAroundChance);
             ConsiderWeather(ref settings, WeatherKind.Thunderstorm, thunder, kThunderGoAroundChance);
+            GoAroundReasons.Fill(settings.m_Weather, ref settings.m_GoAroundReasonWeights);
             if (math.abs(settings.m_WeatherGoAroundChance - m_LoggedGoAroundChance) >= kGoAroundChanceLogStep)
             {
                 m_LoggedGoAroundChance = settings.m_WeatherGoAroundChance;

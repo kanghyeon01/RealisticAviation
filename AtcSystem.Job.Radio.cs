@@ -598,6 +598,24 @@ namespace RealisticAviation
                 stale.Dispose();
             }
 
+            /// <summary>Drops the runway exits of airplanes gone, or no longer checked (back on a runway, or in the air).</summary>
+            private void RemoveStaleRunwayExits()
+            {
+                NativeList<Entity> stale = new NativeList<Entity>(Allocator.Temp);
+                foreach (var pair in m_RunwayExits)
+                {
+                    if (pair.Value.m_LastTick != m_Tick)
+                    {
+                        stale.Add(pair.Key);
+                    }
+                }
+                for (int i = 0; i < stale.Length; i++)
+                {
+                    m_RunwayExits.Remove(stale[i]);
+                }
+                stale.Dispose();
+            }
+
             /// <summary>
             /// Highest Response Ratio Next: ratio = (time waited + expected runway time) / expected runway time.
             /// Quick users of the runway go first, but every waiting airplane's ratio keeps growing, so none waits forever.

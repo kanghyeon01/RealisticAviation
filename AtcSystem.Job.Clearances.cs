@@ -63,22 +63,16 @@ namespace RealisticAviation
                 }
 
                 // Airborne arrivals on final are on the runway lane too, but they don't occupy the runway yet; whether it is
-                // clear for them is decided at the decision height. A departure lifting off still does.
-                if (scan.m_Occupied != Entity.Null && (!scan.m_Flying || scan.m_TakingOff)
-                    && m_Runways.TryGetValue(scan.m_Occupied, out RunwayState occupied))
+                // clear for them is decided at the decision height. A departure lifting off still does. One that just left
+                // the runway's lanes on the ground does until its tail is past the hold-short line.
+                if (scan.m_Occupied != Entity.Null && (!scan.m_Flying || scan.m_TakingOff))
                 {
-                    if (occupied.m_OccupiedTick != m_Tick)
-                    {
-                        occupied.m_OccupiedTick = m_Tick;
-                        occupied.m_Occupants = 0;
-                        occupied.m_GroundOccupants = 0;
-                    }
-                    occupied.m_Occupants++;
-                    if (!scan.m_Flying)
-                    {
-                        occupied.m_GroundOccupants++;
-                    }
-                    m_Runways[scan.m_Occupied] = occupied;
+                    m_RunwayExits.Remove(entity);
+                    CountOccupant(scan.m_Occupied, !scan.m_Flying);
+                }
+                else if (!scan.m_Flying && IsStillExiting(entity, out Entity exitedRunway))
+                {
+                    CountOccupant(exitedRunway, true);
                 }
 
                 if (hasFlight)
@@ -116,6 +110,18 @@ namespace RealisticAviation
                         {
                             // Used the runway and left it, or no longer heading for it. It may ask for the next one below.
                             LogEvent(entity, flight.m_SeenOnRunway ? "vacated runway" : "no longer heading for runway", flight.m_Runway);
+                            if (flight.m_SeenOnRunway && !scan.m_Flying)
+                            {
+                                // Landed or crossed: on the runway until its tail is past the hold-short line.
+                                m_RunwayExits[entity] = new RunwayExit
+                                {
+                                    m_Runway = flight.m_Runway,
+                                    m_Point = m_TransformData[entity].m_Position.xz,
+                                    m_ClearDistance = GetTailLength(m_PrefabRefData[entity].m_Prefab) + HoldShortSetback(entity),
+                                    m_LastTick = m_Tick,
+                                };
+                                CountOccupant(flight.m_Runway, true);
+                            }
                             if (flight.m_TouchedDown)
                             {
                                 // Off the runway: the tower hands it to ground, which clears it to its gate.
@@ -387,15 +393,57 @@ namespace RealisticAviation
                 return true;
             }
 
+            /// <summary>Counts an airplane as on the runway this tick (on the ground: not lifted off yet).</summary>
+            private void CountOccupant(Entity runway, bool ground)
+            {
+                if (!m_Runways.TryGetValue(runway, out RunwayState state))
+                {
+                    return;
+                }
+                if (state.m_OccupiedTick != m_Tick)
+                {
+                    state.m_OccupiedTick = m_Tick;
+                    state.m_Occupants = 0;
+                    state.m_GroundOccupants = 0;
+                }
+                state.m_Occupants++;
+                if (ground)
+                {
+                    state.m_GroundOccupants++;
+                }
+                m_Runways[runway] = state;
+            }
+
+            /// <summary>
+            /// A ground airplane off the runway's lanes whose tail isn't past the hold-short line yet (measured in a straight line
+            /// from where it left the lanes, so a turning exit keeps it a little longer).
+            /// </summary>
+            private bool IsStillExiting(Entity entity, out Entity runway)
+            {
+                runway = Entity.Null;
+                if (!m_RunwayExits.TryGetValue(entity, out RunwayExit exit))
+                {
+                    return false;
+                }
+                if (math.distancesq(m_TransformData[entity].m_Position.xz, exit.m_Point) >= exit.m_ClearDistance * exit.m_ClearDistance)
+                {
+                    m_RunwayExits.Remove(entity);
+                    LogEvent(entity, "is clear of runway (tail past the hold-short line)", exit.m_Runway);
+                    return false;
+                }
+                exit.m_LastTick = m_Tick;
+                m_RunwayExits[entity] = exit;
+                runway = exit.m_Runway;
+                return true;
+            }
+
             /// <summary>
             /// How far a ground airplane has come along its runway lane from the end it entered at, and where its line-up point
             /// is (as AtcJob.HoldAtLineUpPoint measures). False when it isn't on a runway lane yet (still entering).
             /// </summary>
             private bool RunwayProgress(Entity entity, out float progress, out float lineUpPoint)
             {
-                Entity prefab = m_PrefabRefData[entity].m_Prefab;
-                float tail = m_PrefabGeometryData.TryGetComponent(prefab, out ObjectGeometryData geometry) ? math.max(0f, -geometry.m_Bounds.min.z) : 0f;
-                lineUpPoint = tail + kLineUpInset;
+                lineUpPoint = GetTailLength(m_PrefabRefData[entity].m_Prefab) + kLineUpInset;
                 progress = 0f;
                 AircraftCurrentLane currentLane = m_CurrentLaneData[entity];
                 if ((currentLane.m_LaneFlags & AircraftLaneFlags.Runway) == 0 || !m_CurveData.TryGetComponent(currentLane.m_Lane, out Curve curve))

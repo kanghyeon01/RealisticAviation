@@ -254,6 +254,7 @@ namespace RealisticAviation
             public NativeParallelHashMap<Entity, TaxiHold> m_TaxiHolds;
             public NativeParallelHashMap<Entity, FreeSpeed> m_FreeSpeeds;
             public NativeParallelHashMap<Entity, ZoneState> m_Zones;
+            public NativeParallelHashMap<Entity, RunwayExit> m_RunwayExits;
             public NativeParallelHashMap<Entity, Entity> m_GateHolds;
             public NativeParallelHashMap<Entity, DeadlockRelease> m_Released;
             public NativeParallelHashMap<Entity, int> m_GroundCounts;
@@ -274,6 +275,7 @@ namespace RealisticAviation
                 {
                     m_AirportClosures.Clear();
                     m_Flights.Clear();
+                    m_RunwayExits.Clear();
                     return;
                 }
                 try
@@ -297,6 +299,10 @@ namespace RealisticAviation
                     if (touched != m_Flights.Count())
                     {
                         RemoveStaleFlights();
+                    }
+                    if (!m_RunwayExits.IsEmpty)
+                    {
+                        RemoveStaleRunwayExits();
                     }
                     UpdateGroundDelays();
                     GrantRunways();

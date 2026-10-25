@@ -6,8 +6,11 @@ using Unity.Mathematics;
 
 namespace RealisticAviation
 {
-    /// <summary>The weather behind the weather go-around chance (AtcSystem.GetSettings).</summary>
-    internal enum WeatherKind : byte
+    /// <summary>
+    /// The weather behind the weather go-around chance (AtcSystem.GetSettings); public for the go-around reason weights
+    /// (Api.Radio.SetGoAroundReasonWeight, API version 4).
+    /// </summary>
+    public enum WeatherKind : byte
     {
         Clear,
         Rain,
@@ -392,12 +395,28 @@ namespace RealisticAviation
         /// <summary>Fixed pushback distance in metres; 0 = half the airplane's length (AtcJob.kMin..kMaxPushbackDistance).</summary>
         public float m_PushbackDistance;
 
+        // 1.2.4. An arrival crosses the threshold behind a departure that has lifted off only once that departure is
+        // min(m_DepartureAheadDistance, m_DepartureAheadShare x runway length) past it (FAA JO 7110.65 3-10-3, category III:
+        // 6,000 ft; the game's runways are small, and 6,000 ft is about 60 % of a 10,000 ft runway).
+        public float m_DepartureAheadDistance;
+        public float m_DepartureAheadShare;
+
+        /// <summary>The weight of each <see cref="GoAroundReason"/> in the current weather, by its value (GoAroundReasons). 1.2.4.</summary>
+        public FixedList64Bytes<float> m_GoAroundReasonWeights;
+
+        public const float kDefaultDepartureAheadDistance = 6000f * 0.3048f;
+        public const float kDefaultDepartureAheadShare = 0.6f;
+
         public AtcSettings(Setting setting)
         {
             m_ApproachHeightLimits = setting.ApproachHeightLimits;
             m_WeatherGoArounds = setting.WeatherGoArounds;
             m_ClimateGoAroundChance = 0f;
             m_PushbackDistance = 0f;
+            m_DepartureAheadDistance = kDefaultDepartureAheadDistance;
+            m_DepartureAheadShare = kDefaultDepartureAheadShare;
+            // Set from the weather by AtcSystem.
+            m_GoAroundReasonWeights = default;
             m_GlidePath = setting.InstrumentApproach;
             m_SmoothDepartureTurns = setting.StandardDeparture;
             // The option as set; it applies only where the instrument approach is flown (an add-on may turn that on per airport).
@@ -579,6 +598,23 @@ namespace RealisticAviation
         public uint m_LastTick;
     }
 
+    /// <summary>
+    /// A ground airplane off a runway's lanes whose tail isn't past the hold-short line yet: its lane left the runway as soon as
+    /// its reference point did, with the rest of a long airplane still over the runway. It counts as on the runway until then.
+    /// </summary>
+    internal struct RunwayExit
+    {
+        public Entity m_Runway;
+
+        /// <summary>Where it left the runway's lanes.</summary>
+        public float2 m_Point;
+
+        /// <summary>How far from that point it is clear: its tail length plus the hold-short setback.</summary>
+        public float m_ClearDistance;
+
+        public uint m_LastTick;
+    }
+
     /// <summary>Which airport's controller an airborne airplane is talking to (phase 4-3 handoffs).</summary>
     internal struct ZoneState
     {
@@ -731,6 +767,10 @@ namespace RealisticAviation
         public float m_PushbackDistance;
         public float m_MaxClosureMinutes;
 
+        // API version 4: NaN keeps the default.
+        public float m_DepartureAheadDistance;
+        public float m_DepartureAheadShare;
+
         /// <summary>The options' values with these on top.</summary>
         public AtcSettings Apply(AtcSettings settings)
         {
@@ -794,6 +834,14 @@ namespace RealisticAviation
             if (!float.IsNaN(m_PushbackDistance))
             {
                 settings.m_PushbackDistance = m_PushbackDistance;
+            }
+            if (!float.IsNaN(m_DepartureAheadDistance))
+            {
+                settings.m_DepartureAheadDistance = m_DepartureAheadDistance;
+            }
+            if (!float.IsNaN(m_DepartureAheadShare))
+            {
+                settings.m_DepartureAheadShare = m_DepartureAheadShare;
             }
             if (!float.IsNaN(m_ArrivalSpacingSeconds))
             {

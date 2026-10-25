@@ -953,3 +953,39 @@ Versions: MAJOR.MINOR.PATCH (the patch was meant as a letter, 1.1a, but the game
   the tower frequencies too: `AtcRadio.AirportSeed`, the airport's position, seeds both (frequencies change once).
 - ICAO code tooltip no longer says it is for weather reports (that is the weather add-on): "Add-ons can use it." /
   "다양한 애드온에서 활용할 수 있습니다."
+
+## Next patch (in testing since 2026-10-24): runway vacated only with the tail past the hold-short line
+
+- User's screenshots (23:45:13 / 23:45:49, log 23:44:53–23:45:02): an American 787 that had landed turned onto the exit at
+  the threshold; "vacated runway" fired the moment its lane left the runway lane, with its rear fuselage and tail still over
+  the runway, and the UPS lined up there got "cleared for takeoff" 2 ms later. The vacate was decided by the lane of the
+  airplane's reference point, while entering is held with the nose a hold-short setback before the runway lane.
+- Now a ground airplane that leaves the runway's lanes after using them (landed or crossed) stays in `m_RunwayExits` and
+  counts as a ground occupant of that runway until it is its tail length plus the hold-short setback (straight line) from
+  where it left the lanes; then "is clear of runway (tail past the hold-short line)" is logged. Until then takeoff,
+  landing (decision height) and line-up clearances wait as for any airplane on the runway.
+- The user tries it for a while; if nothing comes up, it ships as a patch.
+- Same patch (user's question 2026-10-24): an arrival at the decision height continued as soon as the departure ahead had
+  lifted off. FAA JO 7110.65 3-10-3: the departure must have crossed the runway end, or (distances known) be airborne and,
+  category III, 6,000 ft from the landing threshold (ICAO Doc 4444 is the same in principle). User: scale it, the game's
+  airports are small, but keep assets/DLC with long runways in mind. Now `IsDepartureTooClose`: a departure in the air still
+  on the runway lane must be min(6,000 ft, 60 % of the runway length) past the arrival's threshold (along its entry
+  direction), else the arrival goes around ("departure not far enough ahead"). 60 % = 6,000 ft on a 10,000 ft runway; long
+  runways get the FAA distance itself. Leaving the runway lane in the air is taken as past the runway end.
+- Same patch (forum, Jen1, 2026-10-25): a semi truck's info panel showed the airport section (airspace, ICAO code, radio).
+  `Airports.GetAirport` walked the selected entity's owner chain, and a company vehicle's owner is the building that runs
+  it, here the cargo airport. Now only structures count (user: an allowlist rather than excluding vehicles and people):
+  the main building (a building at the top of its owner chain), net edges and nodes (runways, taxiways), transport stops;
+  not upgrade buildings (user, testing: the cargo terminal upgrade shows no airport panel, and it shouldn't; the airport
+  itself is selected as one piece). This also fixes the closed-airport banner
+  (`AirportClosedSection`) and the weather add-on's ATIS section, which use the same lookup (`Api.Airports.Find`).
+- Same patch (user): the pilot's own go-around now gives its reason, as pilots usually do (not required; the tower asks
+  otherwise). User: a table of reasons by weather with 0 for the ones that don't happen, so they can be changed freely
+  later; "runway not in sight" rare except in fog (on an ILS only in very heavy rain or snow); city-wide.
+  `GoAroundReason` (public): unstable approach, runway not in sight, windshear, gusty winds, wake turbulence, birds on the
+  runway; new ones at the end. Default weights (`GoAroundReasons`, rows clear/rain/snow/fog/thunderstorm):
+  60/0/0/10/20/10, 40/10/10/40/0/0, 40/10/0/50/0/0, 10/90/0/0/0/0, 25/5/45/25/0/0. Copied for the current weather into
+  `AtcSettings.m_GoAroundReasonWeights` each update; the job picks by weight; reason + 1 rides in the message value
+  above the right-hand bit (0 = none given). API version 4: `Api.Radio.Set/GetGoAroundReasonWeight` (reset on city load),
+  `WeatherKind` public; `OperatingOverrides.DepartureAheadMeters` / `DepartureAheadShare` per airport (the landing
+  separation values above, defaults 1,829 m and 0.6).

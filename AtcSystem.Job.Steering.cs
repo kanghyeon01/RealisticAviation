@@ -103,9 +103,9 @@ namespace RealisticAviation
                     if (scan.m_Flying && !scan.m_TakingOff && flight.m_Clearance == Clearance.Cleared && !flight.m_TouchedDown
                         && IsBelowDecisionHeight(entity, flight))
                     {
-                        if (!IsRunwayClearToLand(flight.m_Runway, out string reason))
+                        if (!IsRunwayClearToLand(flight, out string reason))
                         {
-                            GoAround(entity, ref flight, reason, false);
+                            GoAround(entity, ref flight, reason);
                             FlyCircuit(entity, ref flight);
                             m_HoldingFlights.Add(entity);
                         }
@@ -117,7 +117,9 @@ namespace RealisticAviation
                             float chance = SettingsForRunway(flight.m_Runway).m_WeatherGoAroundChance;
                             if (chance > 0f && RollWeatherGoAround(entity, chance))
                             {
-                                GoAround(entity, ref flight, m_Settings.m_Weather == WeatherKind.Clear ? "pilot decision" : "weather: " + m_Settings.m_Weather.ToString().ToLowerInvariant(), true);
+                                WeatherKind weather = m_Settings.m_Weather;
+                                GoAround(entity, ref flight, weather == WeatherKind.Clear ? "pilot decision" : "weather: " + weather.ToString().ToLowerInvariant(),
+                                    true, PickPilotGoAroundReason(entity));
                                 FlyCircuit(entity, ref flight);
                                 m_HoldingFlights.Add(entity);
                             }
@@ -215,7 +217,7 @@ namespace RealisticAviation
                 }
                 if (scan.m_Occupied == flight.m_Runway && !flight.m_Holding && !flight.m_InCircuit)
                 {
-                    GoAround(entity, ref flight, "airport closed", false);
+                    GoAround(entity, ref flight, "airport closed");
                     FlyCircuit(entity, ref flight);
                     m_HoldingFlights.Add(entity);
                     return true;
@@ -233,9 +235,10 @@ namespace RealisticAviation
             /// The landing check at the decision height. A ground airplane cleared onto the runway (or to line up) that hasn't
             /// entered it yet is told to hold short instead, as a tower would.
             /// </summary>
-            private bool IsRunwayClearToLand(Entity runway, out string reason)
+            private bool IsRunwayClearToLand(in Flight arrival, out string reason)
             {
                 reason = null;
+                Entity runway = arrival.m_Runway;
                 if (!m_Runways.TryGetValue(runway, out RunwayState state))
                 {
                     return true;
@@ -245,15 +248,46 @@ namespace RealisticAviation
                     reason = "airport closed";
                     return false;
                 }
-                // Only airplanes still on the ground: a departure that has lifted off is no longer in the way.
                 if (state.GroundOccupants(m_Tick) != 0)
                 {
                     reason = "runway not clear";
                     return false;
                 }
+                // A departure that has lifted off is in the way until it is far enough ahead (or past the runway end).
+                if (state.Occupants(m_Tick) != 0 && IsDepartureTooClose(arrival))
+                {
+                    reason = "departure not far enough ahead";
+                    return false;
+                }
                 RevokeIfNotOnRunway(state.m_Holder);
                 RevokeIfNotOnRunway(state.m_LineUp);
                 return true;
+            }
+
+            /// <summary>
+            /// A departure in the air still over the arrival's runway, less than the departure-ahead distance (or that share of a shorter
+            /// runway; <see cref="AtcSettings.m_DepartureAheadDistance"/>) from the arrival's threshold.
+            /// </summary>
+            private bool IsDepartureTooClose(in Flight arrival)
+            {
+                float length = m_RunwayGeometry.TryGetValue(arrival.m_Runway, out RunwayGeometry geometry) ? geometry.m_Max - geometry.m_Min : 0f;
+                AtcSettings settings = SettingsForRunway(arrival.m_Runway);
+                float required = math.min(settings.m_DepartureAheadDistance, settings.m_DepartureAheadShare * length);
+                foreach (var pair in m_Flights)
+                {
+                    Flight departure = pair.Value;
+                    if (departure.m_Arrival || departure.m_Runway != arrival.m_Runway || !departure.m_LastFlying
+                        || departure.m_OnRunwayTick != m_Tick)
+                    {
+                        continue;
+                    }
+                    float ahead = math.dot(m_TransformData[pair.Key].m_Position.xz - arrival.m_EntryPosition.xz, arrival.m_EntryDirection);
+                    if (ahead < required)
+                    {
+                        return true;
+                    }
+                }
+                return false;
             }
 
             private void RevokeIfNotOnRunway(Entity entity)

@@ -408,10 +408,15 @@ namespace RealisticAviation
             return entity;
         }
 
-        /// <summary>The airport the entity belongs to (the entity itself or its top-level owner), or Entity.Null.</summary>
+        /// <summary>
+        /// The airport the entity belongs to (the entity itself or its top-level owner), or Entity.Null. Only for the airport's
+        /// main building, roads and runways, stops (gates). Not its upgrades (user: the airport panel on a cargo terminal would
+        /// be odd), nor anything else it owns: a company vehicle's owner is the building that runs it, so the airport's own
+        /// delivery trucks showed the airport panel.
+        /// </summary>
         public static Entity GetAirport(EntityManager entityManager, EntityQuery airplaneStops, Entity entity)
         {
-            if (entity == Entity.Null || !entityManager.Exists(entity))
+            if (entity == Entity.Null || !entityManager.Exists(entity) || !IsStructure(entityManager, entity))
             {
                 return Entity.Null;
             }
@@ -436,6 +441,15 @@ namespace RealisticAviation
                 stops.Dispose();
             }
             return Entity.Null;
+        }
+
+        private static bool IsStructure(EntityManager entityManager, Entity entity)
+        {
+            // A building only as the top of its owner chain: an upgrade building is owned by the main one.
+            return (entityManager.HasComponent<Game.Buildings.Building>(entity)
+                    && !(entityManager.TryGetComponent(entity, out Owner owner) && owner.m_Owner != Entity.Null))
+                || entityManager.HasComponent<Game.Net.Edge>(entity) || entityManager.HasComponent<Game.Net.Node>(entity)
+                || entityManager.HasComponent<TransportStop>(entity);
         }
 
         /// <summary>Every airport in the city, once each.</summary>

@@ -57,13 +57,13 @@ the airports through `Api` and gives the tower each airport's ATIS.
 - **Unsubscribe and unregister** in your system's `OnDestroy`.
 - **Logging**: write per-airplane lines only when `Api.Options.DetailedLog` is on (the player's "Detailed log" option).
 
-## What `Api` offers (version 3)
+## What `Api` offers (version 4)
 
 ### `Api`
 
 | Member | What it does |
 |---|---|
-| `Version` | Interface version (2 from Realistic Aviation 1.2.2, 3 from 1.2.3) |
+| `Version` | Interface version (2 from Realistic Aviation 1.2.2, 3 from 1.2.3, 4 from 1.2.4) |
 | `IsReady` | A city is loaded and the tower is running |
 
 ### `Api.Airports`
@@ -71,7 +71,7 @@ the airports through `Api` and gives the tower each airport's ATIS.
 | Member | What it does |
 |---|---|
 | `GetAll(List<Entity>)` | Every airport: top-level buildings with airplane stops, outside connections excluded |
-| `Find(Entity)` | The airport an entity belongs to (the airport itself, a runway, a gate...), or `Entity.Null` |
+| `Find(Entity)` | The airport an entity belongs to (the airport itself, a runway, a gate...), or `Entity.Null`. Only its structures count (the main building, roads and runways, stops); its upgrade buildings, vehicles and people belong to none (from 1.2.4) |
 | `TryGetInfo(airport, out AirportInfo)` | Code, class, centre, radius, hold base, runways, gates, closure and its reason, ground delay, line up and wait |
 | `TryGetAirspaceClass(airport, out AirspaceClass)` | Class B, C or D |
 | `SetAirspaceClass(airport, cls)` / `SetAutomaticAirspaceClass(airport)` | Choose the class, or follow the size again (saved; applied next frame) |
@@ -101,6 +101,12 @@ Added in version 2 (Realistic Aviation 1.2.2), so that every option can be set p
 - `HoldingLegLengthMeters`, `HoldShortSetbackMeters`, `TaxiSpacingMeters` (0 turns the taxi spacing off)
 - `Pushback`, `PushbackDistanceMeters` (fixed distance, 5–100 m; null keeps half the airplane's length, 15–40 m)
 - `CloseForTornado`, `CloseForHail`, `CloseForOtherDisasters`, `LimitClosureTime`, `MaxClosureMinutes`
+
+Added in version 4 (Realistic Aviation 1.2.4):
+
+- `DepartureAheadMeters`, `DepartureAheadShare`: an arrival crosses the threshold behind a departure that has lifted off
+  only once that departure is min(`DepartureAheadMeters`, `DepartureAheadShare` × runway length) past the threshold, or
+  past the runway end (defaults 1,829 m = FAA 6,000 ft and 0.6; share clamped to 0–1)
 
 `OperatingValues` has the same members (`PushbackDistanceMeters` 0 = the default length rule, `MaxClosureMinutes` 0 = no
 limit). Not per airport: "Detailed log" and the "Remove this airplane" button (read them from `Api.Options`).
@@ -140,6 +146,7 @@ limit). Not per airport: "Detailed log" and the "Remove this airplane" button (r
 | `GetText(message, out first, out second, out pilotFirst)` | The lines as the panels show them ("ATC: ..." and "callsign: ...") |
 | `Post(airport, frequency, airplane, callsign, controller, pilot, pilotFirst)` | Add your own transmission. It shows in the panels like the tower's. With an airplane (any entity, a helicopter too) it is on that frequency only; without one it is a broadcast |
 | `AreaCode` | The city's telephone area code in the tower's phone number (pilot deviation calls; the number is always <area code>-555-01XX, a range set aside for fiction). Reads the one in use. Set 3 digits (NXX: 2–9, 0–8, 0–9, not N11), or null for the one made up from the city's name. Version 3 |
+| `SetGoAroundReasonWeight(GoAroundReason, WeatherKind, weight)` / `GetGoAroundReasonWeight(...)` | How often a pilot's own go-around gives that reason in that weather ("going around, windshear"), relative to the other reasons in it; city-wide. 0 never gives it; all 0 = no reason. Not saved. Reasons: `UnstableApproach`, `RunwayNotInSight`, `Windshear`, `GustyWinds`, `WakeTurbulence`, `BirdsOnRunway` (new ones come at the end); weather: `Clear`, `Rain`, `Snow`, `Fog`, `Thunderstorm`. Version 4 |
 | `RegisterCallsignProvider` / `Unregister...` | Supply callsigns (airline codes, say). The latest registered is asked; return null to keep RA's |
 | `RegisterPhraseProvider` / `Unregister...` | Change the words of every transmission (another language or phraseology). All registered are asked, in order. Your own posts are not changed |
 

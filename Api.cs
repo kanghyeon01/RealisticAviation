@@ -41,6 +41,31 @@ namespace RealisticAviation
         public bool NoDelay => m_Message.m_Kind == AtcMessageKind.ClearedForTakeoff && m_Message.m_Value == 1;
     }
 
+    /// <summary>
+    /// Why a pilot goes around on its own, said with "going around" (the tower's go-around gives its own reason). Which one
+    /// is picked by weight for the weather (Api.Radio.SetGoAroundReasonWeight). API version 4; new reasons come at the end.
+    /// </summary>
+    public enum GoAroundReason : byte
+    {
+        /// <summary>"unstable approach": too high or too fast on final.</summary>
+        UnstableApproach,
+
+        /// <summary>"runway not in sight" at minimums.</summary>
+        RunwayNotInSight,
+
+        /// <summary>"windshear".</summary>
+        Windshear,
+
+        /// <summary>"gusty winds".</summary>
+        GustyWinds,
+
+        /// <summary>"wake turbulence" from the airplane ahead.</summary>
+        WakeTurbulence,
+
+        /// <summary>"birds on the runway".</summary>
+        BirdsOnRunway,
+    }
+
     /// <summary>Where a flight stands with the tower.</summary>
     public enum FlightState : byte
     {
@@ -204,6 +229,17 @@ namespace RealisticAviation
         /// <summary>A closure for one disaster ends after <see cref="MaxClosureMinutes"/> game minutes.</summary>
         public bool? LimitClosureTime;
         public float? MaxClosureMinutes;
+
+        // API version 4 (1.2.4).
+
+        /// <summary>
+        /// An arrival crosses the threshold behind a departure that has lifted off only once it is this far past the threshold
+        /// (default 1,829 m, FAA 6,000 ft), or <see cref="DepartureAheadShare"/> of a shorter runway, or past the runway end.
+        /// </summary>
+        public float? DepartureAheadMeters;
+
+        /// <summary>That distance as a share of the runway length, used when shorter (default 0.6). Clamped to 0–1.</summary>
+        public float? DepartureAheadShare;
     }
 
     /// <summary>The operating values in use at an airport: the options, the weather and any add-on's overrides.</summary>
@@ -236,6 +272,10 @@ namespace RealisticAviation
 
         /// <summary>Longest closure for one disaster in game minutes; 0 = as long as the disaster lasts.</summary>
         public float MaxClosureMinutes;
+
+        // API version 4 (1.2.4).
+        public float DepartureAheadMeters;
+        public float DepartureAheadShare;
     }
 
     /// <summary>
@@ -251,7 +291,7 @@ namespace RealisticAviation
         /// The version of this interface: raised when something is added, so an add-on can check for what it needs. A property,
         /// not a constant, so an add-on reads the version of the Realistic Aviation that is running, not the one it was built with.
         /// </summary>
-        public static int Version => 3;
+        public static int Version => 4;
 
         /// <summary>The tower is running (a city is loaded or loading). Until then the members return nothing.</summary>
         public static bool IsReady => Tower != null;
@@ -307,7 +347,9 @@ namespace RealisticAviation
                 }
             }
 
-            /// <summary>The airport an entity belongs to (the airport itself, or anything it owns), or Entity.Null.</summary>
+            /// <summary>
+            /// The airport a structure belongs to (the airport itself, its roads, runways and stops; not its upgrades), or Entity.Null.
+            /// </summary>
             public static Entity Find(Entity entity)
             {
                 return Tower == null ? Entity.Null : RealisticAviation.Airports.GetAirport(Tower.EntityManager, Tower.AirplaneStopQuery, entity);
@@ -566,6 +608,22 @@ namespace RealisticAviation
             public static void Post(Entity airport, AtcFrequency frequency, Entity airplane, string callsign, string controller, string pilot, bool pilotFirst)
             {
                 Tower?.PostRadio(airport, frequency, airplane, callsign, controller, pilot, pilotFirst);
+            }
+
+            /// <summary>
+            /// How often a pilot's own go-around gives <paramref name="reason"/> in <paramref name="weather"/>, relative to the
+            /// other reasons in that weather (city-wide). 0 never gives it; with every weight 0 the pilot just says "going around".
+            /// Not saved: back to the defaults when a city is loaded. Version 4.
+            /// </summary>
+            public static void SetGoAroundReasonWeight(GoAroundReason reason, WeatherKind weather, float weight)
+            {
+                GoAroundReasons.Set(reason, weather, weight);
+            }
+
+            /// <summary>The weight in use (see <see cref="SetGoAroundReasonWeight"/>). Version 4.</summary>
+            public static float GetGoAroundReasonWeight(GoAroundReason reason, WeatherKind weather)
+            {
+                return GoAroundReasons.Get(reason, weather);
             }
 
             /// <summary>

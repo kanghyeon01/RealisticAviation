@@ -32,7 +32,7 @@ namespace RealisticAviation
             /// end, crosswind, downwind abeam the runway to the base turn. Left-hand by default; on the other side when a
             /// parallel runway lies on the pattern side.
             /// </summary>
-            private void GoAround(Entity entity, ref Flight flight, string reason, bool pilotInitiated)
+            private void GoAround(Entity entity, ref Flight flight, string reason, bool pilotInitiated = false, int spokenReason = 0)
             {
                 // Close to the threshold the game has already moved the approach on from "approaching" to "landing", and in
                 // that state it treats being below the steering target as touchdown and drops the flying state, so the
@@ -80,8 +80,10 @@ namespace RealisticAviation
                 flight.m_InCircuit = true;
                 m_Flights[entity] = flight;
                 LogEvent(entity, $"went around ({reason}), {(math.dot(side, MathUtils.Right(landing)) > 0f ? "right" : "left")}-hand pattern for runway", flight.m_Runway);
+                // Value: bit 0 right-hand traffic; for the pilot's own go-around, the reason it gives (GoAroundReason + 1) above that.
+                int value = math.dot(side, MathUtils.Right(landing)) > 0f ? 1 : 0;
                 Say(entity, pilotInitiated ? AtcMessageKind.GoingAround : AtcMessageKind.GoAround, flight,
-                    math.dot(side, MathUtils.Right(landing)) > 0f ? 1 : 0, ClosedBy(flight.m_Runway));
+                    value | (spokenReason << 1), ClosedBy(flight.m_Runway));
             }
 
             /// <summary>Flies the pattern legs; at the end of downwind the base turn and final are flown by the hold/return logic.</summary>
@@ -316,6 +318,40 @@ namespace RealisticAviation
             {
                 Unity.Mathematics.Random random = new Unity.Mathematics.Random(math.hash(new uint2((uint)entity.Index, m_Frame)) | 1u);
                 return random.NextFloat() < chance;
+            }
+
+            /// <summary>
+            /// The reason the pilot gives, picked by the weights for the current weather (GoAroundReasons, city-wide), as
+            /// <see cref="GoAroundReason"/> + 1; 0 when every weight is 0 (it just says "going around").
+            /// </summary>
+            private int PickPilotGoAroundReason(Entity entity)
+            {
+                FixedList64Bytes<float> weights = m_Settings.m_GoAroundReasonWeights;
+                float total = 0f;
+                int last = 0;
+                for (int i = 0; i < weights.Length; i++)
+                {
+                    total += weights[i];
+                    if (weights[i] > 0f)
+                    {
+                        last = i + 1;
+                    }
+                }
+                if (total <= 0f)
+                {
+                    return 0;
+                }
+                Unity.Mathematics.Random random = new Unity.Mathematics.Random(math.hash(new uint2((uint)entity.Index, m_Frame + 1u)) | 1u);
+                float pick = random.NextFloat() * total;
+                for (int i = 0; i < weights.Length; i++)
+                {
+                    pick -= weights[i];
+                    if (pick < 0f && weights[i] > 0f)
+                    {
+                        return i + 1;
+                    }
+                }
+                return last;
             }
 
             /// <summary>At the decision height: still in the air, below 100 ft above the runway, on short final.</summary>

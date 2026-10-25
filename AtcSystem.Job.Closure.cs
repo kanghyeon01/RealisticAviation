@@ -236,6 +236,11 @@ namespace RealisticAviation
                 return m_PrefabGeometryData.TryGetComponent(prefab, out ObjectGeometryData geometry) ? math.max(0f, geometry.m_Bounds.max.z) : 0f;
             }
 
+            private float GetTailLength(Entity prefab)
+            {
+                return m_PrefabGeometryData.TryGetComponent(prefab, out ObjectGeometryData geometry) ? math.max(0f, -geometry.m_Bounds.min.z) : 0f;
+            }
+
         }
     }
 }

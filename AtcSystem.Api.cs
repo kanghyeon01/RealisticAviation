@@ -126,6 +126,8 @@ namespace RealisticAviation
                 m_TaxiSpacing = values.TaxiSpacingMeters.HasValue ? math.max(0f, values.TaxiSpacingMeters.Value) : float.NaN,
                 m_PushbackDistance = values.PushbackDistanceMeters.HasValue ? math.clamp(values.PushbackDistanceMeters.Value, 5f, 100f) : float.NaN,
                 m_MaxClosureMinutes = values.MaxClosureMinutes ?? float.NaN,
+                m_DepartureAheadDistance = values.DepartureAheadMeters.HasValue ? math.max(0f, values.DepartureAheadMeters.Value) : float.NaN,
+                m_DepartureAheadShare = values.DepartureAheadShare.HasValue ? math.saturate(values.DepartureAheadShare.Value) : float.NaN,
             };
         }
 
@@ -217,6 +219,8 @@ namespace RealisticAviation
                 CloseForHail = (settings.m_ClosureHazards & HazardKinds.Hail) != 0,
                 CloseForOtherDisasters = (settings.m_ClosureHazards & HazardKinds.Other) != 0,
                 MaxClosureMinutes = settings.m_MaxClosureFrames / Setting.kFramesPerGameMinute,
+                DepartureAheadMeters = settings.m_DepartureAheadDistance,
+                DepartureAheadShare = settings.m_DepartureAheadShare,
             };
         }
 

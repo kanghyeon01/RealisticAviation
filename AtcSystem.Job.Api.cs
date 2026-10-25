@@ -47,7 +47,7 @@ namespace RealisticAviation
                         LogEvent(entity, "is not on final; an add-on's go-around order is dropped for runway", flight.m_Runway);
                         continue;
                     }
-                    GoAround(entity, ref flight, "add-on: " + order.m_Reason, false);
+                    GoAround(entity, ref flight, "add-on: " + order.m_Reason);
                 }
                 m_ApiGoArounds.Clear();
             }
