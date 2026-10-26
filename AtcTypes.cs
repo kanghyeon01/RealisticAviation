@@ -407,6 +407,23 @@ namespace RealisticAviation
         public const float kDefaultDepartureAheadDistance = 6000f * 0.3048f;
         public const float kDefaultDepartureAheadShare = 0.6f;
 
+        // Obstacle survey of the procedures (AtcSystem.Survey): MOC in metres, area widths each side in metres.
+        public float m_InitialMoc;
+        public float m_IntermediateMoc;
+        public float m_AreaPrimary;
+        public float m_AreaSecondary;
+
+        public const float kDefaultInitialMoc = 1000f * 0.3048f;
+        public const float kDefaultIntermediateMoc = 500f * 0.3048f;
+        public const float kDefaultAreaPrimary = 1000f;
+        public const float kDefaultAreaSecondary = 1000f;
+
+        /// <summary>Height above the runway of the landing decision (go-around check, weather go-around), metres.</summary>
+        public float m_DecisionHeight;
+
+        /// <summary>200 ft, as a CAT I decision height (the mod used 100 ft until the IFR chart update).</summary>
+        public const float kDefaultDecisionHeight = 200f * 0.3048f;
+
         public AtcSettings(Setting setting)
         {
             m_ApproachHeightLimits = setting.ApproachHeightLimits;
@@ -415,6 +432,11 @@ namespace RealisticAviation
             m_PushbackDistance = 0f;
             m_DepartureAheadDistance = kDefaultDepartureAheadDistance;
             m_DepartureAheadShare = kDefaultDepartureAheadShare;
+            m_InitialMoc = kDefaultInitialMoc;
+            m_IntermediateMoc = kDefaultIntermediateMoc;
+            m_AreaPrimary = kDefaultAreaPrimary;
+            m_AreaSecondary = kDefaultAreaSecondary;
+            m_DecisionHeight = kDefaultDecisionHeight;
             // Set from the weather by AtcSystem.
             m_GoAroundReasonWeights = default;
             m_GlidePath = setting.InstrumentApproach;
@@ -771,6 +793,13 @@ namespace RealisticAviation
         public float m_DepartureAheadDistance;
         public float m_DepartureAheadShare;
 
+        // API version 5: NaN keeps the default.
+        public float m_InitialMoc;
+        public float m_IntermediateMoc;
+        public float m_AreaPrimary;
+        public float m_AreaSecondary;
+        public float m_DecisionHeight;
+
         /// <summary>The options' values with these on top.</summary>
         public AtcSettings Apply(AtcSettings settings)
         {
@@ -842,6 +871,26 @@ namespace RealisticAviation
             if (!float.IsNaN(m_DepartureAheadShare))
             {
                 settings.m_DepartureAheadShare = m_DepartureAheadShare;
+            }
+            if (!float.IsNaN(m_InitialMoc))
+            {
+                settings.m_InitialMoc = m_InitialMoc;
+            }
+            if (!float.IsNaN(m_IntermediateMoc))
+            {
+                settings.m_IntermediateMoc = m_IntermediateMoc;
+            }
+            if (!float.IsNaN(m_AreaPrimary))
+            {
+                settings.m_AreaPrimary = m_AreaPrimary;
+            }
+            if (!float.IsNaN(m_AreaSecondary))
+            {
+                settings.m_AreaSecondary = m_AreaSecondary;
+            }
+            if (!float.IsNaN(m_DecisionHeight))
+            {
+                settings.m_DecisionHeight = m_DecisionHeight;
             }
             if (!float.IsNaN(m_ArrivalSpacingSeconds))
             {

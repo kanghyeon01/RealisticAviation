@@ -131,10 +131,10 @@ namespace RealisticAviation
             /// Reference turn radius of the procedures: a standard rate turn at the approach speed. 3°/s at the shown speed is
             /// 6°/s in game seconds (airplanes move at twice the shown speed): internal 150 m/s / 0.1047 rad/s.
             /// </summary>
-            private const float kProcedureRadius = 1430f;
+            internal const float kProcedureRadius = 1430f;
 
             /// <summary>Initial (IAF -> IF) and intermediate (IF -> FAF) segment lengths, in procedure turn radii.</summary>
-            private const float kSegmentRadii = 3f;
+            internal const float kSegmentRadii = 3f;
 
             /// <summary>Height gained per metre outward: intermediate segment 150 ft/NM (2.5 %), initial 250 ft/NM (4 %), TERPS optimums.</summary>
             private const float kIntermediateGradient = 0.025f;
@@ -154,8 +154,13 @@ namespace RealisticAviation
             /// <summary>The fixes of the arrival's runway end: an IAF on <paramref name="side"/> (+1 / -1 along Right(course)), the IF and the FAF.</summary>
             private void GetApproachFixes(in Flight flight, float glideTan, int side, out float3 iaf, out float3 intermediate, out float3 faf)
             {
-                float3 threshold = flight.m_EntryPosition;
-                float2 course = flight.m_EntryDirection;
+                GetApproachFixes(flight.m_EntryPosition, flight.m_EntryDirection, glideTan, GetProcedureFloor(flight), side, out iaf, out intermediate, out faf);
+            }
+
+            /// <summary>The fixes of a runway end from its threshold and course (also for the IFR chart, on the main thread).</summary>
+            internal static void GetApproachFixes(float3 threshold, float2 course, float glideTan, in ProcedureFloor floor, int side,
+                out float3 iaf, out float3 intermediate, out float3 faf)
+            {
                 float2 outward = -course;
                 float segment = kProcedureRadius * kSegmentRadii;
                 float finalDistance = GetFinalFixDistance(kProcedureRadius, glideTan);
@@ -164,8 +169,23 @@ namespace RealisticAviation
                 float2 ifXZ = fafXZ + outward * segment;
                 float2 iafXZ = ifXZ + MathUtils.Right(course) * (side * segment);
                 faf = new float3(fafXZ.x, fafHeight, fafXZ.y);
-                intermediate = new float3(ifXZ.x, fafHeight + segment * kIntermediateGradient, ifXZ.y);
-                iaf = new float3(iafXZ.x, intermediate.y + segment * kInitialGradient, iafXZ.y);
+                // Raised over obstacles as a designer would (the obstacle survey): the IF, one altitude for every arrival,
+                // clears the segments it joins, the IAF its own initial segment. The FAF stays on the glide path.
+                float initialFloor = side > 0 ? floor.m_InitialRight : floor.m_InitialLeft;
+                intermediate = new float3(ifXZ.x, math.max(fafHeight + segment * kIntermediateGradient,
+                    threshold.y + math.max(floor.m_Intermediate, math.max(floor.m_InitialLeft, floor.m_InitialRight))), ifXZ.y);
+                iaf = new float3(iafXZ.x, math.max(intermediate.y + segment * kInitialGradient, threshold.y + initialFloor), iafXZ.y);
+            }
+
+            /// <summary>The obstacle floors of the arrival's runway end (AtcSystem.Survey), or none yet.</summary>
+            private ProcedureFloor GetProcedureFloor(in Flight flight)
+            {
+                if (!m_ProcedureFloors.TryGetValue(flight.m_Runway, out ProcedureFloors floors)
+                    || !m_RunwayGeometry.TryGetValue(flight.m_Runway, out RunwayGeometry geometry))
+                {
+                    return default;
+                }
+                return math.dot(flight.m_EntryDirection, geometry.m_Direction) >= 0f ? floors.m_Along : floors.m_Against;
             }
 
             /// <summary>

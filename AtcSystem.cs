@@ -491,6 +491,12 @@ namespace RealisticAviation
             m_FreeSpeeds = new NativeParallelHashMap<Entity, FreeSpeed>(8, Allocator.Persistent);
             m_Zones = new NativeParallelHashMap<Entity, ZoneState>(32, Allocator.Persistent);
             m_RunwayExits = new NativeParallelHashMap<Entity, RunwayExit>(8, Allocator.Persistent);
+            m_ProcedureFloors = new NativeParallelHashMap<Entity, ProcedureFloors>(8, Allocator.Persistent);
+            m_BuildingQuery = GetEntityQuery(new EntityQueryDesc
+            {
+                All = new[] { ComponentType.ReadOnly<Game.Buildings.Building>(), ComponentType.ReadOnly<Transform>(), ComponentType.ReadOnly<PrefabRef>() },
+                None = new[] { ComponentType.ReadOnly<Deleted>(), ComponentType.ReadOnly<Temp>() },
+            });
             m_GateHolds = new NativeParallelHashMap<Entity, Entity>(8, Allocator.Persistent);
             m_Released = new NativeParallelHashMap<Entity, DeadlockRelease>(8, Allocator.Persistent);
             m_GroundCounts = new NativeParallelHashMap<Entity, int>(4, Allocator.Persistent);
@@ -529,6 +535,9 @@ namespace RealisticAviation
             m_FreeSpeeds.Dispose();
             m_Zones.Dispose();
             m_RunwayExits.Dispose();
+            m_SurveyJob.Complete();
+            DisposeSurvey();
+            m_ProcedureFloors.Dispose();
             m_GateHolds.Dispose();
             m_Released.Dispose();
             m_GroundCounts.Dispose();
@@ -570,6 +579,12 @@ namespace RealisticAviation
             // Everything keyed by airplane: entities of the city before could match airplanes of this one.
             m_Zones.Clear();
             m_RunwayExits.Clear();
+            m_SurveyJob.Complete();
+            DisposeSurvey();
+            m_SurveyPending = false;
+            m_ProcedureFloors.Clear();
+            m_SurveyDue = true;
+            m_SurveyNotBefore = m_SimulationSystem.frameIndex + kSurveyLoadDelay;
             m_TaxiHolds.Clear();
             m_FreeSpeeds.Clear();
             m_HeldBehind.Clear();
@@ -584,6 +599,7 @@ namespace RealisticAviation
         protected override void OnUpdate()
         {
             RefreshRunways();
+            UpdateSurvey();
             RefreshPrefabNames();
             RefreshHazardKinds();
             m_Tick++;
@@ -669,6 +685,7 @@ namespace RealisticAviation
                 m_FreeSpeeds = m_FreeSpeeds,
                 m_Zones = m_Zones,
                 m_RunwayExits = m_RunwayExits,
+                m_ProcedureFloors = m_ProcedureFloors,
                 m_GateHolds = m_GateHolds,
                 m_Released = m_Released,
                 m_GroundCounts = m_GroundCounts,

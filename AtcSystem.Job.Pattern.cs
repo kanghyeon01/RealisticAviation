@@ -303,7 +303,7 @@ namespace RealisticAviation
             /// flying speed: near the minimum the airplane flies nose-up like in the landing flare. So fly at least fast
             /// enough for that minimum pitch to be level or below.
             /// </summary>
-            private static float GetHoldingSpeed(AirplaneData airplaneData)
+            internal static float GetHoldingSpeed(AirplaneData airplaneData)
             {
                 float2 range = airplaneData.m_FlyingSpeed;
                 float climb = math.max(airplaneData.m_ClimbAngle, 0f);
@@ -354,11 +354,11 @@ namespace RealisticAviation
                 return last;
             }
 
-            /// <summary>At the decision height: still in the air, below 100 ft above the runway, on short final.</summary>
+            /// <summary>At the decision height (200 ft above the runway by default, add-on tunable): still in the air, on short final.</summary>
             private bool IsBelowDecisionHeight(Entity entity, in Flight flight)
             {
                 float3 position = m_TransformData[entity].m_Position;
-                return position.y - flight.m_EntryPosition.y < kDecisionHeight
+                return position.y - flight.m_EntryPosition.y < SettingsForRunway(flight.m_Runway).m_DecisionHeight
                     && math.distancesq(position.xz, flight.m_EntryPosition.xz) < kDecisionDistance * kDecisionDistance;
             }
 

@@ -1075,7 +1075,9 @@ namespace RealisticAviation
                     GetApproachFixes(flight, settings.m_GlideTan, side == 0 ? 1 : side, out float3 iaf, out float3 intermediate, out _);
                     float2 fix = side == 0 ? intermediate.xz : iaf.xz;
                     float2 starInbound = side == 0 ? flight.m_EntryDirection : math.normalizesafe(intermediate.xz - iaf.xz);
-                    StartHolding(entity, ref flight, navigation.m_TargetPosition, navigation.m_TargetDirection, starInbound, true, true, fix);
+                    ProcedureFloor floor = GetProcedureFloor(flight);
+                    StartHolding(entity, ref flight, navigation.m_TargetPosition, navigation.m_TargetDirection, starInbound, true, true, fix,
+                        side > 0 ? floor.m_HoldRight : side < 0 ? floor.m_HoldLeft : floor.m_HoldStraight);
                     flight.m_StarHold = true;
                     flight.m_ProcSide = (sbyte)side;
                     m_Flights[entity] = flight;
@@ -1096,7 +1098,7 @@ namespace RealisticAviation
             /// them sent the airplane climbing thousands of feet).
             /// </summary>
             private void StartHolding(Entity entity, ref Flight flight, float3 resumeTarget, float3 resumeDirection, float2 inbound, bool stacked,
-                bool atFix = false, float2 fixXZ = default)
+                bool atFix = false, float2 fixXZ = default, float floor = 0f)
             {
                 AirplaneData airplaneData = m_PrefabAirplaneData[m_PrefabRefData[entity].m_Prefab];
                 flight.m_ResumeTarget = resumeTarget;
@@ -1111,9 +1113,10 @@ namespace RealisticAviation
                 if (stacked)
                 {
                     // Holds of different airports are separated by altitude: each class has its own band above its runway, B highest
-                    // (phase 4-3); without airspace data, the stack starts where the airplane is.
+                    // (phase 4-3); without airspace data, the stack starts where the airplane is. A STAR hold's base is raised over
+                    // the obstacles round its fix (`floor`, the obstacle survey).
                     fix.y = m_Runways.TryGetValue(flight.m_Runway, out RunwayState runwayState) && m_Airspaces.TryGetValue(runwayState.m_Airport, out AirportSpace space)
-                        ? flight.m_EntryPosition.y + space.HoldBase + flight.m_StackLevel * kStackSpacing
+                        ? flight.m_EntryPosition.y + math.max(space.HoldBase, floor) + flight.m_StackLevel * kStackSpacing
                         : fix.y + flight.m_StackLevel * kStackSpacing;
                     if (!flight.m_Told)
                     {
@@ -1131,7 +1134,7 @@ namespace RealisticAviation
             }
 
             /// <summary>Turn radius at holding speed: the move system turns with radius speed / m_FlyingTurning, plus a margin.</summary>
-            private static float GetTurnRadius(AirplaneData airplaneData)
+            internal static float GetTurnRadius(AirplaneData airplaneData)
             {
                 return GetHoldingSpeed(airplaneData) / math.max(airplaneData.m_FlyingTurning, 0.001f) * 1.1f;
             }

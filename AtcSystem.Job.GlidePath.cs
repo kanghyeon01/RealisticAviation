@@ -77,7 +77,7 @@ namespace RealisticAviation
             private const float kAirwayHeight = 1000f;
 
             /// <summary>Distance of the final approach fix from the threshold: where the glide path is 1,500 ft up, or two turns.</summary>
-            private static float GetFinalFixDistance(float turnRadius, float glideTan)
+            internal static float GetFinalFixDistance(float turnRadius, float glideTan)
             {
                 return math.max(kFinalFixHeight / glideTan, turnRadius * 2f);
             }

@@ -33,6 +33,7 @@
     <GameReference Include="Game" />
     <GameReference Include="Colossal.Core;Colossal.Collections;Colossal.IO.AssetDatabase;Colossal.Localization;Colossal.Logging;Colossal.Mathematics;Colossal.UI.Binding" />
     <GameReference Include="Unity.Burst;Unity.Collections;Unity.Entities;Unity.Mathematics;UnityEngine.CoreModule" />
+    <GameReference Include="Unity.RenderPipelines.Core.Runtime;Unity.RenderPipelines.HighDefinition.Runtime" />
     <Reference Include="@(GameReference)">
       <HintPath>$(CS2ManagedPath)\%(Identity).dll</HintPath>
       <Private>false</Private>

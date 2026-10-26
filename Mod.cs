@@ -42,6 +42,18 @@ namespace RealisticAviation
             AirspaceOverlaySystem.CreateInfoview(updateSystem.World.GetOrCreateSystemManaged<PrefabSystem>());
             updateSystem.UpdateAt<AirspaceOverlaySystem>(SystemUpdatePhase.Rendering);
             updateSystem.UpdateAfter<AirportHighlightSystem, ObjectColorSystem>(SystemUpdatePhase.Rendering);
+            // Its elevation tints and built-up areas, coloured into the terrain right after the game sets its own colours.
+            updateSystem.UpdateAfter<VfrChartTintSystem, OverlayInfomodeSystem>(SystemUpdatePhase.PreCulling);
+            // IFR chart infoview: the chart list in its legend, and the charts ticked there drawn on the map.
+            IfrChartSystem.CreateInfoview(updateSystem.World.GetOrCreateSystemManaged<PrefabSystem>());
+            updateSystem.UpdateAt<IfrChartSystem>(SystemUpdatePhase.UIUpdate);
+            updateSystem.UpdateAt<IfrChartOverlaySystem>(SystemUpdatePhase.Rendering);
+            // Its paper background, put into the terrain overlay right after the game sets its own.
+            updateSystem.UpdateAfter<IfrChartPaperSystem, OverlayInfomodeSystem>(SystemUpdatePhase.PreCulling);
+            // No clouds, sun shadows or snow while a chart (VFR or IFR) is open.
+            updateSystem.UpdateAt<ChartCloudsSystem>(SystemUpdatePhase.Rendering);
+            // Approach chart window (IFR chart): opened from the airport panel.
+            updateSystem.UpdateAt<ApproachChartWindowSystem>(SystemUpdatePhase.UIUpdate);
 
             // Info panel sections aren't scheduled; the selected-info system updates the ones it knows about.
             updateSystem.World.GetOrCreateSystemManaged<AirportSection>();

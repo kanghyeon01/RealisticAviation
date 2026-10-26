@@ -22,6 +22,7 @@ namespace RealisticAviation
         public const string kAdjustGroundDelayTrigger = "AdjustGroundDelayLimit";
         public const string kSetAirspaceClassTrigger = "SetAirspaceClass";
         public const string kSetAirportCodeTrigger = "SetAirportCode";
+        public const string kOpenApproachChartTrigger = "OpenApproachChart";
 
         private struct RunwayEnd
         {
@@ -54,6 +55,8 @@ namespace RealisticAviation
         private GroundDelaySetting m_GroundDelay;
         private string m_EnteredCode;
         private string m_AutomaticCode;
+        private bool m_InstrumentApproach;
+        private ApproachChartWindowSystem m_ChartWindow;
 
         protected override string group => nameof(AirportSection);
 
@@ -69,6 +72,8 @@ namespace RealisticAviation
             AddBinding(new TriggerBinding<int>(Mod.kName, kAdjustGroundDelayTrigger, AdjustGroundDelayLimit));
             AddBinding(new TriggerBinding<int>(Mod.kName, kSetAirspaceClassTrigger, SetAirspaceClass));
             AddBinding(new TriggerBinding<string>(Mod.kName, kSetAirportCodeTrigger, SetAirportCode));
+            AddBinding(new TriggerBinding<int>(Mod.kName, kOpenApproachChartTrigger, OpenApproachChart));
+            m_ChartWindow = World.GetOrCreateSystemManaged<ApproachChartWindowSystem>();
         }
 
         protected override void OnUpdate()
@@ -103,6 +108,7 @@ namespace RealisticAviation
             m_EnteredCode = AirportCodes.GetEntered(EntityManager, m_Airport) ?? string.Empty;
             m_AutomaticCode = AirportCodes.GetAutomatic(EntityManager, m_NameSystem, m_Airport);
             m_GroundDelay = GetGroundDelay();
+            m_InstrumentApproach = m_AtcSystem.GetOperatingValues(m_Airport).InstrumentApproach;
             IReadOnlyList<RunwayInfo> runways = m_AtcSystem.RunwayList;
             for (int i = 0; i < runways.Count; i++)
             {
@@ -181,6 +187,9 @@ namespace RealisticAviation
             writer.Write(m_HasAirspace ? m_Airspace.m_Radius / Setting.kMetersPerNauticalMile : 0f);
             writer.PropertyName("airspaceChosen");
             writer.Write(m_HasAirspace && m_Airspace.m_Chosen);
+            // An approach chart per runway end (IFR chart window) where the airport flies instrument approaches.
+            writer.PropertyName("instrumentApproach");
+            writer.Write(m_InstrumentApproach);
             writer.PropertyName("runways");
             writer.ArrayBegin(m_RunwayEnds.Count);
             for (int i = 0; i < m_RunwayEnds.Count; i++)
@@ -271,6 +280,17 @@ namespace RealisticAviation
             GroundDelaySetting setting = GetGroundDelay();
             setting.m_Limit = (byte)math.clamp(setting.m_Limit + delta, GroundDelaySetting.kMinLimit, GroundDelaySetting.kMaxLimit);
             SetGroundDelay(setting);
+        }
+
+        /// <summary>Opens the approach chart window on one runway end of the panel's list.</summary>
+        private void OpenApproachChart(int index)
+        {
+            if (index < 0 || index >= m_RunwayEnds.Count)
+            {
+                return;
+            }
+            RunwayEnd end = m_RunwayEnds[index];
+            m_ChartWindow.Open(m_Airport, end.m_Runway.Key, math.dot(end.m_Landing, end.m_Runway.Geometry.m_Direction) > 0f);
         }
 
         /// <summary>Flips one runway end between left- and right-hand, on every edge of that runway.</summary>

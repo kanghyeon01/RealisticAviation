@@ -186,6 +186,28 @@ namespace RealisticAviation
             ChartLabels.DrawText(buffer, new float2(left, foot.z), foot.y, height, textHeight, color, stroke);
         }
 
+        /// <summary>
+        /// The IFR chart's obstacle (the same shapes, without lighting marks): the spire or the ^ with its foot dot, the foot at
+        /// <paramref name="foot"/>, <paramref name="size"/> high.
+        /// </summary>
+        internal static void AddToCanvas(IfrChartCanvas canvas, float2 foot, bool tall, float size)
+        {
+            Shape shape = tall ? kTallSpire : kLow;
+            for (int i = 0; i < shape.m_Strips.Length; i++)
+            {
+                float4 strip = shape.m_Strips[i];
+                float z = foot.y + strip.x * size;
+                canvas.Line(new float2(foot.x + strip.y * size, z), new float2(foot.x + strip.z * size, z), strip.w * size, 0f, 0f, false, false);
+            }
+            float width = shape.m_OutlineWidth * size;
+            float2[] outline = shape.m_Outline;
+            for (int i = 0; i < outline.Length; i++)
+            {
+                canvas.Line(foot + outline[i] * size, foot + outline[(i + 1) % outline.Length] * size, width, 0f, 0f, false);
+            }
+            canvas.Dot(foot + new float2(0f, tall ? 0.05f : 0.075f) * size, 2f * (tall ? 0.045f : 0.075f) * size);
+        }
+
         private static void DrawShape(OverlayRenderSystem.Buffer buffer, Shape shape, float3 foot, float size, Color color)
         {
             float y = foot.y;

@@ -50,6 +50,8 @@ namespace RealisticAviation
                 return;
             }
             m_RunwaySignature = signature;
+            // New or changed runways: their procedures need a fresh obstacle survey.
+            m_SurveyDue = true;
             RefreshGateCounts();
 
             // Rare (only after airport edits), so plain synchronous EntityManager/query access is fine here

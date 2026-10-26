@@ -13,8 +13,8 @@ namespace RealisticAviation
     internal static class ChartLabels
     {
         /// <summary>Character width and the gap after it, as shares of the character height.</summary>
-        private const float kWidth = 0.6f;
-        private const float kGap = 0.3f;
+        internal const float kWidth = 0.6f;
+        internal const float kGap = 0.3f;
 
         /// <summary>Space between the bar and the numbers above and below it, as a share of the character height.</summary>
         private const float kBarGap = 0.25f;
@@ -60,6 +60,38 @@ namespace RealisticAviation
         private static readonly float[][] kN = { new[] { 0f, 0f, 0f, 1f, 0.6f, 0f, 0.6f, 1f } };
         // Minus, for "up to but not including" (the class D ceiling).
         private static readonly float[][] kMinus = { new[] { 0.08f, 0.5f, 0.52f, 0.5f } };
+
+        // The rest of A-Z and the signs of the IFR chart (docs/ifr-symbols-preview.html, part 0).
+        private static readonly float[][] kA = { new[] { 0f, 0f, 0.3f, 1f, 0.6f, 0f }, new[] { 0.1f, 0.33f, 0.5f, 0.33f } };
+        private static readonly float[][] kB =
+        {
+            new[] { 0f, 0f, 0f, 1f, 0.38f, 1f, 0.53f, 0.9f, 0.53f, 0.62f, 0.38f, 0.52f, 0f, 0.52f },
+            new[] { 0.38f, 0.52f, 0.6f, 0.4f, 0.6f, 0.12f, 0.45f, 0f, 0f, 0f },
+        };
+        private static readonly float[][] kG = { Join(Arc(0.32f, 0.5f, 0.3f, 0.5f, 45f, 330f), new[] { 0.6f, 0.45f, 0.36f, 0.45f }) };
+        private static readonly float[][] kH = { new[] { 0f, 0f, 0f, 1f }, new[] { 0.6f, 0f, 0.6f, 1f }, new[] { 0f, 0.52f, 0.6f, 0.52f } };
+        private static readonly float[][] kI = { new[] { 0.3f, 0f, 0.3f, 1f }, new[] { 0.12f, 1f, 0.48f, 1f }, new[] { 0.12f, 0f, 0.48f, 0f } };
+        private static readonly float[][] kJ = { Join(new[] { 0.6f, 1f, 0.6f, 0.3f }, Arc(0.3f, 0.3f, 0.3f, 0.3f, 0f, -180f)) };
+        private static readonly float[][] kK = { new[] { 0f, 0f, 0f, 1f }, new[] { 0.6f, 1f, 0f, 0.4f }, new[] { 0.2f, 0.6f, 0.6f, 0f } };
+        private static readonly float[][] kL = { new[] { 0f, 1f, 0f, 0f, 0.55f, 0f } };
+        private static readonly float[][] kP = { new[] { 0f, 0f, 0f, 1f, 0.4f, 1f, 0.6f, 0.86f, 0.6f, 0.62f, 0.4f, 0.48f, 0f, 0.48f } };
+        private static readonly float[][] kQ = { Arc(0.3f, 0.5f, 0.3f, 0.5f, 90f, 450f), new[] { 0.36f, 0.24f, 0.62f, -0.05f } };
+        private static readonly float[][] kR = { kP[0], new[] { 0.3f, 0.48f, 0.6f, 0f } };
+        private static readonly float[][] kT = { new[] { 0f, 1f, 0.6f, 1f }, new[] { 0.3f, 1f, 0.3f, 0f } };
+        private static readonly float[][] kU = { Join(Join(new[] { 0f, 1f, 0f, 0.3f }, Arc(0.3f, 0.3f, 0.3f, 0.3f, 180f, 360f)), new[] { 0.6f, 1f }) };
+        private static readonly float[][] kV = { new[] { 0f, 1f, 0.3f, 0f, 0.6f, 1f } };
+        private static readonly float[][] kW = { new[] { 0f, 1f, 0.15f, 0f, 0.3f, 0.6f, 0.45f, 0f, 0.6f, 1f } };
+        private static readonly float[][] kX = { new[] { 0f, 0f, 0.6f, 1f }, new[] { 0f, 1f, 0.6f, 0f } };
+        private static readonly float[][] kY = { new[] { 0f, 1f, 0.3f, 0.5f, 0.6f, 1f }, new[] { 0.3f, 0.5f, 0.3f, 0f } };
+        private static readonly float[][] kZ = { new[] { 0f, 1f, 0.6f, 1f, 0f, 0f, 0.6f, 0f } };
+        private static readonly float[][] kSlash = { new[] { 0.05f, -0.05f, 0.55f, 1.05f } };
+        private static readonly float[][] kDot = { Arc(0.3f, 0.05f, 0.05f, 0.05f, 0f, 360f) };
+        private static readonly float[][] kDegree = { Arc(0.2f, 0.86f, 0.13f, 0.13f, 0f, 360f) };
+        private static readonly float[][] kPlus = { new[] { 0.3f, 0.2f, 0.3f, 0.8f }, new[] { 0.05f, 0.5f, 0.55f, 0.5f } };
+        private static readonly float[][] kPercent =
+        {
+            new[] { 0.05f, 0f, 0.55f, 1f }, Arc(0.13f, 0.82f, 0.11f, 0.13f, 0f, 360f), Arc(0.47f, 0.18f, 0.11f, 0.13f, 0f, 360f),
+        };
 
         /// <summary>An elliptic arc from one angle to the other (degrees, counter-clockwise when increasing), in pieces of 15°.</summary>
         private static float[] Arc(float cx, float cy, float rx, float ry, float from, float to)
@@ -176,7 +208,8 @@ namespace RealisticAviation
             }
         }
 
-        private static float[][] Glyph(char c)
+        /// <summary>The strokes of a character (box 0.6 wide, 1 high, y up), or null for a space or one not in the font.</summary>
+        internal static float[][] Glyph(char c)
         {
             if (c >= '0' && c <= '9')
             {
@@ -195,6 +228,29 @@ namespace RealisticAviation
                 case 'E': return kE;
                 case 'N': return kN;
                 case '-': return kMinus;
+                case 'A': return kA;
+                case 'B': return kB;
+                case 'G': return kG;
+                case 'H': return kH;
+                case 'I': return kI;
+                case 'J': return kJ;
+                case 'K': return kK;
+                case 'L': return kL;
+                case 'P': return kP;
+                case 'Q': return kQ;
+                case 'R': return kR;
+                case 'T': return kT;
+                case 'U': return kU;
+                case 'V': return kV;
+                case 'W': return kW;
+                case 'X': return kX;
+                case 'Y': return kY;
+                case 'Z': return kZ;
+                case '/': return kSlash;
+                case '.': return kDot;
+                case '°': return kDegree;
+                case '+': return kPlus;
+                case '%': return kPercent;
                 default: return null;
             }
         }

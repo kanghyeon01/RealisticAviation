@@ -27,7 +27,7 @@ namespace RealisticAviation
             /// Turn rate limit. A standard rate turn (3 degrees per second) at the speed the game shows has a radius of about
             /// 1.4 km; airplanes move at twice the shown speed, so the same circle over the city takes twice the rate.
             /// </summary>
-            private const float kDepartureTurnRate = 6f;
+            internal const float kDepartureTurnRate = 6f;
 
             /// <summary>Steepest climb while turning (the game climbed at up to 60 degrees in its turn).</summary>
             private const float kDepartureClimbAngle = 15f;
@@ -61,11 +61,11 @@ namespace RealisticAviation
             private const int kDepartureCourseLanes = 8;
 
             /// <summary>The SID's fix: this far along the airway from the point of it closest to the airplane.</summary>
-            private const float kDepartureFixDistance = 4000f;
+            internal const float kDepartureFixDistance = 4000f;
 
             /// <summary>Further fixes tried this far apart, up to kDepartureFixMaxDistance, until one can be reached.</summary>
-            private const float kDepartureFixStep = 500f;
-            private const float kDepartureFixMaxDistance = 15000f;
+            internal const float kDepartureFixStep = 500f;
+            internal const float kDepartureFixMaxDistance = 15000f;
 
             /// <summary>A fix counts as reachable only this far outside the turning circle (as a share of what it takes).</summary>
             private const float kDepartureReachMargin = 1.15f;
@@ -276,7 +276,7 @@ namespace RealisticAviation
             /// A point a turn of this radius can reach: outside the turning circle on its side (distance at least twice the
             /// radius × sine of the bearing off the heading), with a margin.
             /// </summary>
-            private static bool IsReachable(float2 position, float2 heading, float radius, float2 point)
+            internal static bool IsReachable(float2 position, float2 heading, float radius, float2 point)
             {
                 float2 to = point - position;
                 float distance = math.length(to);

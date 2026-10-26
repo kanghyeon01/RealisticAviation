@@ -52,7 +52,7 @@ namespace RealisticAviation
             private const uint kTaxiHoldTimeout = 60 * 60 * 3;
 
             // "Extend downwind" lasts at most this far beyond the normal end of downwind before the airplane is told to hold.
-            private const float kDownwindExtension = 2f * Setting.kMetersPerNauticalMile;
+            internal const float kDownwindExtension = 2f * Setting.kMetersPerNauticalMile;
 
             // An arrival whose gate is occupied waits with its nose this far before the stand lane: clear of the pushback
             // area (a push of at most kMaxPushbackDistance plus half the airplane and kPushbackClearance).
@@ -108,15 +108,14 @@ namespace RealisticAviation
 
             // Traffic pattern: 1,500 ft above the runway (FAA pattern altitude for large and turbine airplanes); upwind runs at
             // least this far past the runway end; legs turn this many turn radii before each corner. (Parallel runways: see
-            // RunwayGeometry.IsParallelOnSide.) The landing decision is made 100 ft above
+            // RunwayGeometry.IsParallelOnSide.) The landing decision is made at the decision height above
             // the runway (within 2 NM of the threshold): an arrival goes around there if the runway is not clear.
-            private const float kPatternHeight = 1500f * 0.3048f;
+            internal const float kPatternHeight = 1500f * 0.3048f;
 
             /// <summary>Steepest climb or descent the tower steers an airplane on (holding, pattern, to the final approach fix): tan 6 degrees.</summary>
             private const float kSteeringSlope = 0.1051f;
-            private const float kUpwindExtension = 0.5f * Setting.kMetersPerNauticalMile;
+            internal const float kUpwindExtension = 0.5f * Setting.kMetersPerNauticalMile;
             private const float kCircuitLeadFactor = 1.5f;
-            private const float kDecisionHeight = 100f * 0.3048f;
             private const float kDecisionDistance = 2f * Setting.kMetersPerNauticalMile;
 
             // Response-ratio scheduling: expected runway time of each kind of use, in game seconds.
@@ -255,6 +254,7 @@ namespace RealisticAviation
             public NativeParallelHashMap<Entity, FreeSpeed> m_FreeSpeeds;
             public NativeParallelHashMap<Entity, ZoneState> m_Zones;
             public NativeParallelHashMap<Entity, RunwayExit> m_RunwayExits;
+            [ReadOnly] public NativeParallelHashMap<Entity, ProcedureFloors> m_ProcedureFloors;
             public NativeParallelHashMap<Entity, Entity> m_GateHolds;
             public NativeParallelHashMap<Entity, DeadlockRelease> m_Released;
             public NativeParallelHashMap<Entity, int> m_GroundCounts;

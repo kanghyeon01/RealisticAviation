@@ -57,13 +57,13 @@ the airports through `Api` and gives the tower each airport's ATIS.
 - **Unsubscribe and unregister** in your system's `OnDestroy`.
 - **Logging**: write per-airplane lines only when `Api.Options.DetailedLog` is on (the player's "Detailed log" option).
 
-## What `Api` offers (version 4)
+## What `Api` offers (version 5)
 
 ### `Api`
 
 | Member | What it does |
 |---|---|
-| `Version` | Interface version (2 from Realistic Aviation 1.2.2, 3 from 1.2.3, 4 from 1.2.4) |
+| `Version` | Interface version (2 from Realistic Aviation 1.2.2, 3 from 1.2.3, 4 from 1.2.4, 5 from the IFR chart update) |
 | `IsReady` | A city is loaded and the tower is running |
 
 ### `Api.Airports`
@@ -107,6 +107,16 @@ Added in version 4 (Realistic Aviation 1.2.4):
 - `DepartureAheadMeters`, `DepartureAheadShare`: an arrival crosses the threshold behind a departure that has lifted off
   only once that departure is min(`DepartureAheadMeters`, `DepartureAheadShare` × runway length) past the threshold, or
   past the runway end (defaults 1,829 m = FAA 6,000 ft and 0.6; share clamped to 0–1)
+
+Added in version 5 (next update):
+
+- `InitialMocFeet` (default 1,000), `IntermediateMocFeet` (500): minimum obstacle clearance of the initial segments and
+  STAR holds, and of the intermediate segment. The tower raises the IF, the IAFs and the STAR hold bases until the obstacles
+  under them have this much (the FAF stays on the glide path)
+- `ObstacleAreaPrimaryMeters`, `ObstacleAreaSecondaryMeters` (1,000 each): width of the obstacle areas each side of a
+  segment; full MOC in the primary area, tapering to 0 across the secondary
+- `DecisionHeightFeet` (default 200, CAT I; was 100 ft before this update): where an arrival decides to land or go around
+  (runway check, weather go-around). Clamped to 50–1,000 ft
 
 `OperatingValues` has the same members (`PushbackDistanceMeters` 0 = the default length rule, `MaxClosureMinutes` 0 = no
 limit). Not per airport: "Detailed log" and the "Remove this airplane" button (read them from `Api.Options`).

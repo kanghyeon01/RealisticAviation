@@ -28,13 +28,49 @@ namespace RealisticAviation
         public const string kObstaclesInfomodeName = "RealisticAviationObstacles";
         public const string kUrbanInfomodeName = "RealisticAviationUrbanAreas";
         public const string kTerrainInfomodeName = "RealisticAviationTerrain";
+        public const string kWaterInfomodeName = "RealisticAviationWater";
 
         // Sectional chart colours and line widths (metres on the ground, so they read from far out).
         private static readonly Color kBlue = new Color(0.25f, 0.5f, 1f, 0.9f);
         private static readonly Color kMagenta = new Color(0.85f, 0.25f, 0.8f, 0.9f);
-        private static readonly Color kYellow = new Color(1f, 0.85f, 0.25f, 1f);
+        // Built-up areas: the yellow of the user's sectional sample (#f5f566).
+        private static readonly Color kYellow = new Color(0xf5 / 255f, 0xf5 / 255f, 0x66 / 255f, 1f);
+
+        // The built-up areas' yellow is sent to the shader this many times as bright (the tints: TerrainTintInfomodePrefab).
+        private const float kUrbanBrightness = 1f;
+
+        // Per-channel gains in linear light, so the screen shows the paper chart's colours. Under the game's tonemapping no
+        // gain could match them (it pressed the bright tints toward white and took their colour); with the tonemapping off
+        // and the exposure fixed from the sun while a chart is open (ChartCloudsSystem) they were calibrated from the user's
+        // screenshots (2026-10-27), each step gain x tint / shown, between two steps where one overshot, on flat ground. The
+        // game keeps some of the ground's own colour under a tint, so each colour has its own gain: the built-up yellow's
+        // blue and the greens' green barely follow theirs.
+        private static readonly Vector3 kUrbanGain = new Vector3(1.55f, 2.35f, 0.25f);
+
+        /// <summary>
+        /// Each elevation band's tint gain (only the exact tints use theirs: 3,000-5,000 and 9,000-12,000 are blends of their
+        /// group's two).
+        /// </summary>
+        private static readonly Vector3[] kTintGains =
+        {
+            new Vector3(1.18f, 1.98f, 2.05f), new Vector3(1.30f, 1.83f, 2.08f), new Vector3(1.12f, 1.36f, 2.05f), Vector3.one,
+            new Vector3(1.21f, 1.29f, 2.26f), new Vector3(1.07f, 1.33f, 1.81f), Vector3.one, new Vector3(1.16f, 1.45f, 3.60f),
+        };
+        private static readonly Vector3 kWaterGain = new Vector3(0.51f, 0.55f, 0.60f);
+
+        // Water surfaces: the light blue of the user'"'"'s sectional sample (#c4d6e8), at the brightness that showed the IFR
+        // background'"'"'s water as it should be (the water is lit differently from the ground).
+        private static readonly Color kWaterBlue = new Color(0xc4 / 255f, 0xd6 / 255f, 0xe8 / 255f, 1f);
+        private const float kWaterBrightness = 1f;
+
+        // The chart's hairlines round the built-up areas and along the shoreline (user: thin black lines on the chart; 8 m
+        // was far too thick).
+        private static readonly Color kOutline = new Color(0.05f, 0.05f, 0.05f, 1f);
+        private const float kOutlineWidth = 2.5f;
+
+        // The streams' blue line: as thick as the first outlines were (user).
+        private const float kStreamWidth = 8f;
         private static readonly Color kNavy = new Color(0.2f, 0.3f, 0.75f, 1f);
-        private static readonly Color kTerrainGreen = new Color(0.78f, 0.86f, 0.65f, 1f);
         private static readonly Color kMefBlue = new Color(0.12f, 0.37f, 0.63f, 1f);
 
         // MEF figures: the thousands large, the hundreds smaller and raised, in metres on the ground.
@@ -89,6 +125,8 @@ namespace RealisticAviation
         private static InfomodePrefab s_ObstaclesInfomode;
         private static InfomodePrefab s_UrbanInfomode;
         private static InfomodePrefab s_TerrainInfomode;
+        private static readonly InfomodePrefab[] s_TerrainInfomodes = new InfomodePrefab[TerrainChartMap.kGroups];
+        private static InfomodePrefab s_WaterInfomode;
 
         private ToolSystem m_ToolSystem;
         private OverlayRenderSystem m_OverlayRenderSystem;
@@ -112,17 +150,25 @@ namespace RealisticAviation
 
         /// <summary>
         /// Adds the infoview to the game's prefabs, with its legend: airports of class B and D (blue) and of class C (magenta), as
-        /// their airspace on the map, built-up areas (yellow) and obstacles (navy). They are building-colour infomodes of a type
+        /// their airspace on the map, built-up areas (yellow), obstacles (navy) and the terrain. The airports and obstacles are
+        /// building-colour infomodes of a type
         /// the game colours nothing for, so they get a colour and a checkbox in the legend; <see cref="AirportHighlightSystem"/>
-        /// and this system do the drawing.
+        /// and this system do the drawing. The built-up areas and the elevation tints are terrain colour entries, coloured into
+        /// the terrain by <see cref="VfrChartTintSystem"/>.
         /// </summary>
         internal static void CreateInfoview(PrefabSystem prefabSystem)
         {
             s_AirportsInfomode = AddInfomode(prefabSystem, kAirportsInfomodeName, kBlue);
             s_AirportsCInfomode = AddInfomode(prefabSystem, kAirportsCInfomodeName, kMagenta);
-            s_UrbanInfomode = AddInfomode(prefabSystem, kUrbanInfomodeName, kYellow);
+            s_UrbanInfomode = AddTint(prefabSystem, kUrbanInfomodeName, -1);
             s_ObstaclesInfomode = AddInfomode(prefabSystem, kObstaclesInfomodeName, kNavy);
-            s_TerrainInfomode = AddInfomode(prefabSystem, kTerrainInfomodeName, kTerrainGreen);
+            s_TerrainInfomode = AddTint(prefabSystem, kTerrainInfomodeName, 0);
+            s_TerrainInfomodes[0] = s_TerrainInfomode;
+            for (int group = 1; group < TerrainChartMap.kGroups; group++)
+            {
+                s_TerrainInfomodes[group] = AddTint(prefabSystem, kTerrainInfomodeName + (group + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), group);
+            }
+            s_WaterInfomode = AddWater(prefabSystem);
 
             InfoviewPrefab infoview = ScriptableObject.CreateInstance<InfoviewPrefab>();
             infoview.name = kInfoviewName;
@@ -137,10 +183,74 @@ namespace RealisticAviation
                 new InfomodeInfo { m_Mode = s_UrbanInfomode, m_Priority = 3 },
                 new InfomodeInfo { m_Mode = s_ObstaclesInfomode, m_Priority = 4 },
                 new InfomodeInfo { m_Mode = s_TerrainInfomode, m_Priority = 5 },
+                new InfomodeInfo { m_Mode = s_TerrainInfomodes[1], m_Priority = 6 },
+                new InfomodeInfo { m_Mode = s_TerrainInfomodes[2], m_Priority = 7 },
+                new InfomodeInfo { m_Mode = s_WaterInfomode, m_Priority = 8 },
             };
             prefabSystem.AddPrefab(infoview);
             s_Infoview = infoview;
         }
+
+        /// <summary>
+        /// A terrain colour entry: one group of the elevation tints (TerrainChartMap; the legend shows the whole range on the
+        /// first group's entry, the others are hidden and follow it), or, with group -1, the built-up areas in yellow
+        /// (brighter, user) over the map as it is where there are none.
+        /// </summary>
+        private static TerrainTintInfomodePrefab AddTint(PrefabSystem prefabSystem, string name, int group)
+        {
+            TerrainTintInfomodePrefab infomode = ScriptableObject.CreateInstance<TerrainTintInfomodePrefab>();
+            infomode.name = name;
+            infomode.m_IncludeInGroups = new InfomodeGroupPrefab[0];
+            if (group >= 0)
+            {
+                infomode.m_Low = TerrainChartMap.BandTint(0);
+                infomode.m_Medium = TerrainChartMap.BandTint(TerrainChartMap.kBands / 2);
+                infomode.m_High = TerrainChartMap.BandTint(TerrainChartMap.kBands - 1);
+                infomode.m_Steps = TerrainChartMap.kBands;
+                infomode.m_LegendType = GradientLegendType.Gradient;
+                infomode.m_TintGroup = true;
+                infomode.m_FirstGain = kTintGains[TerrainChartMap.GroupFirstBand(group)];
+                infomode.m_GroupFirst = TerrainChartMap.GroupFirst(group);
+                infomode.m_GroupLast = TerrainChartMap.GroupLast(group);
+                infomode.m_LastGain = kTintGains[TerrainChartMap.GroupLastBand(group)];
+            }
+            else
+            {
+                infomode.m_Low = infomode.m_Medium = infomode.m_High = kYellow;
+                infomode.m_LowAlpha = 0f;
+                infomode.m_Brightness = kUrbanBrightness;
+                infomode.m_Gain = kUrbanGain;
+                infomode.m_LegendType = GradientLegendType.Fields;
+            }
+            prefabSystem.AddPrefab(infomode);
+            return infomode;
+        }
+
+        /// <summary>The elevation tint groups' entries: the first is the legend's "terrain elevations", the others hidden.</summary>
+        internal static InfomodePrefab TerrainInfomode(int group) => s_TerrainInfomodes[group];
+
+        internal static InfomodePrefab WaterInfomode => s_WaterInfomode;
+
+        /// <summary>The water surfaces in the chart's light blue (a terrain colour entry of the water's colour group).</summary>
+        private static TerrainTintInfomodePrefab AddWater(PrefabSystem prefabSystem)
+        {
+            TerrainTintInfomodePrefab infomode = ScriptableObject.CreateInstance<TerrainTintInfomodePrefab>();
+            infomode.name = kWaterInfomodeName;
+            infomode.m_IncludeInGroups = new InfomodeGroupPrefab[0];
+            infomode.m_Low = infomode.m_Medium = infomode.m_High = kWaterBlue;
+            infomode.m_Brightness = kWaterBrightness;
+            infomode.m_Gain = kWaterGain;
+            infomode.m_Water = true;
+            infomode.m_LegendType = GradientLegendType.Fields;
+            prefabSystem.AddPrefab(infomode);
+            return infomode;
+        }
+
+        internal static InfomodePrefab UrbanInfomode => s_UrbanInfomode;
+
+        internal TerrainChartMap TerrainMap => m_Terrain;
+
+        internal UrbanAreaMap UrbanMap => m_UrbanAreas;
 
         private static BuildingInfomodePrefab AddInfomode(PrefabSystem prefabSystem, string name, Color color)
         {
@@ -220,7 +330,7 @@ namespace RealisticAviation
             if (urban)
             {
                 JobHandle count = m_UrbanAreas.Update(GetComponentLookup<Game.Objects.Transform>(true), GetBufferLookup<Game.Buildings.Renter>(true),
-                    GetBufferLookup<Game.Citizens.HouseholdCitizen>(true), GetBufferLookup<Game.Companies.Employee>(true), Dependency);
+                    GetBufferLookup<Game.Citizens.HouseholdCitizen>(true), GetBufferLookup<Game.Companies.Employee>(true), m_AtcSystem.Airspaces, Dependency);
                 Dependency = JobHandle.CombineDependencies(Dependency, count);
             }
             float seaLevel = m_WaterSystem.SeaLevel;
@@ -234,22 +344,24 @@ namespace RealisticAviation
                 Dependency = JobHandle.CombineDependencies(Dependency, find);
             }
             bool terrain = s_TerrainInfomode != null && EntityManager.HasComponent<InfomodeActive>(m_PrefabSystem.GetEntity(s_TerrainInfomode));
-            if (terrain)
+            // The water's shoreline comes from the terrain sampling too.
+            bool water = s_WaterInfomode != null && EntityManager.HasComponent<InfomodeActive>(m_PrefabSystem.GetEntity(s_WaterInfomode));
+            if (terrain || water)
             {
                 JobHandle sample = m_Terrain.Update(m_TerrainSystem, m_WaterSystem, seaLevel, Dependency);
                 Dependency = JobHandle.CombineDependencies(Dependency, sample);
             }
             OverlayRenderSystem.Buffer buffer = m_OverlayRenderSystem.GetBuffer(out JobHandle dependencies);
             dependencies.Complete();
-            // Under the airspace lines, as on the chart.
-            // Elevation tints at the bottom, built-up areas over them, as on the chart.
-            if (terrain)
-            {
-                m_Terrain.DrawTints(buffer);
-            }
+            // Hairlines round the built-up areas and along the shoreline, as on the chart (under the symbols).
             if (urban)
             {
-                m_UrbanAreas.Draw(buffer);
+                m_UrbanAreas.DrawOutline(buffer, kOutline, kOutlineWidth, water || terrain ? m_Terrain : null);
+            }
+            if (water)
+            {
+                m_Terrain.DrawShore(buffer, kOutline, kOutlineWidth);
+                m_Terrain.DrawStreams(buffer, kStreamWidth);
             }
             if (obstacles)
             {

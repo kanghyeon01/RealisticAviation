@@ -240,6 +240,28 @@ namespace RealisticAviation
 
         /// <summary>That distance as a share of the runway length, used when shorter (default 0.6). Clamped to 0–1.</summary>
         public float? DepartureAheadShare;
+
+        // API version 5 (IFR chart update).
+
+        /// <summary>
+        /// Minimum obstacle clearance of the initial segments and the STAR holds (default 1,000 ft, PANS-OPS) and of the
+        /// intermediate segment (default 500 ft): the tower raises the IF, the IAFs and the hold bases until obstacles under
+        /// them have this much. Not below 0.
+        /// </summary>
+        public float? InitialMocFeet;
+        public float? IntermediateMocFeet;
+
+        /// <summary>
+        /// Width of the obstacle areas each side of a segment: the primary area (full MOC, default 1,000 m) and the secondary
+        /// area outside it (MOC tapering to 0 at its edge, default 1,000 m). Not below 0.
+        /// </summary>
+        public float? ObstacleAreaPrimaryMeters;
+        public float? ObstacleAreaSecondaryMeters;
+
+        /// <summary>
+        /// Height above the runway where an arrival decides to land or go around (default 200 ft, CAT I). Clamped to 50–1,000 ft.
+        /// </summary>
+        public float? DecisionHeightFeet;
     }
 
     /// <summary>The operating values in use at an airport: the options, the weather and any add-on's overrides.</summary>
@@ -276,6 +298,13 @@ namespace RealisticAviation
         // API version 4 (1.2.4).
         public float DepartureAheadMeters;
         public float DepartureAheadShare;
+
+        // API version 5.
+        public float InitialMocFeet;
+        public float IntermediateMocFeet;
+        public float ObstacleAreaPrimaryMeters;
+        public float ObstacleAreaSecondaryMeters;
+        public float DecisionHeightFeet;
     }
 
     /// <summary>
@@ -291,7 +320,7 @@ namespace RealisticAviation
         /// The version of this interface: raised when something is added, so an add-on can check for what it needs. A property,
         /// not a constant, so an add-on reads the version of the Realistic Aviation that is running, not the one it was built with.
         /// </summary>
-        public static int Version => 4;
+        public static int Version => 5;
 
         /// <summary>The tower is running (a city is loaded or loading). Until then the members return nothing.</summary>
         public static bool IsReady => Tower != null;

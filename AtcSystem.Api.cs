@@ -128,6 +128,11 @@ namespace RealisticAviation
                 m_MaxClosureMinutes = values.MaxClosureMinutes ?? float.NaN,
                 m_DepartureAheadDistance = values.DepartureAheadMeters.HasValue ? math.max(0f, values.DepartureAheadMeters.Value) : float.NaN,
                 m_DepartureAheadShare = values.DepartureAheadShare.HasValue ? math.saturate(values.DepartureAheadShare.Value) : float.NaN,
+                m_InitialMoc = values.InitialMocFeet.HasValue ? math.max(0f, values.InitialMocFeet.Value) * 0.3048f : float.NaN,
+                m_IntermediateMoc = values.IntermediateMocFeet.HasValue ? math.max(0f, values.IntermediateMocFeet.Value) * 0.3048f : float.NaN,
+                m_AreaPrimary = values.ObstacleAreaPrimaryMeters.HasValue ? math.max(0f, values.ObstacleAreaPrimaryMeters.Value) : float.NaN,
+                m_AreaSecondary = values.ObstacleAreaSecondaryMeters.HasValue ? math.max(0f, values.ObstacleAreaSecondaryMeters.Value) : float.NaN,
+                m_DecisionHeight = values.DecisionHeightFeet.HasValue ? math.clamp(values.DecisionHeightFeet.Value, 50f, 1000f) * 0.3048f : float.NaN,
             };
         }
 
@@ -221,6 +226,11 @@ namespace RealisticAviation
                 MaxClosureMinutes = settings.m_MaxClosureFrames / Setting.kFramesPerGameMinute,
                 DepartureAheadMeters = settings.m_DepartureAheadDistance,
                 DepartureAheadShare = settings.m_DepartureAheadShare,
+                InitialMocFeet = settings.m_InitialMoc / 0.3048f,
+                IntermediateMocFeet = settings.m_IntermediateMoc / 0.3048f,
+                ObstacleAreaPrimaryMeters = settings.m_AreaPrimary,
+                ObstacleAreaSecondaryMeters = settings.m_AreaSecondary,
+                DecisionHeightFeet = settings.m_DecisionHeight / 0.3048f,
             };
         }
 

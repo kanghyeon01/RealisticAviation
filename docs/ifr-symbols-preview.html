@@ -1,0 +1,854 @@
+<!doctype html><html><head><meta charset="utf-8"><title>IFR chart symbols</title>
+<style>
+body{margin:0;font-family:sans-serif;background:#fff;color:#222}
+h1{font-size:19px;margin:16px 12px 4px}
+h2{font-size:16px;margin:22px 12px 6px}
+.note{font-size:13px;margin:0 12px 8px;max-width:980px;line-height:1.55}
+.row{display:flex;flex-wrap:wrap;gap:10px;padding:0 12px}
+.cell{border:1px solid #ddd;border-radius:6px;padding:6px;text-align:center;font-size:12px;width:220px;line-height:1.45}
+.cell svg{display:block;margin:0 auto 4px;background:#d9d6cc}
+.map{border:1px solid #bbb;background:#d9d6cc}
+.panel{display:inline-block;margin:0 0 10px 12px;vertical-align:top;font-size:13px;text-align:center}
+.win{margin:0 12px 24px;width:900px;border:1px solid #888;border-radius:6px;background:#fdfcf8;font-size:12px}
+.win .head{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 10px;border-bottom:2px solid #e8813a}
+.win .title{font-weight:bold;font-size:14px;line-height:1.3}
+.win table{border-collapse:collapse;margin:6px 10px 10px}
+.win .tabs{display:flex;gap:4px;padding:6px 10px 0}
+.win .tabs span{border:1px solid #888;border-bottom:none;border-radius:4px 4px 0 0;padding:2px 10px;cursor:pointer;background:#eee}
+.win .tabs span.on{background:#fdfcf8;font-weight:bold}
+.win .sec{border-top:1px solid #888}
+.hatch{fill:url(#hatch)}
+.win td,.win th{border:1px solid #777;padding:2px 7px;text-align:center}
+.box{border:1px solid #333;padding:2px 6px;display:inline-block;line-height:1.35;font-size:11px;text-align:left}
+.tag{display:inline-block;background:#c03030;color:#fff;border-radius:3px;padding:0 5px;font-size:11px;margin-left:4px}
+</style></head><body>
+<!-- IFR chart symbols, draft 2 (2026-10-25). The user looked at the Gimpo (RKSS) AIP charts: SID and STAR charts per runway
+     direction, one approach chart per approach with a profile and tables. Plan: the plan view as an infoview overlay (the
+     game's projected lines, the VFR chart's stroke font, letters A-Z added), the profile, MSA and coding table in a small
+     window (UI, normal font). Geometry: the 1.2 procedure constants at the default 5 degree glide path. -->
+<h1>IFR 차트 기호 미리보기 (초안 2)</h1>
+<p class="note">번호별로 보시고 고칠 곳을 말씀해 주세요. 1~8은 <b>지도 오버레이</b>로 게임 세계 위에 선으로 그리는 부분이라, VFR 차트와 같은 선 글꼴을 씁니다. 9~11은 접근 차트를 볼 때 뜨는 <b>작은 창</b>이라 일반 글꼴입니다. 배경의 회색은 정보 보기의 흐린 게임 지도를 대신합니다.</p>
+
+<h2>0. 선 글꼴 (A–Z 전체 추가)</h2>
+<p class="note">웨이포인트 이름과 MAX SPD 같은 글자 때문에 알파벳 전체가 필요합니다. 빨간 글자가 이번에 새로 만드는 글자입니다.</p>
+<div class="row"><svg id="glyphs" width="980" height="120"></svg></div>
+
+<h2>1~8. 지도 오버레이 기호</h2>
+<div class="row" id="legend"></div>
+
+<h2>예시: 활주로 07, 레이어별 (같은 공항을 SID / STAR / 접근으로 나눠 켬)</h2>
+<p class="note">실제 AIP처럼 활주로 방향마다 SID, STAR, 접근을 따로 봅니다. 축척은 게임 계산과 같습니다 (1 px = 40 m, 강하각 5°, 선회 반경 1.43 km). 웨이포인트 이름은 지어낸 예시입니다 (아래 질문 참고).<br><b>글자 배치는 자동입니다</b>: 선·기호·거리 상자를 장애물로 두고, 픽스 이름 → 홀딩 글자 → 방위 → 절차 이름 → 홀딩 방위 → 항로 이름 순으로 후보 자리 중 안 겹치는 첫 자리에 놓습니다. 픽스 이름은 선이 없는 쪽부터 찾습니다. 자리가 없으면 생략하고 그림 아래에 빨갛게 적습니다 (픽스 이름은 생략하지 않음). 홀딩 글자는 홀딩 크기에 맞춰 줄이고, 너무 작아지면 긴 줄부터 뺍니다.</p>
+<div id="panels"></div>
+
+<h2>9~11. 접근 차트 창</h2>
+<p class="note">접근 레이어를 켜면 화면 구석에 뜹니다. AIP 계기접근 차트의 아래쪽 절반(단면도, 표)과 위쪽 정보 칸을 옮긴 것입니다.</p>
+<div class="win">
+  <div class="head">
+    <div class="title">INSTRUMENT APPROACH<br>RNP RWY 07</div>
+    <div><span class="box">TWR 118.300<br>APP 124.675</span> <span class="box">AERODROME ELEV 59 ft<br>HEIGHTS RELATED TO THR RWY 07 - ELEV 59 ft</span></div>
+    <div class="title" style="text-align:right">Portland Intl (KPLD)<br><span style="font-size:12px;font-weight:normal">9. 정보 칸</span></div>
+  </div>
+  <div class="tabs"><span class="on" data-tab="tabChart">접근 차트</span><span data-tab="tabCoding">코딩표</span></div>
+  <div id="tabChart" class="sec">
+    <div style="display:flex;justify-content:space-between;padding:8px 10px 0">
+      <div style="max-width:560px;line-height:1.45"><b>MISSED APPROACH</b><br>Climb to 1 500 on runway heading. Track to TORIB, NAMPO and VELOK,<br>then turn onto final at BIROT.<br><span style="font-size:11px">NOTE: the traffic pattern of runway 07.</span></div>
+      <div style="display:flex;gap:10px;align-items:flex-start"><span class="box">TRANSITION ALT 14 000<br>TRANSITION LVL FL 140</span><svg id="msa" width="120" height="130"></svg></div>
+    </div>
+    <div style="padding:0 10px;font-weight:bold">10. 단면도 (profile)</div>
+    <svg id="profile" width="880" height="250"></svg>
+    <div style="display:flex;align-items:flex-start">
+      <table id="minima"></table>
+      <div><table id="rod"></table><div style="padding:0 10px 10px;font-size:11px">* Circling not authorized.</div></div>
+    </div>
+  </div>
+  <div id="tabCoding" class="sec" style="display:none">
+    <div style="padding:6px 10px 0;font-weight:bold">11. 코딩표 (AIP의 "Procedure Coding Tables", 다음 쪽에 따로 싣는 표)</div>
+    <div id="coding"></div>
+  </div>
+</div>
+
+<h2>정한 것</h2>
+<p class="note">
+1. <b>웨이포인트 이름</b>: 실제처럼 발음 가능한 영문 5글자 (예: KOVAN, TELIP). 위치로 정해서 다시 불러와도 같고, 도시 안에서 겹치지 않게 합니다.<br>
+2. <b>방위</b>: 진방위 하나만 (게임에 자기 편차가 없음).<br>
+3. <b>MSA</b>: 공항 공역 반경 기준 4방위, 지형·장애물로 계산, 접근 차트 창에만.
+</p>
+
+<script>
+// ---------------------------------------------------------------- stroke font (unit box 0.6 x 1, y up; as ChartLabels.cs)
+const kWidth = 0.6, kGap = 0.3;
+function Arc(cx, cy, rx, ry, from, to) {
+  const n = Math.max(2, Math.ceil(Math.abs(to - from) / 15)), pts = [];
+  for (let i = 0; i <= n; i++) { const a = (from + (to - from) * i / n) * Math.PI / 180; pts.push(cx + rx * Math.cos(a), cy + ry * Math.sin(a)); }
+  return pts;
+}
+const Join = (a, b) => a.concat(b);
+const OLD = {
+  '0': [Arc(0.3, 0.5, 0.3, 0.5, 90, 450)],
+  '1': [[0.12, 0.8, 0.34, 1, 0.34, 0]],
+  '2': [Join(Arc(0.3, 0.72, 0.28, 0.28, 160, -35), [0, 0, 0.6, 0])],
+  '3': [Join(Arc(0.3, 0.76, 0.26, 0.24, 150, -90), Arc(0.3, 0.27, 0.3, 0.27, 90, -150))],
+  '4': [[0.45, 0, 0.45, 1, 0, 0.3, 0.6, 0.3]],
+  '5': [Join([0.55, 1, 0.1, 1], Arc(0.3, 0.32, 0.3, 0.32, 128, -145))],
+  '6': [Arc(0.3, 0.5, 0.3, 0.5, 60, 200), Arc(0.3, 0.3, 0.3, 0.3, 180, 540)],
+  '7': [[0, 1, 0.6, 1, 0.2, 0]],
+  '8': [Arc(0.3, 0.77, 0.25, 0.23, 270, 630), Arc(0.3, 0.27, 0.3, 0.27, 90, 450)],
+  '9': [Arc(0.3, 0.7, 0.3, 0.3, 0, 360), Arc(0.3, 0.5, 0.3, 0.5, 25, -120)],
+  'S': [Join(Arc(0.3, 0.75, 0.28, 0.25, 30, 270), Arc(0.3, 0.25, 0.3, 0.25, 90, -150))],
+  'F': [[0.55, 1, 0, 1, 0, 0], [0, 0.52, 0.42, 0.52]],
+  'C': [Arc(0.32, 0.5, 0.3, 0.5, 45, 315)],
+  '(': [Arc(0.55, 0.5, 0.3, 0.62, 125, 235)],
+  ')': [Arc(0.05, 0.5, 0.3, 0.62, 55, -55)],
+  'M': [[0, 0, 0, 1, 0.3, 0.4, 0.6, 1, 0.6, 0]],
+  'D': [Join(Join([0, 0, 0, 1, 0.2, 1], Arc(0.2, 0.5, 0.4, 0.5, 90, -90)), [0, 0])],
+  'E': [[0.6, 1, 0, 1, 0, 0, 0.6, 0], [0, 0.52, 0.45, 0.52]],
+  'N': [[0, 0, 0, 1, 0.6, 0, 0.6, 1]],
+  '-': [[0.08, 0.5, 0.52, 0.5]],
+};
+OLD['O'] = OLD['0'];
+const NEW = {
+  'A': [[0, 0, 0.3, 1, 0.6, 0], [0.1, 0.33, 0.5, 0.33]],
+  'B': [[0, 0, 0, 1, 0.38, 1, 0.53, 0.9, 0.53, 0.62, 0.38, 0.52, 0, 0.52], [0.38, 0.52, 0.6, 0.4, 0.6, 0.12, 0.45, 0, 0, 0]],
+  'G': [Join(Arc(0.32, 0.5, 0.3, 0.5, 45, 330), [0.6, 0.45, 0.36, 0.45])],
+  'H': [[0, 0, 0, 1], [0.6, 0, 0.6, 1], [0, 0.52, 0.6, 0.52]],
+  'I': [[0.3, 0, 0.3, 1], [0.12, 1, 0.48, 1], [0.12, 0, 0.48, 0]],
+  'J': [Join([0.6, 1, 0.6, 0.3], Arc(0.3, 0.3, 0.3, 0.3, 0, -180))],
+  'K': [[0, 0, 0, 1], [0.6, 1, 0, 0.4], [0.2, 0.6, 0.6, 0]],
+  'L': [[0, 1, 0, 0, 0.55, 0]],
+  'P': [[0, 0, 0, 1, 0.4, 1, 0.6, 0.86, 0.6, 0.62, 0.4, 0.48, 0, 0.48]],
+  'Q': [Arc(0.3, 0.5, 0.3, 0.5, 90, 450), [0.36, 0.24, 0.62, -0.05]],
+  'R': [[0, 0, 0, 1, 0.4, 1, 0.6, 0.86, 0.6, 0.62, 0.4, 0.48, 0, 0.48], [0.3, 0.48, 0.6, 0]],
+  'T': [[0, 1, 0.6, 1], [0.3, 1, 0.3, 0]],
+  'U': [Join(Join([0, 1, 0, 0.3], Arc(0.3, 0.3, 0.3, 0.3, 180, 360)), [0.6, 1])],
+  'V': [[0, 1, 0.3, 0, 0.6, 1]],
+  'W': [[0, 1, 0.15, 0, 0.3, 0.6, 0.45, 0, 0.6, 1]],
+  'X': [[0, 0, 0.6, 1], [0, 1, 0.6, 0]],
+  'Y': [[0, 1, 0.3, 0.5, 0.6, 1], [0.3, 0.5, 0.3, 0]],
+  'Z': [[0, 1, 0.6, 1, 0, 0, 0.6, 0]],
+  '/': [[0.05, -0.05, 0.55, 1.05]],
+  '.': [Arc(0.3, 0.05, 0.05, 0.05, 0, 360)],
+  '°': [Arc(0.2, 0.86, 0.13, 0.13, 0, 360)],
+  '+': [[0.3, 0.2, 0.3, 0.8], [0.05, 0.5, 0.55, 0.5]],
+  '%': [[0.05, 0, 0.55, 1], Arc(0.13, 0.82, 0.11, 0.13, 0, 360), Arc(0.47, 0.18, 0.11, 0.13, 0, 360)],
+};
+const G = Object.assign({}, OLD, NEW);
+const textWidth = (s, h) => s.length ? (s.length * (kWidth + kGap) - kGap) * h : 0;
+function text(s, x, y, h, color, w) {
+  let out = '';
+  [...s].forEach((ch, i) => {
+    if (ch === ' ') return;
+    const ox = x + i * (kWidth + kGap) * h;
+    (G[ch] || []).forEach(l => {
+      const pts = [];
+      for (let k = 0; k < l.length; k += 2) pts.push(`${(ox + l[k] * h).toFixed(1)},${(y - l[k + 1] * h).toFixed(1)}`);
+      out += `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="${w || h * 0.13}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    });
+  });
+  return out;
+}
+const textC = (s, cx, cy, h, color, w) => text(s, cx - textWidth(s, h) / 2, cy + h / 2, h, color, w);
+
+// ---------------------------------------------------------------- symbols
+const INK = '#111', AIRWAY = '#7a7a7a', RING = '#8a8a8a';
+const ln = (x1, y1, x2, y2, c, w, dash) => `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${c}" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}"` : ''} stroke-linecap="round"/>`;
+function head(x, y, dx, dy, s, c) { const n = [-dy, dx]; return `<polygon points="${x},${y} ${x - dx * s + n[0] * s * 0.45},${y - dy * s + n[1] * s * 0.45} ${x - dx * s - n[0] * s * 0.45},${y - dy * s - n[1] * s * 0.45}" fill="${c}"/>`; }
+// RNAV waypoint as on the AIP (ICAO Annex 4): an open circle with four triangular points (N, E, S, W). Lines only.
+function star(cx, cy, r, c) {
+  const r0 = r * 0.62, half = 0.5, p = [];
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2 - Math.PI / 2;
+    p.push([cx + r0 * Math.cos(a - half), cy + r0 * Math.sin(a - half)], [cx + r * Math.cos(a), cy + r * Math.sin(a)], [cx + r0 * Math.cos(a + half), cy + r0 * Math.sin(a + half)]);
+  }
+  return `<polygon points="${p.map(q => q.map(v => v.toFixed(1)).join(',')).join(' ')}" fill="#d9d6cc" stroke="${c}" stroke-width="1.5" stroke-linejoin="miter"/>`
+    + `<circle cx="${cx}" cy="${cy}" r="${r0}" fill="#d9d6cc" stroke="${c}" stroke-width="1.5"/>`;
+}
+// Named fix where a procedure meets an airway: an open triangle (ICAO non-compulsory reporting point; a filled one is compulsory).
+function routeFix(cx, cy, r, c) {
+  const p = [[cx, cy - r], [cx + r * 0.87, cy + r * 0.5], [cx - r * 0.87, cy + r * 0.5]];
+  return `<polygon points="${p.map(q => q.map(v => v.toFixed(1)).join(',')).join(' ')}" fill="#d9d6cc" stroke="${c}" stroke-width="1.6"/>`;
+}
+// Altitude: underline = at or above, overline = at or below, both = at; a window is two figures stacked (upper overlined, lower underlined).
+function alt(s, cx, cy, h, c, kind) {
+  const tw = textWidth(s, h), x1 = cx - tw / 2 - 1, x2 = cx + tw / 2 + 1;
+  let out = textC(s, cx, cy, h, c);
+  if (kind === 'min' || kind === 'at') out += ln(x1, cy + h * 0.85, x2, cy + h * 0.85, c, h * 0.12);
+  if (kind === 'max' || kind === 'at') out += ln(x1, cy - h * 0.85, x2, cy - h * 0.85, c, h * 0.12);
+  return out;
+}
+const window2 = (hi, lo, cx, cy, h, c) => alt(hi, cx, cy - h * 1.15, h, c, 'max') + alt(lo, cx, cy + h * 1.15, h, c, 'min');
+// Distance (NM) in the line, as on the AIP: an arrow outline pointing along the leg, open at the back where the line comes
+// in; the figure along the leg, turned to stay readable. distSize: how far it reaches behind (back) and ahead (tip) of its centre.
+const distSize = (s, h) => [textWidth(s, h) / 2 + 5, textWidth(s, h) / 2 + 12];
+function distBox(s, cx, cy, ux, uy, h, c) {
+  const [w] = distSize(s, h), hh = h * 0.85, ang = Math.atan2(uy, ux) * 180 / Math.PI;
+  const textAng = ang > 90 ? ang - 180 : ang < -90 ? ang + 180 : ang;
+  return `<g transform="translate(${cx.toFixed(1)},${cy.toFixed(1)}) rotate(${ang.toFixed(1)})"><polyline points="${-w},${-hh} ${w},${-hh} ${w + 7},0 ${w},${hh} ${-w},${hh}" fill="none" stroke="${c}" stroke-width="1.3" stroke-linejoin="miter"/></g>`
+    + `<g transform="rotate(${textAng.toFixed(1)} ${cx.toFixed(1)} ${cy.toFixed(1)})">${textC(s, cx, cy, h, c)}</g>`;
+}
+// Leg: bold line with the distance box in it (the line stops at the box's open back and goes on from its tip), the course
+// beside it on the given side, clear of the box; the arrowhead only at the end of a procedure (o.end: pixels short of the
+// fix, clear of its symbol). As on the AIP.
+const crsOf = (dx, dy) => String(Math.round((Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360)).padStart(3, '0') + '°';
+function leg(x1, y1, x2, y2, nmText, side, opts) {
+  const o = opts || {}, c = o.color || INK, dx = x2 - x1, dy = y2 - y1, l = Math.hypot(dx, dy), ux = dx / l, uy = dy / l, mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  const nx = -uy * side, ny = ux * side;
+  const tip = o.end === undefined ? '' : head(x2 - ux * o.end, y2 - uy * o.end, ux, uy, 11, c);
+  if (o.noLabel) {
+    return ln(x1, y1, x2, y2, c, o.w || 3, o.dash) + tip;
+  }
+  const [back, ahead] = nmText ? distSize(nmText, 10) : [0, 0];
+  let out = ln(x1, y1, mx - ux * back, my - uy * back, c, o.w || 3, o.dash) + ln(mx + ux * ahead, my + uy * ahead, x2, y2, c, o.w || 3, o.dash) + tip;
+  if (nmText) out += distBox(nmText, mx, my, ux, uy, 10, c);
+  const ang = Math.atan2(uy, ux) * 180 / Math.PI, textAng = ang > 90 ? ang - 180 : ang < -90 ? ang + 180 : ang;
+  const cx = mx + nx * 20, cy = my + ny * 20;
+  out += `<g transform="rotate(${textAng.toFixed(1)} ${cx.toFixed(1)} ${cy.toFixed(1)})">${textC(crsOf(dx, dy), cx, cy, 11, c)}</g>`;
+  return out;
+}
+// Procedure name (SID / STAR / transition) in bold along a leg, clear of the line by about one letter height (as on the AIP),
+// on the given side, turned to stay readable.
+function procName(t, x1, y1, x2, y2, side, c) {
+  const dx = x2 - x1, dy = y2 - y1, l = Math.hypot(dx, dy), ux = dx / l, uy = dy / l, h = 12, off = h * 1.6;
+  const x = (x1 + x2) / 2 - uy * side * off, y = (y1 + y2) / 2 + ux * side * off;
+  const ang = Math.atan2(uy, ux) * 180 / Math.PI, up = ang > 90 ? ang - 180 : ang < -90 ? ang + 180 : ang;
+  return `<g transform="rotate(${up.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})">${textC(t, x, y, h, c || INK, 2.4)}</g>`;
+}
+// Racetrack hold, right-hand turns: fix, inbound unit vector (svg coordinates), leg, turn radius.
+// As on the AIP: an arrow on each straight leg (inbound towards the fix, outbound away), each leg's course outside it, and
+// the limits inside along the axis (lines: e.g. MAX SPD 230 KT IAS / MNM ALT 4000 / 1 MIN).
+function hold(fx, fy, ix, iy, legL, r, c, w, lines) {
+  const rx = -iy, ry = ix, a = [fx - ix * legL, fy - iy * legL], b = [fx, fy], cc = [fx + rx * 2 * r, fy + ry * 2 * r], d = [a[0] + rx * 2 * r, a[1] + ry * 2 * r];
+  let s = `<path d="M${a} L${b} A${r} ${r} 0 0 1 ${cc} L${d} A${r} ${r} 0 0 1 ${a}" fill="none" stroke="${c}" stroke-width="${w}"/>`;
+  s += head(fx - ix * legL * 0.35, fy - iy * legL * 0.35, ix, iy, w * 5, c);
+  s += head(cc[0] - ix * legL * 0.65, cc[1] - iy * legL * 0.65, -ix, -iy, w * 5, c);
+  const ang = Math.atan2(iy, ix) * 180 / Math.PI, up = ang > 90 ? ang - 180 : ang < -90 ? ang + 180 : ang;
+  const label = (t, x, y, h) => `<g transform="rotate(${up.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})">${textC(t, x, y, h, c)}</g>`;
+  const mid = [fx - ix * legL / 2, fy - iy * legL / 2], off = 10;
+  s += label(crsOf(ix, iy), mid[0] - rx * off, mid[1] - ry * off, 8);
+  s += label(crsOf(-ix, -iy), mid[0] + rx * (2 * r + off), mid[1] + ry * (2 * r + off), 8);
+  (lines || []).forEach((t, i) => {
+    const k = (i - (lines.length - 1) / 2) * 10;
+    s += label(t, mid[0] + rx * (r + k), mid[1] + ry * (r + k), 7);
+  });
+  return s;
+}
+// Runway as on the AIP approach chart: the outline of the runway (black, light fill), at least a few pixels wide.
+function runway(x1, y1, x2, y2, wPx, c) {
+  const dx = x2 - x1, dy = y2 - y1, l = Math.hypot(dx, dy), nx = -dy / l * wPx / 2, ny = dx / l * wPx / 2;
+  const p = [[x1 + nx, y1 + ny], [x2 + nx, y2 + ny], [x2 - nx, y2 - ny], [x1 - nx, y1 - ny]].map(q => q.map(v => v.toFixed(1)).join(',')).join(' ');
+  return `<polygon points="${p}" fill="#f4f2ea" stroke="${c}" stroke-width="2.2" stroke-linejoin="miter"/>`;
+}
+// Compass rose round the airport (the AIP draws it round the VOR at the field): ticks every 10 degrees, longer every 30,
+// N E S W as 0 9 18 27, north at the top (true north: the game has no magnetic variation).
+function rose(cx, cy, r, c) {
+  let s = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${c}" stroke-width="1.4"/>`;
+  for (let a = 0; a < 360; a += 10) {
+    const t = a * Math.PI / 180, inner = r - (a % 30 === 0 ? 7 : 4);
+    s += ln(cx + Math.sin(t) * inner, cy - Math.cos(t) * inner, cx + Math.sin(t) * r, cy - Math.cos(t) * r, c, 1.1);
+  }
+  [['0', 0], ['9', 90], ['18', 180], ['27', 270]].forEach(([n, a]) => { const t = a * Math.PI / 180; s += textC(n, cx + Math.sin(t) * (r - 14), cy - Math.cos(t) * (r - 14), 7, c); });
+  return s + head(cx, cy - r - 9, 0, -1, 8, c);
+}
+const fixLabel = (name, role, x, y, c) => (role ? textC(`(${role})`, x, y - 14, 9, c, 1.9) : '') + textC(name, x, y, 11, c);
+
+// ---------------------------------------------------------------- 0. glyphs
+(function () {
+  let s = '', x = 10;
+  const draw = (keys, y, newColor) => { x = 10; keys.forEach(k => { const isNew = NEW[k] && !OLD[k]; s += text(k, x, y, 30, isNew ? '#c03030' : '#444'); x += 30; }); };
+  draw([...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'], 45);
+  draw([...'0123456789()-/.°+%'], 105);
+  document.getElementById('glyphs').innerHTML = s;
+})();
+
+// ---------------------------------------------------------------- 1-6. legend
+const cells = [
+  ['1. 활주로', '왼쪽: 활주로 윤곽 (검은 테두리, 밝은 속, AIP와 같음). 오른쪽: 공항 둘레 나침반 (선택; AIP는 공항의 VOR 둘레에 그림, 게임엔 VOR이 없어 공항 중심에)',
+    () => runway(20, 85, 95, 45, 9, INK) + rose(160, 65, 42, INK) + runway(130, 85, 190, 45, 7, INK)],
+  ['2. 웨이포인트', '왼쪽: 절차 웨이포인트 (원 + 네 뾰족점, 속 빈 선; AIP의 DOKDO, DU018). 역할은 이름 위 굵은 괄호 (IAF), (IF), (FAF). 오른쪽: 절차가 항로와 만나는 픽스 (속 빈 삼각형; AIP의 EGOBA, GUKDO)',
+    () => star(65, 48, 14, INK) + fixLabel('KOVAN', 'IAF', 65, 84, INK) + routeFix(160, 50, 12, INK) + fixLabel('TELIP', '', 160, 84, INK)],
+  ['3. 고도 제한', '밑줄 = 이상, 윗줄 = 이하, 둘 다 = 그 고도, 위아래로 쌓으면 그 사이 (AIP와 같음)',
+    () => alt('4000', 40, 55, 13, INK, 'min') + alt('6000', 100, 55, 13, INK, 'max') + alt('8000', 160, 55, 13, INK, 'at') + window2('9000', '8000', 100, 100, 11, INK)],
+  ['4. 구간 표시', '굵은 선 (화살표는 절차의 맨 끝에만). 거리(NM)는 항상 선 안에 (결정), 방위(진방위)는 옆에 조금 띄워서. 거리는 진행 방향을 가리키고 뒤가 뚫린 화살표 테두리 안에 (AIP와 같음)',
+    () => leg(15, 70, 205, 70, '4.3', -1, { end: 0 })],
+  ['5. 경로 선', '위: SID·STAR·접근 (검은 굵은 선, 끝에만 화살표), 가운데: 실패접근 (점선), 아래: 항로 (회색 가는 선, 이름은 선을 따라 옆에, 상자 없이; 이름이 둘이면 W61 / Z54처럼 양쪽에)',
+    () => ln(15, 30, 205, 30, INK, 3) + head(205, 30, 1, 0, 11, INK) + ln(15, 70, 205, 70, INK, 2, '7 5') + head(205, 70, 1, 0, 10, INK)
+      + ln(15, 108, 205, 108, AIRWAY, 1.6) + textC("W61", 110, 98, 10, INK) + textC("Z54", 110, 118, 10, INK)],
+  ['6. 홀딩', '우선회 레이스트랙, 양쪽 직선에 화살표 하나씩 (들어올 때 픽스 쪽, 나갈 때 반대쪽), 양쪽 바깥에 각 방위, 안에 MAX SPD / 최저 고도 / 1 MIN을 축 방향으로 (AIP와 같음)',
+    () => hold(195, 45, 1, 0, 150, 28, INK, 2.2, ['MAX SPD 230 KT IAS', 'MNM ALT 4000', '1 MIN'])],
+  ['7. 절차 이름', '굵은 글자로 경로에서 글자 하나 높이쯤 띄워서, 거리 상자 반대쪽에 (AIP의 "WIKEN 2A", "GONAV TRANSITION"). SID는 마지막 픽스, STAR는 첫 픽스 이름 + 번호 + 글자',
+    () => ln(20, 100, 200, 50, INK, 3) + head(200, 50, 0.964, -0.268, 11, INK) + procName('KOVAN 1A', 20, 100, 200, 50, -1)],
+['8. 장애물', 'VFR 차트와 같은 모양: 지상 1,000 ft 이상은 첨탑, 그 아래는 ^, 지형 꼭대기는 점. 해발고도만 천 단위 띄어쓰기. 조명 표시는 없음. SID에서 상승률을 정하는 장애물은 번호 원',    () => obstacleSym(45, 55, 'tall', INK) + textC('1 506', 45, 92, 10, INK) + obstacleSym(110, 60, 'low', INK) + textC('413', 110, 92, 10, INK) + obstacleSym(175, 62, 'terrain', INK) + textC('1 540', 175, 92, 10, INK)],
+];
+
+// ---------------------------------------------------------------- label placement
+// Every line, symbol and fixed text of a chart is an obstacle (an oriented box). Labels are then placed in priority order,
+// each at the first of its candidate spots that hits nothing placed so far and stays inside the chart; one with no free
+// spot is left out (its data stays in the coding table), unless it must stay, then it takes the spot that hits least.
+// Text is sized in map units, so this is worked out once when a chart is built, not per frame or per zoom level.
+function overlaps(a, b) {
+  const axes = [a.ang, a.ang + Math.PI / 2, b.ang, b.ang + Math.PI / 2];
+  for (const t of axes) {
+    const ax = Math.cos(t), ay = Math.sin(t);
+    const r = o => Math.abs(Math.cos(o.ang - t)) * o.hw + Math.abs(Math.sin(o.ang - t)) * o.hh;
+    if (Math.abs((b.cx - a.cx) * ax + (b.cy - a.cy) * ay) > r(a) + r(b)) return false;
+  }
+  return true;
+}
+class Chart {
+  constructor(w, h) { this.w = w; this.h = h; this.svg = ''; this.boxes = []; this.labels = []; this.dropped = []; }
+  draw(s) { this.svg += s; }
+  box(cx, cy, hw, hh, ang) { this.boxes.push({ cx, cy, hw, hh, ang: ang || 0 }); }
+  seg(x1, y1, x2, y2, w) {
+    const l = Math.hypot(x2 - x1, y2 - y1);
+    if (l > 0.5) this.box((x1 + x2) / 2, (y1 + y2) / 2, l / 2, w / 2 + 1.5, Math.atan2(y2 - y1, x2 - x1));
+  }
+  line(x1, y1, x2, y2, c, w, dash) { this.draw(ln(x1, y1, x2, y2, c, w, dash)); this.seg(x1, y1, x2, y2, w); }
+  // l: { name, priority, keep, hw, hh, spots: [{ cx, cy, ang }], render(spot) }
+  label(l) { this.labels.push(l); }
+  place() {
+    this.labels.sort((a, b) => a.priority - b.priority);
+    for (const l of this.labels) {
+      let best = null, bestHits = Infinity;
+      for (const s of l.spots) {
+        const b = { cx: s.cx, cy: s.cy, hw: l.hw, hh: l.hh, ang: s.ang || 0 };
+        const out = Math.abs(Math.cos(b.ang)) * b.hw + Math.abs(Math.sin(b.ang)) * b.hh, up = Math.abs(Math.sin(b.ang)) * b.hw + Math.abs(Math.cos(b.ang)) * b.hh;
+        let hits = (b.cx - out < 2 || b.cx + out > this.w - 2 || b.cy - up < 2 || b.cy + up > this.h - 2) ? 100 : 0;
+        for (const o of this.boxes) if (!(l.ignore && l.ignore.includes(o)) && overlaps(b, o)) hits++;
+        if (hits === 0) { best = s; bestHits = 0; break; }
+        if (hits < bestHits) { best = s; bestHits = hits; }
+      }
+      if (bestHits > 0 && !l.keep) { this.dropped.push(l.name); continue; }
+      this.boxes.push({ cx: best.cx, cy: best.cy, hw: l.hw, hh: l.hh, ang: best.ang || 0 });
+      this.draw(l.render(best));
+    }
+  }
+}
+const readable = ang => ang > Math.PI / 2 ? ang - Math.PI : ang < -Math.PI / 2 ? ang + Math.PI : ang;
+const deg = r => r * 180 / Math.PI;
+
+// A text label along a direction (course, procedure name, airway name): candidate spots at the given shares of a segment,
+// on the preferred side first, `off` pixels from the line.
+function alongLabel(ch, name, text, h, bold, x1, y1, x2, y2, side, off, shares, priority, keep, c, boxed) {
+  const dx = x2 - x1, dy = y2 - y1, l = Math.hypot(dx, dy), ux = dx / l, uy = dy / l, ang = readable(Math.atan2(uy, ux));
+  const hw = textWidth(text, h) / 2 + (boxed ? 6 : 2), hh = h / 2 + (boxed ? 4 : 2), spots = [];
+  for (const sd of side === 0 ? [0] : [side, -side]) {
+    for (const t of shares) spots.push({ cx: x1 + dx * t - uy * sd * off, cy: y1 + dy * t + ux * sd * off, ang });
+  }
+  ch.label({ name, priority, keep, hw, hh, spots, render: s => {
+    const box = boxed ? `<g transform="translate(${s.cx.toFixed(1)},${s.cy.toFixed(1)}) rotate(${deg(s.ang).toFixed(1)})"><rect x="${-hw}" y="${-hh}" width="${2 * hw}" height="${2 * hh}" fill="#d9d6cc" stroke="${c}" stroke-width="1.2"/></g>` : '';
+    return box + `<g transform="rotate(${deg(s.ang).toFixed(1)} ${s.cx.toFixed(1)} ${s.cy.toFixed(1)})">${textC(text, s.cx, s.cy, h, c, bold ? h * 0.2 : undefined)}</g>`;
+  } });
+}
+
+// A procedure leg: the line, the distance box in it (fixed), the course beside it (a label), the arrowhead at the end of
+// a procedure (o.end), and optionally the procedure's name (o.name, on the other side).
+function legC(ch, a, b, nmText, side, o) {
+  o = o || {};
+  // o.trim0 / o.trim1: pixels cut off the start / end where a fly-by turn takes over (turnC).
+  const [ax, ay] = P(a), [bx, by] = P(b), L = Math.hypot(bx - ax, by - ay), ux = (bx - ax) / L, uy = (by - ay) / L;
+  const x1 = ax + ux * (o.trim0 || 0), y1 = ay + uy * (o.trim0 || 0), x2 = bx - ux * (o.trim1 || 0), y2 = by - uy * (o.trim1 || 0);
+  const dx = x2 - x1, dy = y2 - y1, mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  const w = o.w || 3;
+  if (o.end !== undefined) ch.draw(head(x2 - ux * o.end, y2 - uy * o.end, ux, uy, 11, INK));
+  if (!nmText) { ch.line(x1, y1, x2, y2, INK, w, o.dash); return; }
+  const [back, ahead] = distSize(nmText, 10);
+  ch.line(x1, y1, mx - ux * back, my - uy * back, INK, w, o.dash);
+  ch.line(mx + ux * ahead, my + uy * ahead, x2, y2, INK, w, o.dash);
+  ch.draw(distBox(nmText, mx, my, ux, uy, 10, INK));
+  ch.box(mx + ux * (ahead - back) / 2, my + uy * (ahead - back) / 2, (back + ahead) / 2, 9, Math.atan2(uy, ux));
+  alongLabel(ch, 'course ' + crsOf(dx, dy), crsOf(dx, dy), 11, false, x1, y1, x2, y2, side, 20, [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74], 3, false, INK);
+  if (o.name) alongLabel(ch, 'name ' + o.name, o.name, 12, true, x1, y1, x2, y2, -side, 20, [0.5, 0.38, 0.62, 0.28, 0.72, 0.2, 0.8], 4, false, INK);
+}
+// A fly-by turn at fix v from a (coming from) to b (going to), drawn as the AIP draws it: the track rounds the corner on
+// the inside, starting before the fix, with the game's turn radius (cut down when a leg is too short for it). Returns
+// the pixels the two legs lose ([trim of a-v at its end, trim of v-b at its start]). o.end: arrowhead at the arc's end.
+function turnC(ch, a, v, b, o) {
+  o = o || {};
+  const [ax, ay] = P(a), [vx, vy] = P(v), [bx, by] = P(b);
+  const l1 = Math.hypot(vx - ax, vy - ay), l2 = Math.hypot(bx - vx, by - vy);
+  const u1 = [(vx - ax) / l1, (vy - ay) / l1], u2 = [(bx - vx) / l2, (by - vy) / l2];
+  const turn = Math.acos(Math.max(-1, Math.min(1, u1[0] * u2[0] + u1[1] * u2[1])));
+  if (turn < 0.05) return [0, 0];
+  const half = Math.tan(turn / 2), r = Math.min(R / M, (0.45 * Math.min(l1, l2)) / half), t = r * half;
+  const s = [vx - u1[0] * t, vy - u1[1] * t], e = [vx + u2[0] * t, vy + u2[1] * t];
+  const sweep = u1[0] * u2[1] - u1[1] * u2[0] > 0 ? 1 : 0;
+  ch.draw(`<path d="M${s[0].toFixed(1)},${s[1].toFixed(1)} A${r.toFixed(1)},${r.toFixed(1)} 0 0 ${sweep} ${e[0].toFixed(1)},${e[1].toFixed(1)}" fill="none" stroke="${INK}" stroke-width="${o.w || 3}"${o.dash ? ` stroke-dasharray="${o.dash}"` : ''}/>`);
+  // The arc as obstacles: its chord pieces through the arc's middle.
+  const mid = [vx + ((u2[0] - u1[0]) / Math.hypot(u2[0] - u1[0], u2[1] - u1[1])) * (r / Math.cos(turn / 2) - r), vy + ((u2[1] - u1[1]) / Math.hypot(u2[0] - u1[0], u2[1] - u1[1])) * (r / Math.cos(turn / 2) - r)];
+  ch.seg(s[0], s[1], mid[0], mid[1], o.w || 3); ch.seg(mid[0], mid[1], e[0], e[1], o.w || 3);
+  if (o.end !== undefined) ch.draw(head(e[0] + u2[0] * 4, e[1] + u2[1] * 4, u2[0], u2[1], 11, INK));
+  return [t, t];
+}
+
+// A fix: the symbol (fixed) and its label block, (role) / name / altitude, put on the freest side: candidate directions
+// sorted by how far they are from every line meeting the fix (`away`: unit vectors towards those lines, in pixels).
+function fixC(ch, p, kind, name, role, altText, altKind, away) {
+  const [x, y] = P(p), r = kind === 'route' ? 10 : 11;
+  ch.draw(kind === 'route' ? routeFix(x, y, r, INK) : star(x, y, r, INK));
+  ch.box(x, y, r, r, 0);
+  const lines = [];
+  if (role) lines.push({ t: `(${role})`, h: 9, bold: true });
+  lines.push({ t: name, h: 11 });
+  if (altText) lines.push({ t: altText, h: 10, alt: altKind || 'min' });
+  const gap = 5, hw = Math.max(...lines.map(q => textWidth(q.t, q.h))) / 2 + 3;
+  const hh = (lines.reduce((s, q) => s + q.h, 0) + gap * (lines.length - 1)) / 2 + 3;
+  const dirs = [];
+  for (let i = 0; i < 16; i++) {
+    const t = i * Math.PI / 8, v = [Math.cos(t), Math.sin(t)];
+    const clear = Math.min(...away.map(a => Math.hypot(a[0], a[1]) > 0 ? [a[0] / Math.hypot(a[0], a[1]), a[1] / Math.hypot(a[0], a[1])] : a).map(a => Math.acos(Math.max(-1, Math.min(1, v[0] * a[0] + v[1] * a[1])))), Math.PI);
+    dirs.push({ v, clear });
+  }
+  dirs.sort((a, b) => b.clear - a.clear);
+  const spots = [];
+  for (const extra of [0, 14, 28]) {
+    for (const { v } of dirs) {
+      const dist = r + 4 + extra + Math.abs(v[0]) * hw + Math.abs(v[1]) * hh;
+      spots.push({ cx: x + v[0] * dist, cy: y + v[1] * dist, ang: 0 });
+    }
+  }
+  ch.label({ name: 'fix ' + name, priority: 1, keep: true, hw, hh, spots, render: s => {
+    let out = '', yy = s.cy - hh + 3;
+    for (const q of lines) {
+      const cy = yy + q.h / 2;
+      out += q.alt ? alt(q.t, s.cx, cy, q.h, INK, q.alt) : textC(q.t, s.cx, cy, q.h, INK, q.bold ? 1.9 : undefined);
+      yy += q.h + gap;
+    }
+    return out;
+  } });
+}
+
+// A hold: the racetrack (an obstacle), an arrow on each leg; the limits inside, sized to fit (lines left out longest first
+// when they would be too small); each leg's course outside it as a label.
+function holdC(ch, fix, inbound, lines) {
+  const [fx, fy] = P(fix), u = unit([fix[0] - inbound[0], fix[1] - inbound[1]], fix), ix = u[0], iy = u[1];
+  const legL = 2778 / M, r = 1300 / M, rx = -iy, ry = ix;
+  ch.draw(hold(fx, fy, ix, iy, legL, r, INK, 2, []).replace(/<g transform[^]*$/, ''));
+  const a = [fx - ix * legL, fy - iy * legL], cc = [fx + rx * 2 * r, fy + ry * 2 * r], dd = [a[0] + rx * 2 * r, a[1] + ry * 2 * r];
+  ch.seg(a[0], a[1], fx, fy, 2); ch.seg(cc[0], cc[1], dd[0], dd[1], 2);
+  for (const [cxp, cyp, from] of [[fx + rx * r, fy + ry * r, -Math.PI / 2], [a[0] + rx * r, a[1] + ry * r, Math.PI / 2]]) {
+    const base = Math.atan2(iy, ix);
+    for (let k = 0; k < 6; k++) {
+      const t1 = base + from + k * Math.PI / 6, t2 = t1 + Math.PI / 6;
+      ch.seg(cxp + Math.cos(t1) * r, cyp + Math.sin(t1) * r, cxp + Math.cos(t2) * r, cyp + Math.sin(t2) * r, 2);
+    }
+  }
+  const mid = [fx - ix * legL / 2 + rx * r, fy - iy * legL / 2 + ry * r], ang = readable(Math.atan2(iy, ix));
+  let show = lines.slice(), h = 0;
+  while (show.length) {
+    const longest = Math.max(...show.map(t => textWidth(t, 1)));
+    h = Math.min(7, (legL * 0.9) / longest, (2 * r - 6) / (show.length * 1.45));
+    if (h >= 4.5) break;
+    show.splice(show.indexOf(show.reduce((p, q) => (q.length > p.length ? q : p))), 1);
+  }
+  if (show.length) {
+    show.forEach((t, i) => {
+      const k = (i - (show.length - 1) / 2) * h * 1.45, cx = mid[0] + rx * k, cy = mid[1] + ry * k;
+      ch.draw(`<g transform="rotate(${deg(ang).toFixed(1)} ${cx.toFixed(1)} ${cy.toFixed(1)})">${textC(t, cx, cy, h, INK)}</g>`);
+    });
+    ch.box(mid[0], mid[1], legL * 0.45, show.length * h * 0.8, Math.atan2(iy, ix));
+  }
+  const inMid = [fx - ix * legL / 2, fy - iy * legL / 2];
+  const holdSpots = (m, sd) => { const s = []; for (const off of [9, 15]) for (const k of [0, -0.2, 0.2, -0.35, 0.35]) s.push({ cx: m[0] + ix * legL * k + rx * sd * off, cy: m[1] + iy * legL * k + ry * sd * off, ang }); return s; };
+  alongLabel(ch, 'hold course in', crsOf(ix, iy), 8, false, inMid[0] - ix * 30, inMid[1] - iy * 30, inMid[0] + ix * 30, inMid[1] + iy * 30, 0, 0, [0.5], 5, false, INK);
+  ch.labels[ch.labels.length - 1].spots = holdSpots(inMid, -1);
+  const outMid = [inMid[0] + rx * 2 * r, inMid[1] + ry * 2 * r];
+  alongLabel(ch, 'hold course out', crsOf(-ix, -iy), 8, false, 0, 0, 1, 0, 0, 0, [0.5], 5, false, INK);
+  ch.labels[ch.labels.length - 1].spots = holdSpots(outMid, 1);
+  return [ix, iy];
+}
+
+// ---------------------------------------------------------------- obstacles
+// The VFR chart's obstacle shapes (ObstacleSymbols.cs, approved in docs/vfr-symbols-preview.html; unit coordinates, foot
+// at the origin, y up), as the AIP draws them too: the spire from 1,000 ft above the ground (the AIP's "1 506"), else the
+// ^ (the AIP's "413"), each with its dot at the foot; no lighting marks on the instrument charts. A terrain high point is a
+// dot. Elevation above sea level only, thousands spaced ("1 506").
+const spaced = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const SPIRE = (() => { const r = 0.025; return `M-0.33,0 C-0.22,0.14 ${-r},0.3 ${-r},0.62 L${-r},${1 - r} A${r},${r} 0 0 0 ${r},${1 - r} L${r},0.62 C${r},0.3 0.22,0.14 0.33,0 C0.22,0.07 0.105,0.15 0,0.23 C-0.105,0.15 -0.22,0.07 -0.33,0 Z`; })();
+const LOW = (() => { const s = 0.41, w = 0.13, notch = 1 - w / s; return `M${-s},0 L0,1 L${s},0 L${s - w},0 L0,${notch} L${-s + w},0 Z`; })();
+const OBST_TALL = 24, OBST_LOW = 15;                  // pixels (the VFR chart: 150 m and 100 m)
+function obstacleSym(x, y, kind, c) {
+  if (kind === 'terrain') return `<circle cx="${x}" cy="${y}" r="2.6" fill="${c}"/>`;
+  const tall = kind === 'tall', s = tall ? OBST_TALL : OBST_LOW, path = tall ? SPIRE : LOW, dot = tall ? [0.05, 0.045] : [0.075, 0.075];
+  // The foot sits at (x, y + s / 2), so the symbol is centred on the obstacle's point like the others.
+  return `<g transform="translate(${x},${y + s / 2}) scale(${s},${-s})"><path d="${path}" fill="${c}" stroke="${c}" stroke-width="0.035" stroke-linejoin="round"/>`
+    + `<circle cx="0" cy="${dot[0]}" r="${dot[1]}" fill="${c}"/></g>`;
+}
+// An obstacle on a chart: the symbol (fixed), its elevation as a label on the freest side, and an optional number in a
+// circle (SID climb gradient notes). Spire from 1,000 ft above the ground (the field is at sea level in these examples).
+function obstacleC(ch, ob, number) {
+  const [x, y] = P(ob.p), kind = ob.kind === 'terrain' ? 'terrain' : ob.top >= 1000 ? 'tall' : 'low', s = kind === 'tall' ? OBST_TALL : kind === 'low' ? OBST_LOW : 6;
+  ch.draw(obstacleSym(x, y, kind, INK));
+  ch.box(x, y, kind === 'low' ? s * 0.42 : s * 0.34, s * 0.5, 0);
+  const t = spaced(ob.top), hw = textWidth(t, 9) / 2 + 2 + (number ? 8 : 0), hh = 7, spots = [];
+  for (const extra of [0, 12, 24]) for (const [vx, vy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]]) {
+    const dist = s * 0.5 + 3 + extra + Math.abs(vx) * hw + Math.abs(vy) * hh;
+    spots.push({ cx: x + vx * dist, cy: y + vy * dist, ang: 0 });
+  }
+  ch.label({ name: 'obstacle ' + t, priority: 2, keep: true, hw, hh, spots, render: sp => {
+    let out = textC(t, sp.cx - (number ? 8 : 0), sp.cy, 9, INK);
+    if (number) {
+      const nx = sp.cx + hw - 8;
+      out += `<circle cx="${nx}" cy="${sp.cy}" r="6" fill="none" stroke="${INK}" stroke-width="1.1"/>` + textC(String(number), nx, sp.cy, 7, INK);
+    }
+    return out;
+  } });
+}
+// Distance from p to the segment a-b (metres, world), and how far along it.
+function segDist(p, a, b) {
+  const vx = b[0] - a[0], vy = b[1] - a[1], l2 = vx * vx + vy * vy, t = Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / l2));
+  return [Math.hypot(p[0] - a[0] - vx * t, p[1] - a[1] - vy * t), t * Math.sqrt(l2)];
+}
+const MOC_INITIAL = 1000, MOC_INTERMEDIATE = 500;     // ft (add-on tunable)
+// Areas beside a leg, as PANS-OPS: a primary area (full MOC) and a secondary area outside it where the MOC tapers to 0 at the
+// outer edge, so an obstacle beside the track counts too, with less clearance needed the farther out it stands. Scaled down
+// to the game's map (real RNAV 1 areas are miles wide).
+const PRIMARY = 1000, SECONDARY = 1000;               // m each side (add-on tunable)
+const mocAt = (lateral, moc) => lateral <= PRIMARY ? moc : lateral <= PRIMARY + SECONDARY ? moc * (1 - (lateral - PRIMARY) / SECONDARY) : -Infinity;
+// Too close: inside the areas, and less clearance under the minimum altitude than the MOC there.
+const tooClose = (lateral, minAlt, top, moc) => { const need = mocAt(lateral, moc); return need > -Infinity && minAlt - top < need; };
+// Preview only: the areas of a leg, faint (primary solid, secondary edge dashed); not drawn in the game.
+function areaOutline(ch, a, b) {
+  const [x1, y1] = P(a), [x2, y2] = P(b), l = Math.hypot(x2 - x1, y2 - y1), nx = -(y2 - y1) / l, ny = (x2 - x1) / l;
+  for (const [w, dash] of [[PRIMARY / M, ''], [(PRIMARY + SECONDARY) / M, '4 4']]) {
+    for (const sd of [1, -1]) ch.draw(ln(x1 + nx * w * sd, y1 + ny * w * sd, x2 + nx * w * sd, y2 + ny * w * sd, '#5a8fc0', 0.8, dash));
+  }
+}
+
+// ---------------------------------------------------------------- example layers (game geometry, runway 07)
+const M = 40, W = 540, H = 470;                       // metres per pixel, panel size
+const R = 1430, SEG = 3 * R, glideTan = Math.tan(5 * Math.PI / 180);
+const fafDist = Math.max(457.2 / glideTan, 2 * R), ifDist = fafDist + SEG;
+const hdg = 70 * Math.PI / 180, d = [Math.sin(hdg), Math.cos(hdg)], right = [d[1], -d[0]];
+const at = (out, side) => [-d[0] * out + right[0] * side, -d[1] * out + right[1] * side];
+const ORIGIN = [-3300, -500];                          // world point at the panel's centre
+const P = p => [W / 2 + (p[0] - ORIGIN[0]) / M, H / 2 - (p[1] - ORIGIN[1]) / M];
+const T = [0, 0], END = [d[0] * 3000, d[1] * 3000];
+const FAF = at(fafDist, 0), IF = at(ifDist, 0), IAFR = at(ifDist, SEG), IAFL = at(ifDist, -SEG);
+const ft = m => Math.ceil(m / 0.3048 / 100) * 100;
+const hFaf = 457.2, hIf = hFaf + SEG * 0.025, hIaf = hIf + SEG * 0.04;
+const nm = (a, b) => (Math.hypot(a[0] - b[0], a[1] - b[1]) / 1852).toFixed(1);
+const unit = (a, b) => { const A = P(a), B = P(b), l = Math.hypot(B[0] - A[0], B[1] - A[1]); return [(B[0] - A[0]) / l, (B[1] - A[1]) / l]; };
+const dirTo = (a, b) => unit(a, b);
+const AW1 = [-9500, 6500], AW2 = [6000, -6500], AWE = [d[0] * 1500 + right[0] * 2500, d[1] * 1500 + right[1] * 2500];
+const HOLD_LINES = ['MAX SPD 230 KT IAS', 'MNM ALT 4000', '1 MIN'];
+
+// Sample obstacles (feet above the field; the field at sea level here). Each layer checks all of them by its own rule and
+// shows only those that are too close to its procedure.
+const off = (p, along, side) => [p[0] + d[0] * along + right[0] * side, p[1] + d[1] * along + right[1] * side];
+const OBSTACLES = [
+  { p: off(END, 1800, 120), top: 260, kind: 'obst' },                    // under the climb-out: penetrates the SID's 2.5 % surface
+  { p: off(END, 1200, -900), top: 120, kind: 'obst' },                  // beside it, low: not shown
+  { p: [AW1[0] * 0.55 + IAFL[0] * 0.45 + 500, AW1[1] * 0.55 + IAFL[1] * 0.45], top: 1700, kind: 'obst' },   // under NOLAN 1A
+  { p: [IAFL[0] - (IF[0] - IAFL[0]) / SEG * 2400, IAFL[1] - (IF[1] - IAFL[1]) / SEG * 2400], top: 3300, kind: 'terrain' }, // a hill behind MODEK, under its hold (4,000)
+  { p: [IAFR[0] * 0.5 + IF[0] * 0.5 + d[0] * 1600, IAFR[1] * 0.5 + IF[1] * 0.5 + d[1] * 1600], top: 1600, kind: 'obst' }, // initial segment, secondary area
+  { p: [IF[0] * 0.5 + FAF[0] * 0.5 - 300, IF[1] * 0.5 + FAF[1] * 0.5], top: 900, kind: 'obst' },          // intermediate: clear
+  { p: at(1500, 60), top: 330, kind: 'obst' },                           // final: penetrates the approach surface
+  { p: at(1000, -150), top: 150, kind: 'obst' },                        // final: below it
+  { p: [AW2[0] * 0.5 + IAFR[0] * 0.5 + 1050, AW2[1] * 0.5 + IAFR[1] * 0.5 + 1050], top: 2100, kind: 'obst' }, // beside GIVAR 1A, secondary area: shown
+  { p: [AW2[0] * 0.35 + IAFR[0] * 0.65 - 1200, AW2[1] * 0.35 + IAFR[1] * 0.65 - 1200], top: 1800, kind: 'obst' }, // farther out: clear
+];
+// The procedure raised over obstacles as the mod does (AtcSystem.Survey): a segment's minimum altitude is its highest
+// obstacle plus the MOC it needs where it stands (the MOC alone when there is none); the IF clears the segments it joins,
+// an IAF its initial segment, a STAR hold's base the obstacles round its fix. The FAF stays on the glide path. Feet above
+// the field, rounded up to 100.
+const up100 = f => Math.ceil(f / 100) * 100;
+const HOLD_REACH = 2778 + 2 * R;                     // a STAR hold round its fix: the leg plus a turn diameter
+const worst = (moc, lateralOf) => {
+  let top = moc, by = null;
+  for (const o of OBSTACLES) {
+    const need = mocAt(lateralOf(o), moc);
+    if (need > -Infinity && o.top + need > top) { top = o.top + need; by = o; }
+  }
+  return { alt: up100(top), by };
+};
+const segMin = (a, b, moc) => worst(moc, o => segDist(o.p, a, b)[0]);
+const holdMin = f => worst(MOC_INITIAL, o => Math.max(0, Math.hypot(o.p[0] - f[0], o.p[1] - f[1]) - HOLD_REACH));
+const MIN = { initL: segMin(IAFL, IF, MOC_INITIAL), initR: segMin(IAFR, IF, MOC_INITIAL), inter: segMin(IF, FAF, MOC_INTERMEDIATE),
+  holdL: holdMin(IAFL), holdR: holdMin(IAFR) };
+const ALT = (() => {
+  const faf = ft(hFaf), fix = Math.max(ft(hIf), MIN.inter.alt, MIN.initL.alt, MIN.initR.alt);
+  return { faf, if: fix, iafL: Math.max(up100(fix + SEG * 0.04 / 0.3048), MIN.initL.alt), iafR: Math.max(up100(fix + SEG * 0.04 / 0.3048), MIN.initR.alt),
+    holdL: Math.max(4000, MIN.holdL.alt), holdR: Math.max(4000, MIN.holdR.alt) };
+})();
+// Obstacles shown: the controlling one of each segment or hold (the one that sets its minimum altitude), as the AIP does;
+// once the procedure is raised over it, it is the one with the least clearance. Final: those through the approach surface.
+const controlling = list => [...new Set(list.filter(m => m.by).map(m => m.by))];
+const surfaceFt = dist => Math.max((15 + dist * glideTan - 50) / 0.3048, (Math.max(0, dist - 60) * 0.02) / 0.3048);
+function starObstacles() {
+  return controlling([MIN.holdL, MIN.holdR, worst(MOC_INITIAL, o => segDist(o.p, AW1, IAFL)[0]), worst(MOC_INITIAL, o => segDist(o.p, AW2, IAFR)[0])]);
+}
+function approachObstacles() {
+  const fin = OBSTACLES.filter(o => {
+    const along = -((o.p[0] - T[0]) * d[0] + (o.p[1] - T[1]) * d[1]), lateral = Math.abs((o.p[0] - T[0]) * right[0] + (o.p[1] - T[1]) * right[1]);
+    return along > 0 && along < fafDist && lateral < 152 + 0.15 * along && o.top > surfaceFt(along);
+  });
+  return [...new Set(controlling([MIN.initL, MIN.initR, MIN.inter]).concat(fin))];
+}
+// SID: the 2.5 % surface from the runway end (5 m up), 150 m each side splaying 15 degrees (PANS-OPS departure area);
+// returns [obstacle, gradient %, until ft].
+function sidObstacles() {
+  const out = [];
+  for (const o of OBSTACLES) {
+    const [lat1, dist1] = segDist(o.p, END, SID1), [lat2, dist2] = segDist(o.p, SID1, KOV);
+    const [lateral, dist] = lat1 <= lat2 ? [lat1, dist1] : [lat2, Math.hypot(SID1[0] - END[0], SID1[1] - END[1]) + dist2];
+    if (lateral > 150 + 0.268 * dist || dist <= 0) continue;
+    const topM = o.top * 0.3048;
+    if (topM > 5 + 0.025 * dist) out.push([o, ((topM - 5) / dist + 0.008) * 100, Math.ceil((o.top + 0.008 * dist / 0.3048) / 100) * 100]);
+  }
+  return out;
+}
+
+function baseC(ch) {
+  ch.draw(`<circle cx="${P([1400, 500])[0]}" cy="${P([1400, 500])[1]}" r="${3.5 * 1852 / M}" fill="none" stroke="${RING}" stroke-width="1.2"/>`);
+  for (const [from, name] of [[AW1, 'T1'], [AW2, 'T2']]) {
+    const A = P(from), B = P(AWE);
+    ch.line(A[0], A[1], B[0], B[1], AIRWAY, 1.6);
+    // As on the AIP: the designator along the airway, beside it (no box); a second designator would go on the other side.
+    alongLabel(ch, 'airway ' + name, name, 10, false, A[0], A[1], B[0], B[1], 1, 10, [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8], 6, false, INK);
+  }
+  const mid = P([END[0] / 2, END[1] / 2]);
+  ch.draw(rose(mid[0], mid[1], 48, INK));
+  for (let k = 0; k < 24; k++) { const t1 = k * Math.PI / 12, t2 = t1 + Math.PI / 12; ch.seg(mid[0] + Math.cos(t1) * 48, mid[1] + Math.sin(t1) * 48, mid[0] + Math.cos(t2) * 48, mid[1] + Math.sin(t2) * 48, 3); }
+  const [tx, ty] = P(T), [ex, ey] = P(END);
+  ch.draw(runway(tx, ty, ex, ey, Math.max(8, 60 / M), INK));
+  ch.seg(tx, ty, ex, ey, Math.max(8, 60 / M));
+}
+function panelC(title, build) {
+  const ch = new Chart(W, H);
+  baseC(ch);
+  build(ch);
+  ch.place();
+  const note = (ch.note ? `<br><span style="font-size:11px">${ch.note}</span>` : '')
+    + (ch.dropped.length ? `<br><span style="font-size:11px;color:#a33">생략: ${ch.dropped.join(', ')}</span>` : '');
+  return `<div class="panel"><svg class="map" width="${W}" height="${H}">${ch.svg}</svg><br><b>${title}</b>${note}</div>`;
+}
+
+const SID1 = [d[0] * 5500, d[1] * 5500], KOV = [-6200, 4800];
+const sidPanel = panelC('SID 레이어 (활주로 07 이륙)', ch => {
+  const [sa] = turnC(ch, END, SID1, KOV);
+  legC(ch, END, SID1, nm(END, SID1), -1, { trim1: sa });
+  legC(ch, SID1, KOV, nm(SID1, KOV), -1, { trim0: sa, end: 11, name: 'KOVAN 1A' });
+  fixC(ch, SID1, 'wp', 'RUBAX', '', '2000', 'min', [dirTo(SID1, END), dirTo(SID1, KOV)]);
+  fixC(ch, KOV, 'route', 'KOVAN', '', '4000', 'min', [dirTo(KOV, SID1), dirTo(KOV, AWE), dirTo(KOV, AW1)]);
+  const sidObs = sidObstacles();
+  sidObs.forEach(([o], i) => obstacleC(ch, o, i + 1));
+  const notes = ['MNM CLIMB 200 FT/NM'].concat(sidObs.map(([, g, until], i) => `MNM CLIMB ${g.toFixed(1)}% UNTIL ${spaced(until)} FOR OBST (${i + 1})`));
+  notes.forEach((t, i) => {
+    const y = H - 20 - (notes.length - 1 - i) * 15;
+    ch.draw(text(t, 14, y + 4.5, 9, INK));
+    ch.box(14 + textWidth(t, 9) / 2, y, textWidth(t, 9) / 2 + 2, 7, 0);
+  });
+  ch.note = `장애물 ${OBSTACLES.length}개 검사, ${sidObs.length}개 표시 (2.5% 면 침범)`;
+});
+
+const starPanel = panelC('STAR 레이어 (활주로 07 도착)', ch => {
+  legC(ch, AW1, IAFL, nm(AW1, IAFL), 1, { end: 12, name: 'NOLAN 1A' });
+  legC(ch, AW2, IAFR, nm(AW2, IAFR), -1, { end: 12, name: 'GIVAR 1A' });
+  const hl = holdC(ch, IAFL, [IF[0] - IAFL[0], IF[1] - IAFL[1]], ['MAX SPD 230 KT IAS', 'MNM ALT ' + ALT.holdL, '1 MIN']);
+  const hr = holdC(ch, IAFR, [IF[0] - IAFR[0], IF[1] - IAFR[1]], ['MAX SPD 230 KT IAS', 'MNM ALT ' + ALT.holdR, '1 MIN']);
+  // Lines at an IAF: the arrival leg, and the hold (its inbound leg behind the fix and its far side).
+  const holdAway = h => [[-h[0], -h[1]], [-h[1], h[0]], [-h[0] - h[1], -h[1] + h[0]]];
+  fixC(ch, IAFL, 'wp', 'MODEK', 'IAF', String(ALT.holdL), 'min', [dirTo(IAFL, AW1), ...holdAway(hl)]);
+  fixC(ch, IAFR, 'wp', 'SAPOR', 'IAF', String(ALT.holdR), 'min', [dirTo(IAFR, AW2), ...holdAway(hr)]);
+  fixC(ch, AW1, 'route', 'NOLAN', '', '', '', [dirTo(AW1, IAFL), dirTo(AW1, AWE)]);
+  fixC(ch, AW2, 'route', 'GIVAR', '', '', '', [dirTo(AW2, IAFR), dirTo(AW2, AWE)]);
+  const starObs = starObstacles();
+  starObs.forEach(o => obstacleC(ch, o));
+  ch.note = `장애물 ${OBSTACLES.length}개 검사, ${starObs.length}개 표시 (경로·홀딩마다 최저고도를 정한 기준 장애물; 고도는 그만큼 올림)`;
+});
+
+// The go-around as the mod flies it, drawn as the AIP draws an RNP missed approach (fixes, courses, distances, dashed):
+// upwind past the runway end (by the turn radius), crosswind out to the pattern width (at least 2.2 turn radii), downwind
+// back abeam the FAF, then the base leg onto final at the FAF.
+const PATTERN_W = Math.max(1.5 * 1852, 2.2 * R);
+const UP = at(-(3000 + Math.max(926, R)), 0), CW = at(-(3000 + Math.max(926, R)), -PATTERN_W), DW = at(fafDist, -PATTERN_W);
+const iapPanel = panelC('접근 레이어 (RNP RWY 07)', ch => {
+  // Two IAF legs meet at the IF: where paths merge the lines run straight into the fix, as on the AIP (UD050 / UP050);
+  // a turn is rounded only on a single path (the missed approach, the SID, the turn onto final).
+  legC(ch, IAFL, IF, nm(IAFL, IF), -1);
+  legC(ch, IAFR, IF, nm(IAFR, IF), 1);
+  legC(ch, IF, FAF, nm(IF, FAF), 1);
+  legC(ch, FAF, T, nm(FAF, T), 1, { end: 0 });
+  const MA = { w: 2.4, dash: '5 4' };
+  const [tu] = turnC(ch, END, UP, CW, MA), [tc] = turnC(ch, UP, CW, DW, MA), [td] = turnC(ch, CW, DW, FAF, MA);
+  const [tf] = turnC(ch, DW, FAF, T, Object.assign({ end: 0 }, MA));
+  legC(ch, END, UP, nm(END, UP), 1, Object.assign({ trim1: tu }, MA));
+  legC(ch, UP, CW, nm(UP, CW), 1, Object.assign({ trim0: tu, trim1: tc }, MA));
+  legC(ch, CW, DW, nm(CW, DW), 1, Object.assign({ trim0: tc, trim1: td }, MA));
+  legC(ch, DW, FAF, nm(DW, FAF), 1, Object.assign({ trim0: td, trim1: tf }, MA));
+  fixC(ch, UP, 'wp', 'TORIB', '', '', '', [dirTo(UP, END), dirTo(UP, CW)]);
+  fixC(ch, CW, 'wp', 'NAMPO', '', '1500', 'at', [dirTo(CW, UP), dirTo(CW, DW)]);
+  fixC(ch, DW, 'wp', 'VELOK', '', '', '', [dirTo(DW, CW), dirTo(DW, FAF)]);
+  fixC(ch, IAFL, 'wp', 'MODEK', 'IAF', String(ALT.iafL), 'min', [dirTo(IAFL, IF)]);
+  fixC(ch, IAFR, 'wp', 'SAPOR', 'IAF', String(ALT.iafR), 'min', [dirTo(IAFR, IF)]);
+  fixC(ch, IF, 'wp', 'LUDAS', 'IF', String(ALT.if), 'min', [dirTo(IF, IAFL), dirTo(IF, IAFR), dirTo(IF, FAF)]);
+  fixC(ch, FAF, 'wp', 'BIROT', 'FAF', String(ALT.faf), 'min', [dirTo(FAF, IF), dirTo(FAF, T), dirTo(FAF, DW)]);
+  const apchObs = approachObstacles();
+  apchObs.forEach(o => obstacleC(ch, o));
+  ch.note = `장애물 ${OBSTACLES.length}개 검사, ${apchObs.length}개 표시 (초기·중간 구간의 기준 장애물 + 최종 진입 표면을 뚫는 것; IF·IAF 고도는 그만큼 올림)`;
+});
+
+document.getElementById('panels').innerHTML = sidPanel + starPanel + iapPanel;
+
+// ---------------------------------------------------------------- 10. profile, as the AIP's: IAF to threshold along the
+// track, altitudes (above sea level, underlined) with heights above the threshold in brackets, the FAF cross, the
+// gradient, hatched blocks for each segment's minimum altitude (its highest obstacle plus the MOC needed there, or the
+// MOC alone), and the missed approach dashed beyond the threshold.
+const ELEV = 59;                                      // aerodrome and threshold elevation, ft
+(function () {
+  const left = 60, rightX = 700, base = 205, maxFt = 3200;
+  const iafNm = (ifDist + SEG) / 1852, ifNm = ifDist / 1852, fafNm = fafDist / 1852;
+  const sxp = n => rightX - n / (iafNm + 0.3) * (rightX - left), syp = f => base - f / maxFt * 165;
+  let s = `<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#444" stroke-width="0.8"/></pattern></defs>`;
+  // Minimum altitude blocks: initial (IAF -> IF), intermediate (IF -> FAF).
+  // A block is the segment's minimum altitude. The procedure is raised over it (ALT), so it stays under the path: at most
+  // the altitude its segment ends at (the FAF, which stays on the glide path, bounds the intermediate block).
+  const blocks = [[iafNm, ifNm, MIN.initL.alt, ALT.if], [ifNm, fafNm, MIN.inter.alt, ALT.faf]];
+  for (const [a, b, alt, endAlt] of blocks) {
+    const h = Math.min(alt, endAlt);
+    s += `<rect x="${sxp(a)}" y="${syp(h)}" width="${sxp(b) - sxp(a)}" height="${base - syp(h)}" class="hatch" stroke="#444" stroke-width="0.8"/>`;
+    s += `<rect x="${(sxp(a) + sxp(b)) / 2 - 22}" y="${syp(h) + 6}" width="44" height="14" fill="#fdfcf8"/><text x="${(sxp(a) + sxp(b)) / 2}" y="${syp(h) + 17}" font-size="11" text-anchor="middle">${spaced(alt + ELEV)}</text>`;
+  }
+  s += ln(left, base, rightX + 150, base, '#333', 1);
+  // Final segment: its minimum, the DA(H) (the mod's decision height, 100 ft above the threshold), hatched like the other
+  // blocks from the FAF to where the glide path comes down to it, so it stays under the path (the AIP's "430" box).
+  // Final segment: its minimum, the DA(H) (the decision height, 200 ft above the threshold by default), hatched from the FAF
+  // right up to the runway (the AIP's "430" box, joined to the runway bar).
+  const daH = 200, daNm = (daH - 50) / (glideTan * 6076);
+  s += `<rect x="${sxp(fafNm)}" y="${syp(daH)}" width="${sxp(0) - sxp(fafNm)}" height="${base - syp(daH)}" class="hatch" stroke="#444" stroke-width="0.8"/>`;
+  s += `<rect x="${(sxp(fafNm) + sxp(0)) / 2 - 16}" y="${syp(daH) - 1}" width="32" height="13" fill="#fdfcf8" stroke="#333" stroke-width="0.8"/><text x="${(sxp(fafNm) + sxp(0)) / 2}" y="${syp(daH) + 9}" font-size="10" text-anchor="middle">${daH + ELEV}</text>`;
+  // The path, fix verticals and labels.
+  const pts = [[iafNm, ALT.iafL, 'MODEK', 'IAF'], [ifNm, ALT.if, 'LUDAS', 'IF'], [fafNm, ALT.faf, 'BIROT', 'FAF'], [0, 50, '', '']];
+  // As on the AIP profile: a leg's course sits in the line itself (the line breaks round it, turned along the leg), solid
+  // for the approach, dashed for the missed approach.
+  const inline = (x1, y1, x2, y2, label, w, dash, size) => {
+    if (!label) return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#111" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+    const l = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / l, uy = (y2 - y1) / l, mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    const gap = label.length * size * 0.33 + 4;
+    let ang = Math.atan2(uy, ux) * 180 / Math.PI;
+    if (ang > 90) ang -= 180; else if (ang < -90) ang += 180;
+    const line = (a, b, c, e) => `<line x1="${a}" y1="${b}" x2="${c}" y2="${e}" stroke="#111" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+    return line(x1, y1, mx - ux * gap, my - uy * gap) + line(mx + ux * gap, my + uy * gap, x2, y2)
+      + `<text x="${mx}" y="${my + size * 0.35}" font-size="${size}" font-weight="bold" font-style="italic" text-anchor="middle" transform="rotate(${ang.toFixed(1)} ${mx} ${my})">${label}</text>`;
+  };
+  const pathCourses = [crsOf(...unit(IAFL, IF)), '070°', '070°'];
+  // IAF -> IF -> FAF solid; the final solid down to the minimum with the arrowhead there, then dashed on to the runway
+  // (the visual part below the DA), as the AIP draws it.
+  for (let i = 0; i < 2; i++) s += inline(sxp(pts[i][0]), syp(pts[i][1]), sxp(pts[i + 1][0]), syp(pts[i + 1][1]), pathCourses[i], 2.5, '', 12);
+  const daX = sxp(daNm), daY = syp(daH);
+  s += inline(sxp(fafNm), syp(ALT.faf), daX, daY, pathCourses[2], 2.5, '', 12);
+  { const l = Math.hypot(daX - sxp(fafNm), daY - syp(ALT.faf)); s += head(daX, daY, (daX - sxp(fafNm)) / l, (daY - syp(ALT.faf)) / l, 10, '#111'); }
+  s += ln(daX, daY, sxp(0), syp(0), '#111', 2, '5 4');
+  pts.slice(0, 3).forEach(([n, f, name, role], i) => {
+    const x = sxp(n), y = syp(f);
+    s += ln(x, y, x, base, '#555', 1, '3 3');
+    // As on the AIP: role and name above the path; the altitude (AMSL underlined) and height below it, in the gap between
+    // the path and the hatched block on whichever side of the fix line has room (never over the hatching).
+    s += `<text x="${x}" y="${y - 30}" font-size="11" text-anchor="middle">${role}</text><text x="${x}" y="${y - 17}" font-size="11" text-anchor="middle" font-weight="bold">${name}</text>`;
+    const blockLeft = i > 0 ? blocks[i - 1][2] : -Infinity, blockRight = i < blocks.length ? blocks[i][2] : -Infinity;
+    const room = alt => (alt === -Infinity ? 999 : syp(Math.min(alt, f)) - y);
+    const leftSide = room(blockLeft) >= 32 || room(blockLeft) >= room(blockRight);
+    const tx = leftSide ? x - 4 : x + 4, anchor = leftSide ? 'end' : 'start';
+    s += `<text x="${tx}" y="${y + 18}" font-size="11" text-anchor="${anchor}" text-decoration="underline">${spaced(f + ELEV)}</text><text x="${tx}" y="${y + 31}" font-size="10" text-anchor="${anchor}">(${spaced(f)})</text>`;
+  });
+  // FAF: the Maltese cross on the path.
+  const fx = sxp(fafNm), fy = syp(ft(hFaf));
+  s += `<g transform="translate(${fx},${fy})"><path d="M0,0 L-5,-7 L5,-7 Z M0,0 L-5,7 L5,7 Z M0,0 L-7,-5 L-7,5 Z M0,0 L7,-5 L7,5 Z" fill="#111"/></g>`;
+  // Courses on the segments, the gradient on final.
+  s += `<text x="${(fx + sxp(0)) / 2 + 10}" y="${syp(ft(hFaf) / 2) - 10}" font-size="11" text-anchor="middle">${(glideTan * 100).toFixed(1)}% (5.0°)</text>`;
+  // MAPt at the threshold, then the missed approach as the AIP sketches it beside the profile: a dashed track out along the
+  // runway and round the pattern, wide rounded turns, each leg's course in the line, the fixes at the corners, the
+  // arrowhead at the end.
+  const tx = sxp(0), ty = syp(50);
+  s += `<text x="${tx - 4}" y="${ty - 30}" font-size="10" text-anchor="end">MAPt</text><text x="${tx - 4}" y="${ty - 18}" font-size="10" text-anchor="end">RW07 THR</text>`;
+  // As the AIP: level at the minimum out past the threshold, then climbing round the pattern, ending level with the
+  // arrowhead at the fix it heads for (VELOK; the base leg back to BIROT is on the plan view).
+  const daY0 = syp(daH), ma = [[sxp(daNm), daY0], [tx + 34, daY0], [tx + 100, daY0 - 30], [tx + 136, daY0 - 92], [tx + 52, daY0 - 106]];
+  const maNames = ['', '', 'TORIB', 'NAMPO', 'VELOK'], maCourses = ['', crsOf(...unit(END, UP)), crsOf(...unit(UP, CW)), crsOf(...unit(CW, DW))];
+  const R2 = 20, cut = [];                            // corner radius (px): each leg loses this much at a turn
+  for (let i = 0; i < ma.length; i++) cut.push(i === 0 || i === ma.length - 1 ? 0 : R2);
+  const dir = (a, b) => { const l = Math.hypot(b[0] - a[0], b[1] - a[1]); return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; };
+  for (let i = 0; i < ma.length - 1; i++) {
+    const [ux, uy] = dir(ma[i], ma[i + 1]);
+    const a = [ma[i][0] + ux * cut[i], ma[i][1] + uy * cut[i]], b = [ma[i + 1][0] - ux * cut[i + 1], ma[i + 1][1] - uy * cut[i + 1]];
+    s += inline(a[0], a[1], b[0], b[1], maCourses[i], 2, '5 4', 10);
+    if (i + 1 < ma.length - 1) {
+      const [vx, vy] = dir(ma[i + 1], ma[i + 2]);
+      s += `<path d="M${b[0]},${b[1]} Q${ma[i + 1][0]},${ma[i + 1][1]} ${ma[i + 1][0] + vx * R2},${ma[i + 1][1] + vy * R2}" fill="none" stroke="#111" stroke-width="2" stroke-dasharray="5 4"/>`;
+    }
+  }
+  const [lx, ly] = ma[ma.length - 1], [ex, ey] = dir(ma[ma.length - 2], ma[ma.length - 1]);
+  s += head(lx, ly, ex, ey, 9, '#111');
+  ma.forEach(([x, y], i) => {
+    if (!maNames[i]) return;
+    const [dx, dy, anchor] = i === 2 ? [6, 14, 'start'] : i === 3 ? [8, 4, 'start'] : [0, -8, 'middle'];
+    s += `<text x="${x + dx}" y="${y + dy}" font-size="10" text-anchor="${anchor}">${maNames[i]}</text>`;
+  });
+  s += `<text x="${tx + 48}" y="${base - 6}" font-size="9">ELEV ${ELEV}</text><rect x="${tx + 90}" y="${base - 15}" width="40" height="12" fill="none" stroke="#333" stroke-width="0.8"/><text x="${tx + 110}" y="${base - 6}" font-size="9" text-anchor="middle">RDH 50</text>`;
+  // The runway on the ground line from its threshold, as the AIP draws it.
+  s += `<rect x="${tx}" y="${base - 3}" width="44" height="6" fill="#111"/><text x="${tx}" y="${base + 26}" font-size="9" text-anchor="middle">THR RWY 07</text>`;
+  // Distance scale.
+  [[iafNm], [ifNm], [fafNm], [0]].forEach(([n]) => { s += `<text x="${sxp(n)}" y="${base + 14}" font-size="10" text-anchor="middle">${n.toFixed(1)}</text>`; });
+  s += `<text x="${left}" y="${base + 30}" font-size="10">NM FROM THR RWY 07</text>`;
+  document.getElementById('profile').innerHTML = s;
+})();
+
+// ---------------------------------------------------------------- MSA (four sectors, made up from terrain and obstacles)
+(function () {
+  const c = 60, r = 44, alts = ['3 600', '2 800', '2 500', '3 100'];
+  let s = `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#111" stroke-width="1.3"/>` + ln(c - r, c, c + r, c, '#111', 0.9) + ln(c, c - r, c, c + r, '#111', 0.9);
+  [[c + 21, c - 15], [c + 21, c + 24], [c - 21, c + 24], [c - 21, c - 15]].forEach(([x, y], i) => s += `<text x="${x}" y="${y}" font-size="10" text-anchor="middle">${alts[i]}</text>`);
+  s += `<text x="${c}" y="${c + r + 14}" font-size="9" text-anchor="middle">MSA 3.5 NM ARP</text>`;
+  document.getElementById('msa').innerHTML = s;
+})();
+
+// ---------------------------------------------------------------- minima and rate of descent, as the AIP's
+(function () {
+  // The decision height, 200 ft above the threshold by default (add-on tunable); no visibility minima in the game, so that column stays empty.
+  const da = ELEV + 200;
+  document.getElementById('minima').innerHTML =
+    `<tr><th colspan="2">CATEGORY</th><th>DA(H)</th><th>A</th><th>B</th><th>C</th><th>D</th></tr>`
+    + `<tr><td>LNAV/VNAV</td><td>FULL</td><td>${da} (200)</td><td colspan="4">—</td></tr>`;
+  const kts = [60, 90, 120, 150, 180];
+  document.getElementById('rod').innerHTML = `<tr><th>Knots</th>${kts.map(k => `<td>${k}</td>`).join('')}</tr>`
+    + `<tr><th>V/V fpm</th>${kts.map(k => `<td>${Math.round(k * 101.27 * glideTan)}</td>`).join('')}</tr>`;
+})();
+
+// ---------------------------------------------------------------- 11. coding table (a tab: on the AIP a page of its own)
+(function () {
+  // As the AIP's procedure coding tables: one table per transition and one for the missed approach, each titled with its
+  // procedure ("RNP RWY 07 MODEK TRANSITION"), the AIP's columns. The game has no latitude and longitude, so there is no
+  // coordinates column. Altitudes: + at or above, - at or below, @ at. Turn direction: the turn onto that leg.
+  const courseDeg = (a, b) => (Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI + 360) % 360;
+  const fmtCourse = deg => String(Math.round(deg) % 360).padStart(3, '0');
+  const turnOnto = (a, b, c) => { const d = ((courseDeg(b, c) - courseDeg(a, b) + 540) % 360) - 180; return Math.abs(d) < 1 ? '-' : d < 0 ? 'L' : 'R'; };
+  // legs: [fix point, identifier, altitude text, fly-over, VPA/RDH]
+  // from: the point a table starts after (the missed approach starts at the MAPt, which is not one of its rows), and
+  // fromBefore the one before that (for the turn onto the first leg).
+  const table = (title, legs, spec, from, fromBefore) => {
+    const head = ['Serial Number', 'Path Descriptor', 'Waypoint Identifier', 'Fly-over', 'Course/Track °T', 'Distance (NM)', 'Turn direction', 'Altitude (ft)', 'Speed (kt)', 'VPA/RDH', 'Navigation specification'];
+    const rows = legs.map((leg, i) => {
+      const prev = i > 0 ? legs[i - 1][0] : from || null;
+      const before = i > 1 ? legs[i - 2][0] : i === 1 ? from || null : fromBefore || null;
+      return [String(i + 1).padStart(3, '0'), i === 0 && !from ? 'IF' : 'TF', leg[1], leg[3] ? 'Y' : '-',
+        prev ? fmtCourse(courseDeg(prev, leg[0])) : '-', prev ? nm(prev, leg[0]) : '-', before ? turnOnto(before, prev, leg[0]) : '-',
+        leg[2] || '-', '-', leg[4] || '-', spec];
+    });
+    return `<div style="padding:8px 10px 0;font-size:12px">${title}</div><table><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr>`
+      + rows.map(r => `<tr>${r.map(v => `<td>${v}</td>`).join('')}</tr>`).join('') + '</table>';
+  };
+  const vpa = `-5.0°/50`;
+  document.getElementById('coding').innerHTML =
+    table('RNP RWY 07 MODEK TRANSITION', [[IAFL, 'MODEK', '+' + spaced(ALT.iafL)], [IF, 'LUDAS', '+' + spaced(ALT.if)], [FAF, 'BIROT', '@' + spaced(ALT.faf)], [T, 'RW07', '', true, vpa]], 'RNP APCH')
+    + table('RNP RWY 07 SAPOR TRANSITION', [[IAFR, 'SAPOR', '+' + spaced(ALT.iafR)], [IF, 'LUDAS', '+' + spaced(ALT.if)], [FAF, 'BIROT', '@' + spaced(ALT.faf)], [T, 'RW07', '', true, vpa]], 'RNP APCH')
+    // The missed approach starts at the MAPt (RW07): its first leg is from there, so it has no IF row.
+    + table('RNP RWY 07 MISSED APPROACH', [[UP, 'TORIB', '+1 500'], [CW, 'NAMPO', '@1 500'], [DW, 'VELOK', '@1 500'], [FAF, 'BIROT', '@1 500']], 'RNP APCH', T, FAF);
+  document.querySelectorAll('.win .tabs span').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.win .tabs span').forEach(o => o.classList.toggle('on', o === t));
+    ['tabChart', 'tabCoding'].forEach(id => (document.getElementById(id).style.display = id === t.dataset.tab ? '' : 'none'));
+  }));
+})();
+
+// The legend last: its obstacle cell uses shapes defined further down.
+document.getElementById('legend').innerHTML = cells.map(([t, d, f]) => `<div class="cell"><svg width="220" height="130">${f()}</svg><b>${t}</b><br>${d}</div>`).join('');
+</script>
+</body></html>

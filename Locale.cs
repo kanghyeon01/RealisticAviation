@@ -70,6 +70,10 @@ namespace RealisticAviation
                 "With the closure time limit on, the airport reopens after this many in-game minutes."
             },
 
+            { "RealisticAviation.Charts.Label", "Approach charts" },
+            { "RealisticAviation.Charts.Tooltip", "Opens the instrument approach chart of a runway end: profile, minima, missed approach and the procedure coding tables." },
+            { "RealisticAviation.Charts.ChartTab", "Approach chart" },
+            { "RealisticAviation.Charts.CodingTab", "Coding tables" },
             { "RealisticAviation.RightHand.Label", "right-hand pattern" },
             {
                 "RealisticAviation.RightHand.Tooltip",
@@ -164,6 +168,10 @@ namespace RealisticAviation
             { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kUrbanInfomodeName + "]", "Built-up areas" },
             { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kObstaclesInfomodeName + "]", "Obstacles" },
             { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kTerrainInfomodeName + "]", "Terrain elevations" },
+            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kWaterInfomodeName + "]", "Water" },
+            { "Infoviews.INFOVIEW[" + IfrChartSystem.kInfoviewName + "]", "IFR chart" },
+            { "Infoviews.INFOMODE_TYPE[" + IfrChartSystem.kChartTypeKey + "]", "Chart" },
+            { "Infoviews.INFOMODE[" + IfrChartSystem.kPaperInfomodeName + "]", "Background" },
             { "RealisticAviation.Airspace.Value", "Class {CLASS}, {RADIUS} NM" },
             {
                 "RealisticAviation.Airspace.Tooltip",
@@ -260,6 +268,10 @@ namespace RealisticAviation
                 "폐쇄 시간 제한을 켰을 때, 게임 시간으로 이 시간(분)이 지나면 공항을 다시 엽니다."
             },
 
+            { "RealisticAviation.Charts.Label", "접근 차트" },
+            { "RealisticAviation.Charts.Tooltip", "활주로 끝의 계기접근 차트를 엽니다. 단면도, 최저치, 실패접근, 절차 코딩표가 있습니다." },
+            { "RealisticAviation.Charts.ChartTab", "접근 차트" },
+            { "RealisticAviation.Charts.CodingTab", "코딩표" },
             { "RealisticAviation.RightHand.Label", "우선회 장주" },
             {
                 "RealisticAviation.RightHand.Tooltip",
@@ -352,6 +364,10 @@ namespace RealisticAviation
             { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kUrbanInfomodeName + "]", "시가지" },
             { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kObstaclesInfomodeName + "]", "장애물" },
             { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kTerrainInfomodeName + "]", "지형 표고" },
+            { "Infoviews.INFOMODE[" + AirspaceOverlaySystem.kWaterInfomodeName + "]", "수면" },
+            { "Infoviews.INFOVIEW[" + IfrChartSystem.kInfoviewName + "]", "IFR 차트" },
+            { "Infoviews.INFOMODE_TYPE[" + IfrChartSystem.kChartTypeKey + "]", "차트" },
+            { "Infoviews.INFOMODE[" + IfrChartSystem.kPaperInfomodeName + "]", "배경" },
             { "RealisticAviation.Airspace.Value", "Class {CLASS}, 반경 {RADIUS}NM" },
             {
                 "RealisticAviation.Airspace.Tooltip",

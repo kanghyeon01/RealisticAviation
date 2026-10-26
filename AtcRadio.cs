@@ -614,6 +614,9 @@ namespace RealisticAviation
             return GameManager.instance.localizationManager.activeDictionary.TryGetValue("Assets.NAME[" + name + "]", out string localized) ? localized : name;
         }
 
+        /// <summary>Within this many feet of the new holding level an airplane is told to maintain it, not to climb or descend.</summary>
+        private const int kHoldVerbMargin = 200;
+
         /// <summary>The tower's words and the pilot's readback for one message.</summary>
         public static void Phrase(in AtcMessage message, string callsign, string runway, string eventName, string airportName,
             out string tower, out string pilot)
@@ -657,8 +660,12 @@ namespace RealisticAviation
                     pilot = $"Wilco, {telephone}, {callsign}.";
                     break;
                 case AtcMessageKind.DescendInHold:
-                    tower = $"{callsign}, descend and maintain {message.m_Value:N0}.";
-                    pilot = $"Descend and maintain {message.m_Value:N0}, {callsign}.";
+                    // The new level against where the airplane is now: one still climbing to its old level (an arrival comes in
+                    // on the airway, below the stack) is below the new one too, and is told to climb, not to descend.
+                    string verb = message.m_Altitude < message.m_Value - kHoldVerbMargin ? "Climb and maintain"
+                        : message.m_Altitude > message.m_Value + kHoldVerbMargin ? "Descend and maintain" : "Maintain";
+                    tower = $"{callsign}, {verb.ToLowerInvariant()} {message.m_Value:N0}.";
+                    pilot = $"{verb} {message.m_Value:N0}, {callsign}.";
                     break;
                 case AtcMessageKind.ClearedApproach:
                     string number = message.m_Value > 1 ? $"number {NumberWord(message.m_Value)}, " : string.Empty;

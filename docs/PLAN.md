@@ -989,3 +989,285 @@ Versions: MAJOR.MINOR.PATCH (the patch was meant as a letter, 1.1a, but the game
   above the right-hand bit (0 = none given). API version 4: `Api.Radio.Set/GetGoAroundReasonWeight` (reset on city load),
   `WeatherKind` public; `OperatingOverrides.DepartureAheadMeters` / `DepartureAheadShare` per airport (the landing
   separation values above, defaults 1,829 m and 0.6).
+
+## Next update: IFR chart (design started 2026-10-25)
+
+- Reference: the user's Gimpo (RKSS) AIP charts (AD chart, SID, STAR, instrument approach). Real charts are split: SID
+  and STAR charts per runway direction (several procedures each, plan view + coding table), one approach chart per
+  approach (plan view, profile, minima, missed approach text, MSA).
+- Form (user): mixed. The plan view is an infoview overlay on the game world (projected lines, the VFR chart's stroke
+  font extended to A-Z), chosen per airport and runway direction as SID / STAR / approach layers; the approach's profile,
+  MSA and coding table go in a small UI window. Computed once and kept in memory, rebuilt only when runways, options or
+  add-on overrides change (not baked into images or files: blurry when zoomed, hard to project on terrain, stale files).
+- Symbol preview: docs/ifr-symbols-preview.html. Decided with the user so far:
+  - Runway: outline (black border, light fill) as on the AIP, not the FAA green bar. Compass rose round the airport:
+    shown, still to confirm.
+  - Waypoints: procedure fixes an open circle with four points; a fix where a procedure meets an airway an open
+    triangle; role in bold brackets above the name, e.g. (IAF). No filled triangles (compulsory points), no VORs.
+  - Legs: plain bold line, arrowhead only at the end of each procedure. Distance in an arrow outline open at the back,
+    always in the line (the line runs into its back and out of its tip; AIP sometimes moves it beside the line when
+    crowded, user chose always in the line). Course beside it with a gap.
+  - Holds: an arrow on each straight leg, each leg's course outside, MAX SPD / MNM ALT / 1 MIN inside along the axis.
+  - Procedure names: bold, about a letter height off the line, opposite the course; SID named after its last fix, STAR
+    after its first.
+  - Stroke font A-Z (+ % /) and the altitude notation (underline at or above, overline at or below, both at, stacked
+    window): confirmed as drawn.
+  - Airways: thin grey line, designator along it beside the line, no box; a second designator on the other side (W61 /
+    Z54), as on the AIP.
+  - Fly-by turns: drawn as arcs on the inside of the fix with the game's turn radius (cut down when a leg is too short),
+    as on the AIP; the legs stop where the arc starts. Only on a single path (SID turn, every missed approach corner,
+    the turn onto final with the arrowhead). Where paths merge (both IAF legs at the IF) the lines run straight into the
+    fix (user, AIP UD050 / UP050).
+  - Missed approach: drawn as the AIP's RNP missed approach (user's pick, RKSS RNP RWY 14L): the whole go-around
+    pattern the mod flies as dashed legs with fixes, courses and distances (upwind end, crosswind end at 1 500, downwind
+    end abeam the FAF), arrowhead where the base leg meets final at the FAF; MISSED APPROACH text lists the fixes.
+  - Obstacles: the VFR chart's own shapes (spire from 1,000 ft above the ground, ^ below, foot dot), terrain a dot, no
+    lighting marks; placed by the label placer.
+- Open: compass rose, waypoint naming (5-letter pronounceable vs airport code + number), true course only (no magnetic
+  variation in the game), MSA in the window only, hold text at small scales, the window (sections 8-10).
+- Obstacles (decided with the user 2026-10-25): AIP instrument charts show only obstacles that matter to the procedure,
+  ICAO symbols (a tower, rays when lighted; terrain high point a dot), elevation above sea level only ("1 506").
+  - STAR and the initial segment (IAF -> IF): clearance under the procedure's minimum altitude there (hold: its lowest
+    level) less than the MOC, 1,000 ft (PANS-OPS initial approach; real value kept although the map is small: heights are
+    real scale, only the lengths were shrunk). Intermediate (IF -> FAF): 500 ft. None shown when nothing is that close.
+  - Final (FAF -> threshold): penetrates the approach surface the height-limit option already uses (50 m under the glide
+    path, 1,000 ft wide at the runway end, 15 % splay), floored near the threshold by a 2 % slope (Annex 14 approach
+    surface); these are the controlling obstacles.
+  - SID: penetrates the 2.5 % obstacle identification surface from the runway end; numbered (1), (2) with a note
+    "MNM CLIMB x % UNTIL ... FOR OBST (1)" (PDG = (O - 5 m) / d + 0.8 %).
+  - MOC values (1,000 / 500 ft) and the surfaces are add-on tunable through the API.
+- Approach window (redone after the AIP's RNP RWY 14L lower half): header (frequencies, aerodrome elevation, heights
+  related to the threshold); MISSED APPROACH text with transition altitude/level and the MSA beside it; profile from the
+  IAF along the track (altitudes AMSL underlined, heights in brackets, FAF Maltese cross, gradient "8.7% (5.0°)", MAPt at
+  the threshold, ELEV / RDH, hatched minimum-altitude blocks per segment = highest obstacle + MOC there, or the MOC; the
+  missed approach dashed with its fixes); minima table (LNAV/VNAV DA(H) = threshold + the mod's 100 ft decision height,
+  no visibility minima in the game) and the rate-of-descent table (V/V fpm by groundspeed for the glide path); "Circling
+  not authorized". The coding table moved to a second tab (on the AIP it is a page of its own).
+  Then (user: pick one chart type, don't mix): the RNP chart only. The game's approach is an RNAV "T" with waypoints and a
+  vertical path, no ILS, VOR or DME, i.e. RNP APCH with LNAV/VNAV, titled "RNP RWY 07"; the ILS chart's parts (DME
+  recommended profile table, shaded glide slope, CAT-I / LOC minima) are left out. Hatched blocks never reach above the
+  path: a block is at most the altitude its segment ends at; one that would (an obstacle the procedure doesn't clear) is
+  drawn up to the path, outlined red, with a note. Altitude labels go below the path in the gap above the block, on
+  the side of the fix line that has room (the FAF's on the final side), never over the hatching.
+- Procedure altitudes raised over obstacles (user, 2026-10-25; the red "obstacle above the procedure" mark was mine, no
+  such rule exists: real procedures are designed so the blocks stay under the path). Built (not yet tested in game):
+  - `AtcSystem.Survey.cs`: per runway end, a job over the initial (IAF -> IF, each side) and intermediate (IF -> FAF)
+    areas and round the STAR holding fixes (IAFs, IF; reach = hold leg + a turn diameter): terrain sampled every 200 m and
+    building tops (prefab bounds, >= 50 m) -> highest top + the MOC it needs there (primary full, secondary tapering) ->
+    `ProcedureFloor` (metres above the threshold). Runs when the runways change and once a game hour, not in the first
+    256 frames after a load; results swapped in with the tower job completed.
+  - `GetApproachFixes`: IF = max(default, intermediate floor, both initial floors) - one IF altitude for everyone; IAF =
+    max(IF + 4 %, its initial floor). FAF unchanged (final obstacles would raise the DA, not the FAF). STAR holds:
+    base = max(class hold base, the hold's floor).
+  - Airplanes already on the procedure see a change only if a survey lands mid-approach (hourly; rare); not frozen per
+    flight.
+  - API version 5: `OperatingOverrides/OperatingValues.InitialMocFeet` (1,000), `IntermediateMocFeet` (500),
+    `ObstacleAreaPrimaryMeters` (1,000), `ObstacleAreaSecondaryMeters` (1,000), per airport.
+  - Chart rule follows: obstacles shown on STAR / initial / intermediate are the controlling ones (the one that sets each
+    segment's or hold's minimum altitude); final: those through the approach surface.
+- Profile missed approach (user, from the AIP RNP profile): a dashed sketch beside the threshold, out along the runway
+  and round the pattern with rounded corners, each leg's course along it (070°, 340°, 250°, 160° from the real legs),
+  TORIB / NAMPO / VELOK at the corners, arrowhead at the end; no floating altitude (it is in the MISSED APPROACH text).
+  Then (user): courses sit in the line itself on the profile, as the AIP does ("—143°—", "-142°-"): the line breaks round
+  the figure, turned along the leg, for the approach path (solid) and the missed approach (dashed); the missed approach
+  turns are wide rounded corners.
+  Then (user): the final segment's minimum and the runway were missing on the profile. Final block: DA(H) 159 (100 ft,
+  the mod's decision height) hatched from the FAF to where the glide path comes down to it, label boxed (the AIP's "430"
+  box); the runway as a black bar on the ground line from the threshold, "THR RWY 07" under it; ELEV / RDH moved right.
+  Then (user): the final block runs right up to the runway bar; the final is solid with the arrowhead at the minimum, then
+  dashed down to the runway; the missed approach starts at the minimum. At true scale the mod's 100 ft decision height
+  puts the minimum 0.09 NM from the threshold, so that part is only a few pixels wide. Tried a compressed (power) scale
+  and blocks forced to step down; reverted (user: no rules the real charts don't have). Real profiles keep one scale;
+  the minimum is visible there because real DAs are higher (CAT I DH 200 ft, LNAV/VNAV higher). Open: raise the mod's DH.
+- Decision height (user, 2026-10-26): 200 ft by default (CAT I; it was 100 ft, which put the minimum 0.09 NM from the
+  threshold, invisible on the profile), per airport through API v5 `DecisionHeightFeet` (clamped 50–1,000 ft).
+  `AtcSettings.m_DecisionHeight` replaces `kDecisionHeight`; the go-around check and the weather go-around happen there.
+  Preview: DA(H) 259 (200).
+  Then (user, AIP): the sketch runs level from the minimum out past the threshold, climbs round the pattern and ends
+  level with the arrowhead at the fix it heads for (VELOK), not diving back down: the base leg to BIROT is left to the
+  plan view, as the AIP stops at DOKDO.
+- Decided (user, 2026-10-26): waypoint names are pronounceable five-letter names (ICAO 5LNC style, e.g. KOVAN), the same
+  every time for the same place; courses true only (the game has no magnetic variation); MSA computed from terrain and
+  obstacles in four quadrants round the airport, airspace radius, shown in the approach window only.
+  Naming rule to build: consonant-vowel-consonant-vowel-consonant from a hash of the fix's position (rounded, so it is the
+  same after a reload, like the frequencies), unique within the city (on a clash take the next hash), a short list of
+  words to avoid; airway-end fixes get names the same way.
+- Decided (user, 2026-10-26): compass rose round the airport, as on the AIP. Opening the chart: an "IFR chart" infoview
+  like the VFR chart's (AirspaceOverlaySystem: infomodes as checkboxes) with SID / STAR / approach toggles for the map
+  layers; the one-page chart (approach window: profile, minima, coding table) chosen from a new selector in the airport
+  info panel (e.g. RNP RWY 07, per runway end in use).
+- Infoview chart choice (user, 2026-10-26): one checkbox per chart, "airport code + chart name" (RKSS SID, RKSS STAR,
+  RKSS RNP RWY 14L...), built from the city's airports and runway ends in use; several can be on (one label placement
+  over all of them). This also settles the chart side of overlapping procedures; the flight side keeps only the hold
+  altitude separation (same-class airports with overlapping hold areas: one goes 1,000 ft higher).
+  Plan A: our own checkbox list in the infoview panel (mod UI, like the airport panel sections). The user prefers the
+  game's own controls: if plan A doesn't work well, plan B is a fixed number of game infomodes made at load as slots,
+  their names set per city through the localization (unused ones "empty chart").
+  Built (2026-10-26, plan B; plan A would have meant drawing our own legend, as the game picks each infoview panel in a
+  closed switch): `IfrChartSystem` (UIUpdate) adds the "IFR chart" infoview with 32 `ChartInfomodePrefab` slots (a
+  bare InfomodeBasePrefab subclass: no colour swatch, type "Chart"). While the infoview is open the list is rebuilt
+  every 64 frames: airports by code; "SID" / "STAR" where the airport flies them (OperatingValues), then "RNP RWY nn"
+  per runway end in use. A change goes into the localization as a new source on the active and fallback locales
+  (AddSource loads only it; RemoveSource would reload every source), the one it replaces emptied. The `IfrChartCount`
+  binding tells RealisticAviation.mjs, which extends the game's `InfomodeItem` to hide the slots past it. All charts start
+  unticked (user): the slots are supplemental infomodes, which ToolSystem leaves off when an infoview is opened from
+  the menu.
+  Step 2-1 built (2026-10-26, approach charts only; STAR / SID, obstacles, airways and the rose come next):
+  `IfrChartOverlaySystem` (Rendering) draws the ticked approach charts as the preview's RNP plan view, at the preview's
+  sizes (1 px = 40 m, `IfrChartCanvas.kPx`): runway outline, the "T" legs (solid, merging straight into the IF), final
+  with the arrowhead at the threshold, the missed approach dashed with fly-by arcs and the turn onto final at the FAF,
+  distance arrows in the lines, true courses beside them, fixes with (role) / name / altitude (AMSL, rounded up to 100,
+  underlined: at or above; both lines: at). Geometry from `AtcSystem.GetApproachChart` (the tower's own
+  `AtcJob.GetApproachFixes`, now static, and the go-around layout with the reference radius). `IfrChartCanvas` keeps the
+  strokes and runs the preview's label placer (oriented boxes, priority order) once per build; the build is redone when
+  the ticks change or, checked every 60 frames, the geometry does. `WaypointNames`: CVCVC from a hash of the position
+  on a 50 m grid, unique in the city, a short avoid list; given over every approach in list order, ticked or not.
+  Step 2-2 built (2026-10-26, user agreed the airway model): the game's airways are a grid (AirwayHelpers.AirwayMap:
+  three lanes per cell) its paths cross the map on, so an airway on the chart is the straight line from the airport to
+  each airplane outside connection, designated T1, T2... by bearing from the map centre.
+  - STAR chart: the airway in grey to the STAR's first fix, an open triangle on the contact ring (radius + 0.5 NM, where
+    the arrival first calls and leaves the airway); from it one STAR per runway end in use to the IAF of its sector, or
+    the IF from straight in (`AtcSystem.ApproachSide`, as ChooseApproachSide), named after the first fix + validity 1 +
+    the end's route letter (ends by name, A, B... without I and O). A hold (right turns, reference radius, the airport's
+    leg length) at each fix a STAR leads to: MAX SPD = highest `GetHoldingSpeed` over the AirplaneData prefabs in shown
+    knots rounded up to 10, MNM ALT = the stack's lowest level there (class band raised over the survey floor), and the
+    leg as "1.5 NM" (the mod flies distance legs, as RNAV holds; the preview's "1 MIN" was a placeholder). Lines that
+    don't fit are dropped longest first, as in the preview (with 1.5 NM legs MAX SPD usually is).
+  - SID chart: per runway end and airway, as SmoothDepartureTurn flies it with the reference radius: straight 460 m past
+    the runway end (`AtcSystem.kSidStraight`), a turn towards the first airway point from 4 km beyond the nearest one that
+    the turn can reach (FindDepartureFix / IsReachable), direct to it (open triangle, arrowhead, "KOVAN 1A"), then the
+    airway on to the map edge. No climb-gradient notes yet (with the obstacles, step 2-3).
+  - Code: `IfrCharts` (Symbols / Approach / Procedures), `AtcSystem.Charts.cs` (GetApproachChart, GetSid, contact
+    point, outside connections, holding speed). Lines into a waypoint stop at its circle (the preview's filled symbols
+    hid them). Validity number fixed at 1 for now (`IfrCharts.kValidity`); stored per procedure + API later.
+  Step 2-3 built (2026-10-26): obstacles. `IfrChartObstacles` searches on a worker thread whenever a build starts (the
+  chart opens, ticks or procedures change; the old chart stays up meanwhile), over the ticked charts' areas: approach =
+  the controlling obstacle of each initial segment and the intermediate one (highest top + MOC there, primary full,
+  secondary tapering, only one above the threshold) and up to 3 through the final approach surface (50 m under the
+  glide path from 15 m at the threshold, 1,000 ft wide, 15 % splay, floored by 2 % from 60 m: worst first, terrain as
+  one spot height); STAR = the controlling one of each STAR leg (initial MOC) and each hold (reach = leg + 2 r); SID =
+  up to 3 per SID through the 2.5 % surface from the runway end (5 m up, 150 m each side + 15° splay, along the turn),
+  numbered steepest first, with the note block "MNM CLIMB 200 FT/NM" + "MNM CLIMB x.x% UNTIL n FOR OBST (k)"
+  (gradient = (top - 5 m) / d + 0.8 %, until = top + 0.8 % d, AMSL rounded up to 100) placed round the airport.
+  Terrain sampled every 200 m, buildings from 10 m by prefab top. Symbols: the VFR shapes (`ObstacleSymbols.AddToCanvas`,
+  spire from 1,000 ft above the ground, ^ below, foot dot, no rays), terrain a dot; elevation AMSL rounded up, thousands
+  spaced; at the preview's sizes (24 / 15 px). Airways were done in 2-2; the label placer covers obstacles and notes.
+  Step 3 built (2026-10-26, not tested in game): airport panel "Approach charts" buttons (one per runway end with the
+  IAP) open `ApproachChartWindowSystem` (RawValueBinding ApproachChart): header, missed approach text, TA 14 000 / FL 140
+  (the preview's values), MSA (4 sectors to the airspace radius, highest top + 1,000 ft, `IfrChartObstacles` Sector), the
+  SVG profile (preview port; hatching as clipped lines), minima, rate of descent, coding tables. RDH 0: the tower's glide
+  path comes down to the threshold. Names shared with the map through `IfrProcedureCollector`.
+  First look in game (user, 2026-10-26): text far too big (halved: `IfrCharts.kTextScale` 0.5, lines and symbols
+  unchanged); STAR/SID drew only the runway: airplane outside connections were looked for as roots of airplane stops and
+  none were found; now the OutsideConnection objects whose prefab's OutsideConnectionData takes Air. The dark infoview map
+  makes black ink hard to read: instead of painting a background, the infoview's own m_DefaultColor / m_SecondaryColor (the colours of everything it doesn't highlight; game default 0.7 / 0.6 grey) are set to white / 0.9 (user's idea: some infoviews look bright). Line widths halved (`kLineScale` 0.5; arrowheads and symbols unchanged).
+  That did nothing (reverted). Natural resources and pollution colour the terrain through TerrainRenderSystem.
+  overrideOverlaymap (RGBA texture, one channel per active terrain colour entry: channel = colour index - 1; water:
+  WaterRenderSystem, secondary index - 5), written by OverlayInfomodeSystem (PreCulling) and smoothed by the shader.
+  Tried: a "White background" entry (gradient infomode, colour group 0 + secondary 1) and a system right after
+  OverlayInfomodeSystem putting in a texture with that channel full: the terrain changed only a little and stayed dark
+  (the terrain shader is lit; 06:44 game time). Now the white background is overlay strips over the whole world (white,
+  alpha 0.92, 2 km wide, under the chart, in IfrChartOverlaySystem): overlays aren't lit. The legend entry is a building
+  colour entry with a white swatch, as the VFR chart's. (VFR terrain tints and built-up areas through the texture would
+  stay dark at night the same way.) Obstacles within 1 km on one chart merge.
+  Then (user): the white overlay flickers badly (the game dithers semi-transparent overlays; the VFR chart's tints do
+  the same) and white is hard on the eyes. Back to the terrain colour route (no flicker, as telecom coverage, which is
+  bright at night: so the first try was not applied rather than lit): "Paper background" entry (`PaperInfomodePrefab`,
+  old-paper beige 0.93/0.89/0.76, default steps), `IfrChartPaperSystem` after OverlayInfomodeSystem, and a TEST
+  `IfrChartPaperCheckSystem` after TerrainRenderSystem; both log every 300 frames (remove after the test).
+  Result: works, no flicker (log: colour index 1 / secondary 5, our texture still on the terrain after its update);  still a little dark: the beige pushed to 2x, then 10x (user: just right; the water may wash out to white, fine for a paper background). Test logs and the check system removed.
+  Arrowheads were stepped (parallel strips of different lengths): now a fan of lines from the tip plus a line down each side.
+  Holds drawn too big (user): the chart used the procedures' radius (1.43 km); the tower flies a hold with each  airplane's own radius (AtcJob.GetTurnRadius). Now the largest of those over the airplane types (`AtcSystem.  GetLargestHoldTurnRadius`). The obstacle area round a hold still uses leg + 2 x 1.43 km, as the survey that sets MNM ALT.
+  Then (user): a smaller hold scales its lines, arrows and text with it (against the preview's radius 1,300 m) and keeps  every line of the limits, sized to fit (no more dropping the longest).
+  Then (user: match the rest to the real paths before testing): `AtcSystem.GetChartRadii` over the airplane types:
+  holds and the missed approach (the go-around pattern: upwind extension, width, downwind end, its arcs) with the widest
+  type's own radius (AtcJob.GetTurnRadius), as the tower lays the pattern out per airplane; the SID's fix chosen with the
+  circle at top speed (SmoothDepartureTurn's plan radius) and its turn drawn at the lowest flying speed, both at the SID
+  turn rate (min 6°/s, the airplane's own), of the type with the widest plan. Fixes and the hold obstacle areas keep the
+  reference radius (the tower's fixes and the survey use it).
+  Then (user): only the holds small looked odd: the whole chart now scales with them. `IfrChartCanvas.Px` (metres per  preview pixel, 40 at most) = 40 x min(1, hold radius / 1,300 m), set per build; every size in IfrCharts is a property  of it (lines, arrows, symbols, text, gaps); the hold no longer scales on its own. Zoom in to read.
+  Missed approach hold (user: there was one more hold after a go-around): not cleared by the end of downwind, the tower  extends downwind 2 NM (kDownwindExtension) and holds there at pattern height, downwind inbound (EndCircuit). Drawn on  the approach chart: the dashed extension, a dashed hold (MAX SPD / MNM ALT pattern / leg) and its fix (altitude at);  window: "If not cleared, continue to X and hold.", coding table rows TF X and HM X (inbound course, leg, R).
+  Clouds (user: veil the charts, no game option): `ChartCloudsSystem` keeps a global HDRP volume (priority 1000,  VolumetricClouds off, VisualEnvironment cloud type 0), enabled only while the VFR or IFR chart is open. References  Unity.RenderPipelines.Core/HighDefinition.Runtime added. Water at 10x paper turned bright blue/purple (deep water):  the water is its own entry now (`PaperInfomodePrefab.m_Water`, colour group 1, 2x, hidden in the legend, painted  while the paper entry is ticked); the ground entry is group 0 only.
+  Then (user): the water went dark by day with its own 2x, and the blue shading was the clouds' / shadows' doing:  water back on the one entry at 10x (secondary group 1). Sun shadows off too while a chart is open (as the game's  shadow setting: the SunLight's HDAdditionalLightData.EnableShadows; restored on closing). Entry renamed "Background"  / "배경", colour back to white (10x).
+  VFR chart the same way (user): its elevation tints and built-up areas are terrain colour entries now  (`TerrainTintInfomodePrefab`: group 0, true colours in the legend, 10x to the shader through GetColors); the  tints a gradient of the chart's tints (green, yellow, brown) in 8 steps, each cell's band written as the middle of its  step (water 0); built-up yellow with the low colour's alpha 0. `VfrChartTintSystem` (after OverlayInfomodeSystem)  writes a 448x448 texture (32 m cells, the playable area) when a sampling / count or a channel changes. The overlay  rectangles (and RectMerger) are gone.
+  Then (user): ground should be green (the chart's pale green came out cyan under the bluish night light), built-up  areas brighter, 12-14 steps: 13 bands (`TerrainChartMap.kBands`, at least 100 ft each), gradient green #6fb84f /  yellow #f3e096 / brown #a87438, built-up yellow at 20x (`m_Brightness`).
+  Correction (user): "12-14" meant the built-up brightness, not the bands: back to 8 bands (200 ft), the chart's yellow  #f4de9b and brown #b98b45 with the greener low end #6fb84f, built-up yellow at 13x.
+  Then (user): #6fb84f far too dark; the low end is now the green of the user's sectional sample, #c8d6ba.
+  Built-up yellow from the user's sample too: #f5f566 (was 1 / 0.85 / 0.25), still 13x.
+  Then (user, option 2 of three offered): the legend's eight tints exactly, in three terrain colour entries (all four
+  ground channels with the built-up areas): sea level-1,000 #deeac5, 1,000-2,000 #d0e1b1 | 2,000-3,000 #fdf7dc,
+  3,000-5,000 #f8ebb9, 5,000-7,000 #f4d58b | 7,000-9,000 #e3bd9a, 9,000-12,000 #f1b47d, 12,000+ #b78e3f (sampled from
+  the user's legend). Each entry gives the shader transparent / its first tint / its last (`m_TintGroup`, 255 steps):
+  cells write 0 outside the group, 128 first band, 255 last, 191 a middle band (halfway between the two: close for
+  3,000-5,000, weakest for 9,000-12,000). The legend shows the first entry (whole range); the other two are hidden in
+  the UI and follow it. Pale tints look blue-grey under the game's night light (user screenshot, 2026-10-26).
+  Then (user): far too bright by day: 3 steps down, tints 10x -> 7x, built-up 13x -> 10x; the IFR background stays 10x  (white either way, and lower turns the sea blue).
+  Then (user: night too dark, day washed out): while a chart is open the light is fixed as the game's "day/night visuals"  off fixes it (PlanetarySystem.overrideTime, 14:30 on day 177; ChartCloudsSystem), both charts; restored on closing.  The built-up yellow already matches the user's Dallas sample (#f4f866); its highlighter look comes from the rendering.  Snow (colossal_SnowScale, a global vector SnowSystem sets) could be zeroed while a chart is open: offered, not built.
+  Then (user): no fixed daylight; snow off first (colossal_SnowScale held at zero every frame while a chart is open,  restored on closing); fixed daylight only if that isn't enough.
+  Then (user: snow still there): colossal_SnowScale x is what the game's own "snow visuals" setting zeroes (8 / 0), so  the ground snow is off; the white specks were falling snow: the "PrecipitationVFX" game object (ClimateRenderSystem)  is deactivated while a chart is open and restored on closing.
+  Then (user: the snow texture still there, turning colours cyan / fluorescent): the scale was set to all zeros; the  game's own off value is (0, 1, 1, 1), now used. Water (user: light blue as on the chart): a VFR legend entry "Water"  / "수면" (TerrainTintInfomodePrefab.m_Water, colour group 1, #c4d6e8 from the user's sample, 2x), written into the  water's overlay texture (WaterRenderSystem.overrideOverlaymap, channel = colour index - 5).
+  Then (user: the snow texture flickered and stayed): the snow system's value (set whenever the simulation runs) and ours  took turns; the scale is now also set right before each frame renders (RenderPipelineManager.beginContextRendering).
+  Then (user: snow gone, but the colours still don't look like the chart's; match what shows, not the hex codes):  the daylight fix is back (snow off alone wasn't enough, as agreed). Next: calibrate each colour from a screenshot under  that light (screen colour vs the chart's, per channel in linear light, corrected input = input x target / shown).
+  Under the fixed daylight 7x / 10x / 2x washed everything out (user): all three back to 1x (true colours) as the  calibration start.
+  First calibration (screenshots under the fixed daylight, sampled with WPF's WebP decoder): built-up shown #d8d87c for
+  #f4f866, low ground #d8d8b0 for #d7e5bb, water #e8f0e8 for #c4d6e8; gains in linear light (TerrainTintInfomodePrefab.
+  m_Gain, applied through color.linear / .gamma): built-up 1.32 / 1.37 / 0.66, tints 0.99 / 1.14 / 1.15, water 0.68 /
+  0.77 / 1. Pale stripe between tint groups (user): bilinear filtering let a group's channel fall from its last tint
+  through its first (the cream); now point filtering on a 3x finer texture (1344², ~10.7 m texels), each texel's band
+  from the interpolated height and the built-up flag interpolated and cut at one half, so contours stay smooth.
+  Second calibration: built-up #e4e464, islands #d4dcbc, water #e4ecec (the water saturates towards white): gains  built-up 1.54 / 1.66 / 0.69, tints 1.02 / 1.25 / 1.14, water 0.48 / 0.62 / 0.96.
+  Mountains compared (user asked me to): with the low ground's gain the warm bands showed olive / khaki (#d8c858 for
+  #f4d58b, #d8c888 for #e3bd9a; the game also blends the grassy terrain texture in): gains per tint group now, low greens
+  1.02 / 1.25 / 1.14, 2,000-7,000 1.23 / 1.37 / 1.63, 7,000+ 1.30 / 1.25 / 1.70 (estimates; to check on screen).
+  Hairlines (user: the chart has thin black lines at the built-up edge and the shoreline): `ContourLines` (marching
+  squares) traces the built-up flags at one half (the yellow's own edge; y = the cells' average building base) and the
+  water depth at 0.5 m (sampled per cell in TerrainChartMap's job; y = the cell's ground), drawn as 8 m black lines;
+  the terrain is sampled whenever the water entry is on too.
+  Then (user screenshots): lines 8 m -> 2.5 m; the built-up outline ran over water beside the shoreline (crossings,  double lines): segments whose middle is on water (TerrainChartMap.IsWater, interpolated depth) are dropped, so the  shoreline alone is the edge there; the built-up field is smoothed (two 3x3 box blurs) before the fill and the outline  are cut at one half, so the edge is round instead of stepped at 45°.
+  Then (user): the built-up outline crossed airports (their buildings are not counted, but the window around reached over them). The airports' lots (the airport building's and each upgrade's, BuildingUtils.CalculateCorners) are cut out of the smoothed field (each cell keeps at most its distance outside the lot in cells + 0.5), so the yellow and its outline go round an airport along its lot edges. Only the drawing: IsUrban (the 299 ft obstacle rule) is unchanged.
+  Then (user, 2026-10-27): the game's tonemapping pressed the bright tints toward white and took their colour (measured: red 0.64 in -> 0.64 out, 1.41 in -> 0.74 out), so no per-channel gain could match the paper chart; the charts' volume now also turns the tonemapping off (Tonemapping.mode None) and the gains start again from one, to be calibrated from new screenshots. Shoreline pieces inside rivers: water from 0.1 m deep instead of 0.5 m (rivers are mostly shallower; only their pools counted). The white stripe at group edges and along the shore remained (the terrain shader filters the overlay texture whatever its filter mode, so two groups faded out together): each tint channel is spread 2 texels into the empty texels round it, so one group's fade lies under the other's colour. Open: the eight tints need six exact colours (two per channel) and two blends; only 3,000-5,000 blends well (2,000-7,000 ends, dE 2.9); the second blend is a green (dE about 6) or the 7,000-9,000 peach (green + orange, dE 6.6), the user to choose.
+  Then (user): an entry per band (each with its own colour, as the water) is not possible: the ground has four colour channels, one is the built-up areas'. The greens stay exact (user: the browns are the alike ones, not the greens); the bands are paired into channels from every pairing instead of in runs: (sea level-1,000, 9,000-12,000) with 7,000-9,000 blended, (1,000-2,000, 12,000+), (2,000-3,000, 5,000-7,000) with 3,000-5,000 blended (TerrainChartMap kBandGroup / kBandValue). Watch for: a channel fading out from its full tint passes its half tint (where the other group's colour doesn't cover it, a thin fringe of that colour).
+  Then (user screenshot at gain one, tonemapping off): most of the chart clipped white (water in every channel, the ground's red). With the tonemapping off the screen is the tint times the light, so one gain serves every ground colour (kGroundGain, also the built-up yellow's): from the unclipped channels of the flat low ground, green 1.25 and blue 1.0 times the tint, red taken as 1.5 -> gains (0.67, 0.80, 1.0); water 0.5. Next screenshot (unclipped) refines all three channels.
+  Then (user screenshot): the lower gains came out brighter (low ground green clipped, was 0.97): the automatic exposure follows the view. The charts' volume now fixes the exposure from the sun (EV100 = log2(sun lux / (pi x 1.2)) + kExposureBias, every update while a chart is open, logged as "Chart exposure"), so a white surface in the sun alone shows white; the ground gain is back to one, water 0.5. Known issue, left for a later update (user): the white stripe at tint group edges is still there (the 2-texel channel spread didn't remove it).
+  Then (user, paper chart sample): band-edge hairlines in the tint's own colour, a little darker, were tried (each band floor traced with ContourLines, drawn on the overlay in the tint x 0.8) and removed (user: they didn't sit on the colour edges and their colour was off; the overlay draws its colours unlit). Streams narrower than the 32 m cells break the shoreline into loops; later (user): draw small streams as on the chart, a single blue line along the stream instead of an outline.
+  Then (user screenshot, exposure fixed, gains one): the flat low ground and the built-up yellow showed (0.84, 0.73, 0.45) times their tint, the water at 0.5 (1.96, 1.80, 1.40) times its blue -> kGroundGain (1.19, 1.37, 2.22) for every ground colour, kWaterGain (0.51, 0.56, 0.71).
+  Then (user): a pale ring round the brown peaks. Where a group's full tint (255) meets another group's band, the shader's filtering takes that channel down through its half tint (128): brown fades through the lower green, the 5,000-7,000 yellow through the 2,000-3,000 cream (the white stripe). A search of every channel layout for one where the channel on top always has its half tint at the edges found none without blending the orange (dE 12), so the layout stays and the tint texture is finer instead: 6 texels a cell (2,688², ring about 5 m), written into a managed array and copied in at once (heights and bands copied to managed arrays too). The texture channels are logged ("VFR chart texture channels") to learn which channel the shader draws on top.
+  Then (user screenshot; the brief pause on opening is fine, user): low ground #e4e6ce for #deeac5, open built-up ground #ede2ab for #f5f566 (its blue three times the tint's: the game keeps some of the ground's own colour under a tint), water #c1d8fb for #c4d6e8. Each step gain x tint / shown, per entry: kGroundGain (1.12, 1.43, 2.00), kUrbanGain (1.27, 1.62, 0.71), kWaterGain (0.53, 0.55, 0.59).
+  Then (user screenshot): low ground #dae3c6, built-up #eee18b, water #c7d6dc. Gains (damped where two steps disagreed, the spots differ in light): kGroundGain (1.15, 1.49, 2.00), kUrbanGain (1.37, 2.00, 0.37: its blue barely follows the gain, the ground's own colour under it), kWaterGain (0.52, 0.55, 0.64).
+  Then (user: every calibration step cost a game restart): ChartGainFile reads the gains from ModsData/RealisticAviation/VfrChartGains.txt (lines "ground|urban|water r g b") whenever the game takes an entry's colours (the chart opening), again only once the file changed; the entries carry m_GainKey. Calibrate by editing the file and reopening the chart; when done, move the values into the code and remove the file reading.
+  Then (user): streams as on the chart. StreamLines: the water sampled again on an 8 m grid in the terrain job; the wide water is where a disc 40 m across fits (chamfer distance from the land, then within 20 m of those cells), the rest narrow; the narrow water thinned to one cell (Zhang-Suen) in the job; on collecting, the centre cells traced into lines (diagonal steps only where no side cell joins them, so stair steps aren't junctions; spurs and pieces under 4 cells dropped; two 1-2-1 smoothing passes) and drawn in #4a7fc0 (gain key "stream" in the calibration file), 8 m wide (user: as thick as the first outlines), with the water entry. Shoreline pieces with stream water within 3 fine cells and no wide water are left out.
+  Then (user: the creek passed; ponds and narrow inlets came out as lines, and the shoreline cut across the inlets): each piece of narrow water (8-joined) is measured for its mean water speed (WaterUtils.SampleVelocity) in the job; slower than stream-speed (0.5, calibration file; pieces over 20 cells logged as "VFR chart narrow water") it is still water and classed wide (outlined). The shoreline is traced on the 8 m grid (the fine depths), so it follows inlets and ponds; pieces with stream water within 2 fine cells and no wide water are left out.
+  Then (user: the chart stalls the game on opening, a 14900K): the terrain job was one long job registered as the terrain and water systems' reader, so they waited for it every frame, and the tracing and the 2,688² texture ran on the main thread. Now SampleRowsJob (IJobParallelFor, a row a job, on every worker) samples the cell heights and depths and the fine depths and speeds and is the only reader; ProcessJob (bands, MEF, peaks, stream classes, flow test, centre cells, fine shoreline via ContourLines' native overload) runs after it holding nothing and is not in the system's dependency; the main thread keeps only the line walking and heights. VfrChartTintSystem writes the texture on a Task and copies it in when done. Logged: "VFR chart lines" (segment counts). Colours (user screenshot after reopening, file read): every entry about 0.85 of its tint in one shot, so the hues hold and only the overall brightness moved between screenshots (the exposure log shows the same EV 14.83); ground green raised to 1.74 in the file.
+  Then (user screenshot, the stall gone): water #c3d7e7 for #c4d6e8 and built-up #f7f670 for #f5f566 match; the low ground is a little grey (#dce0c8 for #deeac5); the mountains came out lemon (#fffd9b, #fcfd85): one gain does not fit every tint (the game keeps some of the ground's own colour under a tint). Each exact tint now has its own key in the file (band0..band7, the group entry's first and last tint; the blended bands follow), falling back to "ground"; the warm ones start from the gains under which the mountains looked right (1.15, 1.43, 2.00).
+  Then (user screenshots, per-band gains in the file): greens, water, built-up and the orange matched; the 7,000-9,000 band, a blend of the lower green and the orange, took the green's high gain and came out lemon. Regrouped in order (user chose it from swatches of three layouts): (sea level-1,000, 1,000-2,000), (2,000-3,000, 3,000-5,000 blended, 5,000-7,000), (7,000-9,000, 9,000-12,000 blended, 12,000+); file keys band0, band1, band2, band4, band5, band7. Each group's lower band sits at half, so where the next group's channel lies on top its edge fades out cleanly.
+  Done (user, 2026-10-27: "VFR 차트는 여기까지"): the file's gains moved into the code (kTintGains per band, kUrbanGain, kWaterGain; TerrainTintInfomodePrefab m_FirstGain / m_LastGain), ChartGainFile and the file removed, the calibration logs dropped. Stream speed: still pieces measured 0 to 0.28, streams 2.9 up -> kMinStreamSpeed 1. Fixed: a flowing piece was put back to narrow right after its flood and so flooded again from each of its cells (thousands of log lines, quadratic time); its cells now keep a measured mark until every piece is done.
+  Then (user: the IFR chart hurts the eyes): its background was white x 10, pressed down by the tonemapping before; with the tonemapping off it shows pure white. Now the paper is #f0f0ec on screen (user chose it over a calmer grey), reached through a gain in linear light like the VFR colours, and the water has its own entry (RealisticAviationIfrPaperWater, colour group 1, hidden in the legend like the VFR tint groups 2 and 3, on with "Background") for its own gain. ChartGainFile is back for the calibration (ModsData/RealisticAviation/ChartGains.txt, keys ifr-paper and ifr-paper-water; start 1.2/1.5/2.0 and 0.5/0.5/0.55); remove it once the values are in.
+  Then (user screenshots): the IFR background came out at once without glare, a warm paper colour (water #feeed4, ground #fefddd) rather than #f0f0ec; the user kept it, and the VFR colours after the move into the code as before. The starting gains stay in the code; ChartGainFile and its file removed again.
+- VOR (user, 2026-10-26): a per-airport "VOR" checkbox in the airport panel, saved like line up and wait, default on for
+  class B and C, off for D (a small field is less likely to have one; the class doesn't decide it). On: VOR symbol, info
+  box (airport name, frequency in 108.00-117.95 from the airport position, 3-letter ident from the ICAO code with Morse)
+  and the compass rose round it, as on the AIP. The procedures are RNP either way. Add-on API too.
+- Hold step-down call (user report: "descend" said while the airplane climbs): the words now follow the airplane's height
+  when said (`AtcMessage.m_Altitude`): below the new level -> "climb and maintain", above -> "descend and maintain",
+  within 200 ft -> "maintain". An arrival comes in on the airway (~1,000 m above the ground), under the stack, and was
+  still climbing to its old level when told to step down. Built, not tested.
+- Backlog (user, 2026-10-26: later): limit the stack height. Departures from the city's own airports to a saturated one
+  could wait at the gate (the tower already runs their pushback); airplanes from outside connections spawn at the map edge
+  through the game's own systems, so stopping them there would need game internals. Overlapping holds of nearby airports:
+  recommended one shared stack (levels taken jointly, 1,000 ft apart) instead of odd/even thousands, which doubles the height.
+- Procedure designators (user, 2026-10-26), ICAO Annex 11 App. 3: basic indicator (SID: its last fix, STAR: its first
+  fix) + validity number + route letter. Route letter per runway end in use, A, B, C... within the airport, skipping I
+  and O. Validity number 1 for now, but kept as data (per airport, per procedure; saved with the airport like its other
+  settings) and settable through the API, for a later procedure editor (real procedures count it up 1-9 when revised).
+- Coding tables (user: "do it as the AIP"): one table per transition and one for the missed approach, each titled with
+  its procedure above it ("RNP RWY 07 MODEK TRANSITION", as the AIP's "RNAV BULTI 1U"), the AIP's columns: serial
+  number, path descriptor (IF first, then TF; the missed approach starts after the MAPt, so TF from its first row),
+  waypoint identifier, fly-over (the MAPt RW07: Y), course/track °T, distance, turn direction (the turn onto that leg),
+  altitude (+ at or above, - at or below, @ at), speed, VPA/RDH (final: -5.0°/50), navigation specification (RNP APCH).
+  No coordinates column: the game has no latitude/longitude. The preview's blue obstacle-area guide lines are removed
+  (they were never meant for the game).
+- Hold MAX SPD (user: the mod's real value): the tower flies each airplane in a hold at its own speed
+  (`GetHoldingSpeed`: max(1.15 x minimum flying speed, the level-attitude speed), capped at its maximum). The chart's
+  "MAX SPD n KT IAS" is the highest of those over the airplane types in the city, in shown units (internal m/s / 2 x 1.944,
+  see the speed-units note), rounded up to 10 kt; worked out from the prefabs when the chart is built. The preview's 230
+  is a placeholder (no prefab data outside the game).
