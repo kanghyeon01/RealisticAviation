@@ -1,0 +1,184 @@
+<!doctype html><html><head><meta charset="utf-8"><title>VOR preview</title>
+<style>
+body{margin:0;font-family:sans-serif;background:#fff;color:#222}
+h1{font-size:19px;margin:16px 12px 4px}
+h2{font-size:16px;margin:22px 12px 6px}
+.note{font-size:13px;margin:0 12px 8px;max-width:980px;line-height:1.55}
+.row{display:flex;flex-wrap:wrap;gap:10px;padding:0 12px}
+.cell{border:1px solid #ddd;border-radius:6px;padding:6px;text-align:center;font-size:12px;width:300px;line-height:1.45}
+.cell svg{display:block;margin:0 auto 4px;background:#d9d6cc}
+.map{border:1px solid #bbb;background:#d9d6cc;margin:0 12px}
+</style></head><body>
+<!-- VOR on the IFR chart (user, 2026-10-26: per-airport checkbox, default on for class B and C; symbol, info box, compass
+     rose round it, as on the AIP). Same stroke font and ink as docs/ifr-symbols-preview.html; scale 1 px = 40 m. -->
+<h1>VOR 미리보기</h1>
+<p class="note">IFR 차트 지도 오버레이에 그리는 부분이라 기존 IFR 기호와 같은 선 글꼴·검은 잉크입니다. 배경의 회색은 게임 지도를 대신합니다. 축척은 게임과 같은 1 px = 40 m입니다.</p>
+
+<h2>1. VOR 기호</h2>
+<div class="row" id="symbols"></div>
+
+<h2>2. 정보 상자</h2>
+<div class="row" id="boxes"></div>
+
+<h2>3. 예시: 공항 + VOR + 컴퍼스 로즈, 반경 비교 (왼쪽부터 0.75 NM / 1 NM / 1.5 NM)</h2>
+<p class="note">VOR은 활주로들의 중점(공항 기준점)에 둡니다. 로즈는 이전 미리보기 1번의 그것(10° 눈금, 30°마다 긴 눈금, 0·9·18·27, 진북 화살표)을 VOR 중심으로 옮긴 것입니다.</p>
+<p class="note">활주로는 2.4 km입니다. 맵 전체 폭은 약 7.7 NM(14.3 km)입니다.</p>
+<div class="row" id="maps"></div>
+
+<h2>정할 것</h2>
+<p class="note">
+1. <b>기호</b>: 1-가 (정함).<br>
+2. <b>정보 상자</b>: 2-가 (정함).<br>
+3. <b>로즈 반경</b>: 위 세 크기 중에서 고르거나 다른 크기를 말씀해 주세요.<br>
+4. <b>어느 차트에</b>: 그 공항의 SID, STAR, 접근(RNP) 지도 레이어 모두에 그립니다 (VFR 차트에는 안 그림).
+</p>
+
+<script>
+// ---------------------------------------------------------------- stroke font (unit box 0.6 x 1, y up; as ChartLabels.cs)
+const kWidth = 0.6, kGap = 0.3;
+function Arc(cx, cy, rx, ry, from, to) {
+  const n = Math.max(2, Math.ceil(Math.abs(to - from) / 15)), pts = [];
+  for (let i = 0; i <= n; i++) { const a = (from + (to - from) * i / n) * Math.PI / 180; pts.push(cx + rx * Math.cos(a), cy + ry * Math.sin(a)); }
+  return pts;
+}
+const Join = (a, b) => a.concat(b);
+const OLD = {
+  '0': [Arc(0.3, 0.5, 0.3, 0.5, 90, 450)],
+  '1': [[0.12, 0.8, 0.34, 1, 0.34, 0]],
+  '2': [Join(Arc(0.3, 0.72, 0.28, 0.28, 160, -35), [0, 0, 0.6, 0])],
+  '3': [Join(Arc(0.3, 0.76, 0.26, 0.24, 150, -90), Arc(0.3, 0.27, 0.3, 0.27, 90, -150))],
+  '4': [[0.45, 0, 0.45, 1, 0, 0.3, 0.6, 0.3]],
+  '5': [Join([0.55, 1, 0.1, 1], Arc(0.3, 0.32, 0.3, 0.32, 128, -145))],
+  '6': [Arc(0.3, 0.5, 0.3, 0.5, 60, 200), Arc(0.3, 0.3, 0.3, 0.3, 180, 540)],
+  '7': [[0, 1, 0.6, 1, 0.2, 0]],
+  '8': [Arc(0.3, 0.77, 0.25, 0.23, 270, 630), Arc(0.3, 0.27, 0.3, 0.27, 90, 450)],
+  '9': [Arc(0.3, 0.7, 0.3, 0.3, 0, 360), Arc(0.3, 0.5, 0.3, 0.5, 25, -120)],
+  'S': [Join(Arc(0.3, 0.75, 0.28, 0.25, 30, 270), Arc(0.3, 0.25, 0.3, 0.25, 90, -150))],
+  'F': [[0.55, 1, 0, 1, 0, 0], [0, 0.52, 0.42, 0.52]],
+  'C': [Arc(0.32, 0.5, 0.3, 0.5, 45, 315)],
+  '(': [Arc(0.55, 0.5, 0.3, 0.62, 125, 235)],
+  ')': [Arc(0.05, 0.5, 0.3, 0.62, 55, -55)],
+  'M': [[0, 0, 0, 1, 0.3, 0.4, 0.6, 1, 0.6, 0]],
+  'D': [Join(Join([0, 0, 0, 1, 0.2, 1], Arc(0.2, 0.5, 0.4, 0.5, 90, -90)), [0, 0])],
+  'E': [[0.6, 1, 0, 1, 0, 0, 0.6, 0], [0, 0.52, 0.45, 0.52]],
+  'N': [[0, 0, 0, 1, 0.6, 0, 0.6, 1]],
+  '-': [[0.08, 0.5, 0.52, 0.5]],
+};
+OLD['O'] = OLD['0'];
+const NEW = {
+  'A': [[0, 0, 0.3, 1, 0.6, 0], [0.1, 0.33, 0.5, 0.33]],
+  'B': [[0, 0, 0, 1, 0.38, 1, 0.53, 0.9, 0.53, 0.62, 0.38, 0.52, 0, 0.52], [0.38, 0.52, 0.6, 0.4, 0.6, 0.12, 0.45, 0, 0, 0]],
+  'G': [Join(Arc(0.32, 0.5, 0.3, 0.5, 45, 330), [0.6, 0.45, 0.36, 0.45])],
+  'H': [[0, 0, 0, 1], [0.6, 0, 0.6, 1], [0, 0.52, 0.6, 0.52]],
+  'I': [[0.3, 0, 0.3, 1], [0.12, 1, 0.48, 1], [0.12, 0, 0.48, 0]],
+  'J': [Join([0.6, 1, 0.6, 0.3], Arc(0.3, 0.3, 0.3, 0.3, 0, -180))],
+  'K': [[0, 0, 0, 1], [0.6, 1, 0, 0.4], [0.2, 0.6, 0.6, 0]],
+  'L': [[0, 1, 0, 0, 0.55, 0]],
+  'P': [[0, 0, 0, 1, 0.4, 1, 0.6, 0.86, 0.6, 0.62, 0.4, 0.48, 0, 0.48]],
+  'Q': [Arc(0.3, 0.5, 0.3, 0.5, 90, 450), [0.36, 0.24, 0.62, -0.05]],
+  'R': [[0, 0, 0, 1, 0.4, 1, 0.6, 0.86, 0.6, 0.62, 0.4, 0.48, 0, 0.48], [0.3, 0.48, 0.6, 0]],
+  'T': [[0, 1, 0.6, 1], [0.3, 1, 0.3, 0]],
+  'U': [Join(Join([0, 1, 0, 0.3], Arc(0.3, 0.3, 0.3, 0.3, 180, 360)), [0.6, 1])],
+  'V': [[0, 1, 0.3, 0, 0.6, 1]],
+  'W': [[0, 1, 0.15, 0, 0.3, 0.6, 0.45, 0, 0.6, 1]],
+  'X': [[0, 0, 0.6, 1], [0, 1, 0.6, 0]],
+  'Y': [[0, 1, 0.3, 0.5, 0.6, 1], [0.3, 0.5, 0.3, 0]],
+  'Z': [[0, 1, 0.6, 1, 0, 0, 0.6, 0]],
+  '/': [[0.05, -0.05, 0.55, 1.05]],
+  '.': [Arc(0.3, 0.05, 0.05, 0.05, 0, 360)],
+  '°': [Arc(0.2, 0.86, 0.13, 0.13, 0, 360)],
+  '+': [[0.3, 0.2, 0.3, 0.8], [0.05, 0.5, 0.55, 0.5]],
+  '%': [[0.05, 0, 0.55, 1], Arc(0.13, 0.82, 0.11, 0.13, 0, 360), Arc(0.47, 0.18, 0.11, 0.13, 0, 360)],
+};
+const G = Object.assign({}, OLD, NEW);
+const textWidth = (s, h) => s.length ? (s.length * (kWidth + kGap) - kGap) * h : 0;
+function text(s, x, y, h, color, w) {
+  let out = '';
+  [...s].forEach((ch, i) => {
+    if (ch === ' ') return;
+    const ox = x + i * (kWidth + kGap) * h;
+    (G[ch] || []).forEach(l => {
+      const pts = [];
+      for (let k = 0; k < l.length; k += 2) pts.push(`${(ox + l[k] * h).toFixed(1)},${(y - l[k + 1] * h).toFixed(1)}`);
+      out += `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="${w || h * 0.13}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    });
+  });
+  return out;
+}
+const textC = (s, cx, cy, h, color, w) => text(s, cx - textWidth(s, h) / 2, cy + h / 2, h, color, w);
+
+// ---------------------------------------------------------------- symbols
+const INK = '#111', AIRWAY = '#7a7a7a', RING = '#8a8a8a';
+const ln = (x1, y1, x2, y2, c, w, dash) => `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${c}" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}"` : ''} stroke-linecap="round"/>`;
+function head(x, y, dx, dy, s, c) { const n = [-dy, dx]; return `<polygon points="${x},${y} ${x - dx * s + n[0] * s * 0.45},${y - dy * s + n[1] * s * 0.45} ${x - dx * s - n[0] * s * 0.45},${y - dy * s - n[1] * s * 0.45}" fill="${c}"/>`; }
+// RNAV waypoint as on the AIP (ICAO Annex 4): an open circle with four triangular points (N, E, S, W). Lines only.
+
+// ---------------------------------------------------------------- VOR
+const NM = 1852, M = 40;
+// VOR (ICAO Annex 4): a hexagon with a dot in the middle. Lines only, as the other symbols.
+function vorSym(cx, cy, r, c, dme) {
+  const p = [];
+  for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; p.push(`${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`); }
+  let s = `<polygon points="${p.join(' ')}" fill="none" stroke="${c}" stroke-width="1.6"/><circle cx="${cx}" cy="${cy}" r="${(r * 0.16).toFixed(1)}" fill="${c}"/>`;
+  if (dme) s += `<rect x="${cx - r * 1.15}" y="${cy - r * 1.0}" width="${r * 2.3}" height="${r * 2.0}" fill="none" stroke="${c}" stroke-width="1.6"/>`;
+  return s;
+}
+// Morse as dots and dashes (drawn, so the font needs no glyphs for them).
+const MORSE = { A: '.-', B: '-...', C: '-.-.', D: '-..', E: '.', F: '..-.', G: '--.', H: '....', I: '..', J: '.---', K: '-.-', L: '.-..', M: '--', N: '-.', O: '---', P: '.--.', Q: '--.-', R: '.-.', S: '...', T: '-', U: '..-', V: '...-', W: '.--', X: '-..-', Y: '-.--', Z: '--..' };
+function morse(word, x, y, h, c) {
+  let s = '', cx = x;
+  [...word].forEach(ch => {
+    [...(MORSE[ch] || '')].forEach(m => {
+      if (m === '.') { s += `<circle cx="${(cx + h * 0.12).toFixed(1)}" cy="${y}" r="${(h * 0.12).toFixed(1)}" fill="${c}"/>`; cx += h * 0.45; }
+      else { s += ln(cx, y, cx + h * 0.7, y, c, h * 0.2); cx += h * 0.95; }
+    });
+    cx += h * 0.6;
+  });
+  return { svg: s, width: cx - x - h * 0.6 };
+}
+// AIP-style box: NAME VOR / frequency and ident / the ident in Morse.
+function infoBox(x, y, name, freq, ident, c, simple) {
+  const h = 10, lines = simple ? [`${name} ${freq} ${ident}`] : [`${name} VOR`, `${freq} ${ident}`];
+  const mo = morse(ident, 0, 0, h, c);
+  const w = Math.max(...lines.map(l => textWidth(l, h)), simple ? 0 : mo.width) + 14;
+  const hh = lines.length * h * 1.7 + (simple ? 0 : h * 1.2) + 8;
+  let s = `<rect x="${x}" y="${y}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}" fill="none" stroke="${c}" stroke-width="1.3"/>`;
+  lines.forEach((l, i) => { s += text(l, x + 7, y + 6 + h + i * h * 1.7, h, c); });
+  if (!simple) s += morse(ident, x + 7, y + 6 + lines.length * h * 1.7 + h * 0.4, h, c).svg;
+  return s;
+}
+function runway(x1, y1, x2, y2, wPx, c) {
+  const dx = x2 - x1, dy = y2 - y1, l = Math.hypot(dx, dy), nx = -dy / l * wPx / 2, ny = dx / l * wPx / 2;
+  const p = [[x1 + nx, y1 + ny], [x2 + nx, y2 + ny], [x2 - nx, y2 - ny], [x1 - nx, y1 - ny]].map(q => q.map(v => v.toFixed(1)).join(',')).join(' ');
+  return `<polygon points="${p}" fill="#f4f2ea" stroke="${c}" stroke-width="2.2" stroke-linejoin="miter"/>`;
+}
+function rose(cx, cy, r, c) {
+  let s = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${c}" stroke-width="1.4"/>`;
+  for (let a = 0; a < 360; a += 10) {
+    const t = a * Math.PI / 180, inner = r - (a % 30 === 0 ? 7 : 4);
+    s += ln(cx + Math.sin(t) * inner, cy - Math.cos(t) * inner, cx + Math.sin(t) * r, cy - Math.cos(t) * r, c, 1.1);
+  }
+  [['0', 0], ['9', 90], ['18', 180], ['27', 270]].forEach(([n, a]) => { const t = a * Math.PI / 180; s += textC(n, cx + Math.sin(t) * (r - 14), cy - Math.cos(t) * (r - 14), 7, c); });
+  return s + head(cx, cy - r - 9, 0, -1, 8, c);
+}
+
+const cell = (title, svg, w, h) => `<div class="cell"><svg width="${w}" height="${h}">${svg}</svg>${title}</div>`;
+document.getElementById('symbols').innerHTML =
+  cell('1-가. VOR (육각형 + 점)', vorSym(150, 45, 14, INK), 280, 90) +
+  cell('1-나. VOR/DME (육각형 + 사각형)', vorSym(150, 45, 14, INK, true), 280, 90);
+document.getElementById('boxes').innerHTML =
+  cell('2-가. AIP식: 이름 VOR / 주파수 식별자 / 모스', infoBox(70, 15, 'PORTLAND', '113.60', 'PLD', INK), 280, 90) +
+  cell('2-나. 한 줄 간단형', infoBox(30, 30, 'PORTLAND', '113.60', 'PLD', INK, true), 280, 90);
+
+(function () {
+  let html = '';
+  [0.75, 1, 1.5].forEach(nm => {
+    const cx = 160, cy = 160, r = nm * NM / M, hdg = 70 * Math.PI / 180, len = 2400 / M;
+    const dx = Math.sin(hdg) * len / 2, dy = -Math.cos(hdg) * len / 2;
+    let s = runway(cx - dx, cy - dy, cx + dx, cy + dy, 6, INK);
+    s += rose(cx, cy, r, INK) + vorSym(cx, cy, 9, INK) + infoBox(cx + r * 0.75 + 4, cy + r * 0.75 + 4, 'PORTLAND', '113.60', 'PLD', INK);
+    html += `<div class="cell" style="width:340px"><svg width="320" height="320">${s}</svg>반경 ${nm} NM (${Math.round(nm * NM)} m)</div>`;
+  });
+  document.getElementById('maps').innerHTML = html;
+})();
+</script></body></html>

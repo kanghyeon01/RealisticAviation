@@ -1152,7 +1152,7 @@ Versions: MAJOR.MINOR.PATCH (the patch was meant as a letter, 1.1a, but the game
   Terrain sampled every 200 m, buildings from 10 m by prefab top. Symbols: the VFR shapes (`ObstacleSymbols.AddToCanvas`,
   spire from 1,000 ft above the ground, ^ below, foot dot, no rays), terrain a dot; elevation AMSL rounded up, thousands
   spaced; at the preview's sizes (24 / 15 px). Airways were done in 2-2; the label placer covers obstacles and notes.
-  Step 3 built (2026-10-26, not tested in game): airport panel "Approach charts" buttons (one per runway end with the
+  Step 3 built (2026-10-26; checked in game by the user 2026-10-27): airport panel "Approach charts" buttons (one per runway end with the
   IAP) open `ApproachChartWindowSystem` (RawValueBinding ApproachChart): header, missed approach text, TA 14 000 / FL 140
   (the preview's values), MSA (4 sectors to the airspace radius, highest top + 1,000 ft, `IfrChartObstacles` Sector), the
   SVG profile (preview port; hatching as clipped lines), minima, rate of descent, coding tables. RDH 0: the tower's glide
@@ -1247,14 +1247,27 @@ Versions: MAJOR.MINOR.PATCH (the patch was meant as a letter, 1.1a, but the game
   class B and C, off for D (a small field is less likely to have one; the class doesn't decide it). On: VOR symbol, info
   box (airport name, frequency in 108.00-117.95 from the airport position, 3-letter ident from the ICAO code with Morse)
   and the compass rose round it, as on the AIP. The procedures are RNP either way. Add-on API too.
+  Built (2026-10-27) from docs/vor-preview.html (user: symbol 1-a, the ICAO VOR hexagon with a dot; info box 2-a, the
+  AIP's "NAME VOR" / "113.60 PLD" / Morse; rose 1 NM, as 2 NM was too wide for a 7.7 NM map; at the airport's centre, on
+  every SID / STAR / approach layer of the airport, not on the VFR chart). `VorSetting` (enabled + class, default by
+  class as `LineUpSetting`), `AirportSettings.IsVorEnabled / SetVor`, airport panel checkbox "VOR", API 5
+  `Api.Airports.SetVor` and `AirportInfo.Vor` (and `SetLongPushback` / `AirportInfo.LongPushback`). `VorStation`: the
+  frequency is one of the 160 VOR channels (108.00-111.95 with even tenths, 112.00-117.95, 50 kHz) picked by a hash of the
+  position rounded to 50 m; the ident the last three letters of the airport's code ("VOR" without three); the name the
+  airport's name in the chart font's letters and digits. `IfrCharts.Vor` draws the rose (ticks 10 deg, longer every 30,
+  0 9 18 27, north arrowhead), the hexagon and the box (placed by the label placer, lower right first); the collector
+  adds the VOR to the signature, so toggling it redraws the chart. Tested (user, 2026-10-27: shows right, size fine).
 - Hold step-down call (user report: "descend" said while the airplane climbs): the words now follow the airplane's height
   when said (`AtcMessage.m_Altitude`): below the new level -> "climb and maintain", above -> "descend and maintain",
   within 200 ft -> "maintain". An arrival comes in on the airway (~1,000 m above the ground), under the stack, and was
-  still climbing to its old level when told to step down. Built, not tested.
+  still climbing to its old level when told to step down. Tested (user, 2026-10-27: "climb" heard).
 - Backlog (user, 2026-10-26: later): limit the stack height. Departures from the city's own airports to a saturated one
   could wait at the gate (the tower already runs their pushback); airplanes from outside connections spawn at the map edge
   through the game's own systems, so stopping them there would need game internals. Overlapping holds of nearby airports:
   recommended one shared stack (levels taken jointly, 1,000 ft apart) instead of odd/even thousands, which doubles the height.
+- License (user, 2026-10-27, after seeing an unofficial re-upload of a popular mod): no license from the next update on;
+  LICENSE (MIT) and the README's license section removed, nothing put in their place (user). The page description and
+  the GitHub link stay as they are. Versions already released under MIT stay so.
 - Radio exchange click (user, 2026-10-27): clicking an exchange in any radio box (airport or airplane panel) selects its
   airplane and follows it with the game's own functions (SelectedInfoUISystem.SetSelection, then Focus = the info panel's
   follow button; user: use the game's functions, a custom camera move was rejected); a broadcast ("attention all

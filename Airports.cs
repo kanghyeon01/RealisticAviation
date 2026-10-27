@@ -94,6 +94,41 @@ namespace RealisticAviation
     }
 
     /// <summary>
+    /// "VOR" for an airport (user, 2026-10-26: its checkbox in the airport panel): a VOR at the airport's centre on the IFR
+    /// charts, with its info box and a compass rose round it, as on the AIP. On by default at class B and C airports, off
+    /// at class D (a small field is less likely to have one); a choice is kept for the class it was made under, as for
+    /// <see cref="LineUpSetting"/>. The procedures are RNP either way.
+    /// </summary>
+    public struct VorSetting : IComponentData, IQueryTypeParameter, ISerializable
+    {
+        public bool m_Enabled;
+
+        /// <summary>The <see cref="AirspaceClass"/> the choice was made under.</summary>
+        public byte m_Class;
+
+        public static bool DefaultFor(AirspaceClass airspaceClass) => airspaceClass != AirspaceClass.D;
+
+        public static bool IsEnabled(bool hasSetting, in VorSetting setting, AirspaceClass airspaceClass)
+        {
+            return hasSetting && setting.m_Class == (byte)airspaceClass ? setting.m_Enabled : DefaultFor(airspaceClass);
+        }
+
+        public void Serialize<TWriter>(TWriter writer) where TWriter : IWriter
+        {
+            SaveFormat.WriteVersion(writer);
+            writer.Write(m_Enabled);
+            writer.Write(m_Class);
+        }
+
+        public void Deserialize<TReader>(TReader reader) where TReader : IReader
+        {
+            SaveFormat.ReadVersion(reader, out _);
+            reader.Read(out m_Enabled);
+            reader.Read(out m_Class);
+        }
+    }
+
+    /// <summary>
     /// Traffic pattern direction per runway end, set in the airport info panel and stored on every edge of the runway.
     /// Bit <see cref="kWithCurve"/> is the end landing in the edge curve's own direction, <see cref="kAgainstCurve"/> the
     /// other end; the low bits say right-hand, the same bits shifted by <see cref="kSetShift"/> say the player chose it.

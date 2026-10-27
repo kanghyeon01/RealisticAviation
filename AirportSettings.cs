@@ -7,7 +7,7 @@ using Unity.Mathematics;
 namespace RealisticAviation
 {
     /// <summary>
-    /// The airport settings that are saved with the city (line up and wait, long pushback, ground delay, code, pattern side), read and written
+    /// The airport settings that are saved with the city (line up and wait, long pushback, VOR, ground delay, code, pattern side), read and written
     /// the same way for the airport info panel and for add-ons (Api). Main thread only.
     /// </summary>
     internal static class AirportSettings
@@ -30,6 +30,20 @@ namespace RealisticAviation
         {
             Set(entityManager, airport, new LineUpSetting { m_Enabled = enable, m_Class = (byte)CurrentClass(atcSystem, airport) });
             Mod.Log.Info($"Line up and wait {(enable ? "enabled" : "disabled")} at airport {airport}");
+        }
+
+        public static bool IsVorEnabled(EntityManager entityManager, AtcSystem atcSystem, Entity airport)
+        {
+            bool hasSetting = entityManager.HasComponent<VorSetting>(airport);
+            VorSetting setting = hasSetting ? entityManager.GetComponentData<VorSetting>(airport) : default;
+            return VorSetting.IsEnabled(hasSetting, setting, CurrentClass(atcSystem, airport));
+        }
+
+        /// <summary>Sets the VOR as a choice for the airport's present class (a class change brings back the default).</summary>
+        public static void SetVor(EntityManager entityManager, AtcSystem atcSystem, Entity airport, bool enable)
+        {
+            Set(entityManager, airport, new VorSetting { m_Enabled = enable, m_Class = (byte)CurrentClass(atcSystem, airport) });
+            Mod.Log.Info($"VOR {(enable ? "enabled" : "disabled")} at airport {airport}");
         }
 
         public static bool IsLongPushback(EntityManager entityManager, Entity airport)

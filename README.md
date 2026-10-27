@@ -183,7 +183,3 @@ Instead of passing the path every time, you can create `RealisticAviation.csproj
 ```
 
 Without either, the build looks in the default Steam location. The output (`RealisticAviation.dll`, `RealisticAviation.mjs`) is copied to `%USERPROFILE%\AppData\LocalLow\Colossal Order\Cities Skylines II\Mods\RealisticAviation`, where the game loads it as a local mod. Remove that folder before subscribing to the published version, otherwise the mod loads twice.
-
-## License
-
-[MIT](LICENSE) © Boing787(kanghyeon01)

@@ -200,6 +200,13 @@ namespace RealisticAviation
                 "When on, airplanes at this airport push back about their own length (30–80 m) instead of half of it. " +
                 "A pushback distance an add-on sets for the airport is used as set."
             },
+            { "RealisticAviation.Vor.Label", "VOR" },
+            {
+                "RealisticAviation.Vor.Tooltip",
+                "When on, the airport's IFR charts show a VOR at its centre, with its frequency, ident and Morse, and a compass rose round it. " +
+                "On by default at class B and C airports, off at class D; when the airport's class changes, it goes back to the new class's default. " +
+                "The procedures are RNP either way."
+            },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.EnablePushback)), "Pushback" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.EnablePushback)),
@@ -401,6 +408,13 @@ namespace RealisticAviation
                 "RealisticAviation.LongPushback.Tooltip",
                 "켜면 이 공항의 비행기가 자기 길이의 절반 대신 자기 길이만큼(30~80 m) 뒤로 밀려 나옵니다. " +
                 "애드온이 이 공항에 정한 푸쉬백 거리가 있으면 그 값을 그대로 씁니다."
+            },
+            { "RealisticAviation.Vor.Label", "VOR" },
+            {
+                "RealisticAviation.Vor.Tooltip",
+                "켜면 이 공항의 IFR 차트에 공항 중심의 VOR과 그 주파수·식별자·모스 부호, 둘레의 컴퍼스 로즈가 나옵니다. " +
+                "기본값은 Class B·C 공항은 켜짐, Class D 공항은 꺼짐이고, 공항 등급이 바뀌면 바뀐 등급의 기본값으로 돌아갑니다. " +
+                "절차는 어느 쪽이든 RNP입니다."
             },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.EnablePushback)), "Pushback" },
             {

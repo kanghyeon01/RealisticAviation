@@ -9,16 +9,17 @@ namespace RealisticAviation
 {
     /// <summary>
     /// Tower options (including the ground delay and its limit) and the radio log (latest exchanges on the approach, tower and ground frequencies) in an airport's info panel (the closure
-    /// banner is <see cref="AirportClosedSection"/>). Options: line up and wait and long pushback (with pushback on) for the
+    /// banner is <see cref="AirportClosedSection"/>). Options: line up and wait, long pushback (with pushback on) and VOR for the
     /// airport, and the traffic pattern direction for each runway end (listed as RWY 09, RWY 27, ...).
     /// RealisticAviation.mjs draws the checkboxes; a click comes back through a trigger binding and updates
-    /// <see cref="LineUpSetting"/> or <see cref="LongPushbackAirport"/> on the airport building or <see cref="RunwayPattern"/> on
-    /// the runway's edges.
+    /// <see cref="LineUpSetting"/>, <see cref="LongPushbackAirport"/> or <see cref="VorSetting"/> on the airport building or
+    /// <see cref="RunwayPattern"/> on the runway's edges.
     /// </summary>
     public partial class AirportSection : InfoSectionBase
     {
         public const string kToggleLineUpTrigger = "ToggleLineUpAndWait";
         public const string kToggleLongPushbackTrigger = "ToggleLongPushback";
+        public const string kToggleVorTrigger = "ToggleVor";
         public const string kToggleRightHandTrigger = "ToggleRunwayRightHand";
         public const string kToggleGroundDelayTrigger = "ToggleGroundDelay";
         public const string kAdjustGroundDelayTrigger = "AdjustGroundDelayLimit";
@@ -55,6 +56,7 @@ namespace RealisticAviation
         private Entity m_Airport;
         private bool m_LineUp;
         private bool m_LongPushback;
+        private bool m_Vor;
         private GroundDelaySetting m_GroundDelay;
         private string m_EnteredCode;
         private string m_AutomaticCode;
@@ -71,6 +73,7 @@ namespace RealisticAviation
             m_InfoUISystem.AddMiddleSection(this);
             AddBinding(new TriggerBinding(Mod.kName, kToggleLineUpTrigger, ToggleLineUp));
             AddBinding(new TriggerBinding(Mod.kName, kToggleLongPushbackTrigger, ToggleLongPushback));
+            AddBinding(new TriggerBinding(Mod.kName, kToggleVorTrigger, ToggleVor));
             AddBinding(new TriggerBinding<int>(Mod.kName, kToggleRightHandTrigger, ToggleRightHand));
             AddBinding(new TriggerBinding(Mod.kName, kToggleGroundDelayTrigger, ToggleGroundDelay));
             AddBinding(new TriggerBinding<int>(Mod.kName, kAdjustGroundDelayTrigger, AdjustGroundDelayLimit));
@@ -110,6 +113,7 @@ namespace RealisticAviation
         {
             m_LineUp = IsLineUpEnabled();
             m_LongPushback = AirportSettings.IsLongPushback(EntityManager, m_Airport);
+            m_Vor = AirportSettings.IsVorEnabled(EntityManager, m_AtcSystem, m_Airport);
             m_EnteredCode = AirportCodes.GetEntered(EntityManager, m_Airport) ?? string.Empty;
             m_AutomaticCode = AirportCodes.GetAutomatic(EntityManager, m_NameSystem, m_Airport);
             m_GroundDelay = GetGroundDelay();
@@ -172,6 +176,8 @@ namespace RealisticAviation
             writer.Write(m_LongPushback);
             writer.PropertyName("pushback");
             writer.Write(Mod.Setting != null && Mod.Setting.EnablePushback);
+            writer.PropertyName("vor");
+            writer.Write(m_Vor);
             writer.PropertyName("groundDelay");
             writer.Write(m_GroundDelay.m_Enabled);
             writer.PropertyName("groundDelayLimit");
@@ -228,6 +234,17 @@ namespace RealisticAviation
             }
             AirportSettings.SetLineUp(EntityManager, m_AtcSystem, m_Airport, !IsLineUpEnabled());
             // Re-sends every section to the UI; only marking this one dirty would leave the checkbox unchanged on screen.
+            m_InfoUISystem.RequestUpdate();
+        }
+
+        /// <summary>Flips the airport's VOR on the IFR charts, as a choice for its present class.</summary>
+        private void ToggleVor()
+        {
+            if (m_Airport == Entity.Null || !EntityManager.Exists(m_Airport))
+            {
+                return;
+            }
+            AirportSettings.SetVor(EntityManager, m_AtcSystem, m_Airport, !AirportSettings.IsVorEnabled(EntityManager, m_AtcSystem, m_Airport));
             m_InfoUISystem.RequestUpdate();
         }
 

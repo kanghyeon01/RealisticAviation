@@ -35,6 +35,10 @@ namespace RealisticAviation
     {
         public Entity m_Airport;
         public float2 m_Center;
+
+        /// <summary>The airport's VOR, when it has one (<see cref="VorSetting"/>).</summary>
+        public bool m_HasVor;
+        public VorStation m_Vor;
         public readonly List<ApproachChartData> m_Ends = new List<ApproachChartData>();
         public readonly List<IfrCharts.ApproachNames> m_EndNames = new List<IfrCharts.ApproachNames>();
         public readonly List<AirwayRoute> m_Airways = new List<AirwayRoute>();

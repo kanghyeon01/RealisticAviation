@@ -96,9 +96,16 @@ namespace RealisticAviation
                 }
             }
             procedures.m_Ends.Sort((a, b) => string.CompareOrdinal(a.m_Runway, b.m_Runway));
-            if (atcSystem.TryGetContactPoint(airport, default, out _, out float2 center))
+            bool hasCenter = atcSystem.TryGetContactPoint(airport, default, out _, out float2 center);
+            if (hasCenter)
             {
                 procedures.m_Center = center;
+            }
+            // The VOR at the airport's centre, on every chart of the airport.
+            if (hasCenter && AirportSettings.IsVorEnabled(atcSystem.EntityManager, atcSystem, airport))
+            {
+                procedures.m_HasVor = true;
+                procedures.m_Vor = VorStation.Create(atcSystem.EntityManager, atcSystem.World.GetOrCreateSystemManaged<Game.UI.NameSystem>(), airport, center);
             }
             if (procedures.m_Ends.Count == 0)
             {
@@ -128,6 +135,16 @@ namespace RealisticAviation
         }
 
         private static ulong Sign(ulong signature, AirportProcedures procedures)
+        {
+            if (procedures.m_HasVor)
+            {
+                VorStation vor = procedures.m_Vor;
+                signature = Mix(signature, math.hash(vor.m_Position) ^ (uint)(vor.m_Name + vor.m_Ident).GetHashCode());
+            }
+            return SignProcedures(signature, procedures);
+        }
+
+        private static ulong SignProcedures(ulong signature, AirportProcedures procedures)
         {
             for (int i = 0; i < procedures.m_Ends.Count; i++)
             {

@@ -257,6 +257,9 @@ namespace RealisticAviation
             m_AreaSlots.Add(slot);
         }
 
+        /// <summary>The airports whose VOR the chart being built already has.</summary>
+        private readonly HashSet<Entity> m_VorDrawn = new HashSet<Entity>();
+
         /// <summary>Builds the chart from the procedures and the obstacles found for it.</summary>
         private void Build()
         {
@@ -288,6 +291,7 @@ namespace RealisticAviation
                 }
             }
             m_Canvas.Clear();
+            m_VorDrawn.Clear();
             // The whole chart at the holds' scale (they are drawn at the tower's real size), never above the preview's.
             IfrChartCanvas.SetScale(math.min(1f, m_BuildHoldRadius / IfrCharts.kPreviewHoldRadius));
             for (int i = 0; i < m_BuildCharts.Count; i++)
@@ -299,6 +303,11 @@ namespace RealisticAviation
                 IfrChart chart = m_BuildCharts[i];
                 AirportProcedures procedures = m_Collector.Get(chart.m_Airport);
                 m_SlotObstacles.TryGetValue(i, out List<ChartObstacle> obstacles);
+                // The airport's VOR and rose once, whichever of its charts are shown.
+                if (procedures != null && m_VorDrawn.Add(chart.m_Airport))
+                {
+                    IfrCharts.Vor(m_Canvas, procedures);
+                }
                 switch (chart.m_Kind)
                 {
                     case IfrChartKind.Approach:

@@ -146,6 +146,12 @@ namespace RealisticAviation
         /// <summary>Airplanes moving on its ground (gates not counted), as of the last tower update.</summary>
         public int GroundTraffic;
         public bool LineUpAndWait;
+
+        /// <summary>The airport has a VOR on the IFR charts (API 5).</summary>
+        public bool Vor;
+
+        /// <summary>Long pushback is on at the airport (API 5).</summary>
+        public bool LongPushback;
     }
 
     /// <summary>One end of a runway in use: where airplanes start their landing or takeoff roll, and which way they go.</summary>
@@ -427,6 +433,24 @@ namespace RealisticAviation
                 if (Tower != null && Tower.EntityManager.Exists(airport))
                 {
                     AirportSettings.SetLineUp(Tower.EntityManager, Tower, airport, enabled);
+                }
+            }
+
+            /// <summary>A VOR at the airport on the IFR charts (saved, as a choice for its present class). API 5.</summary>
+            public static void SetVor(Entity airport, bool enabled)
+            {
+                if (Tower != null && Tower.EntityManager.Exists(airport))
+                {
+                    AirportSettings.SetVor(Tower.EntityManager, Tower, airport, enabled);
+                }
+            }
+
+            /// <summary>Long pushback at the airport (saved): airplanes push back about their own length. API 5.</summary>
+            public static void SetLongPushback(Entity airport, bool enabled)
+            {
+                if (Tower != null && Tower.EntityManager.Exists(airport))
+                {
+                    AirportSettings.SetLongPushback(Tower.EntityManager, airport, enabled);
                 }
             }
 

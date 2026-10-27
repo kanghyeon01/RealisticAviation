@@ -72,11 +72,13 @@ the airports through `Api` and gives the tower each airport's ATIS.
 |---|---|
 | `GetAll(List<Entity>)` | Every airport: top-level buildings with airplane stops, outside connections excluded |
 | `Find(Entity)` | The airport an entity belongs to (the airport itself, a runway, a gate...), or `Entity.Null`. Only its structures count (the main building, roads and runways, stops); its upgrade buildings, vehicles and people belong to none (from 1.2.4) |
-| `TryGetInfo(airport, out AirportInfo)` | Code, class, centre, radius, hold base, runways, gates, closure and its reason, ground delay, line up and wait |
+| `TryGetInfo(airport, out AirportInfo)` | Code, class, centre, radius, hold base, runways, gates, closure and its reason, ground delay, line up and wait, VOR and long pushback (version 5) |
 | `TryGetAirspaceClass(airport, out AirspaceClass)` | Class B, C or D |
 | `SetAirspaceClass(airport, cls)` / `SetAutomaticAirspaceClass(airport)` | Choose the class, or follow the size again (saved; applied next frame) |
 | `GetCode(airport)` / `SetCode(airport, code)` | The ICAO code. Set 3–4 letters or digits; null brings back the automatic code (saved) |
 | `SetLineUpAndWait(airport, bool)` | Line up and wait (saved) |
+| `SetVor(airport, bool)` | A VOR on the IFR charts, with its info box and compass rose (saved, as a choice for the present class; default on for class B and C). Version 5 |
+| `SetLongPushback(airport, bool)` | Long pushback: airplanes push back about their own length, 30–80 m (saved; a fixed `PushbackDistanceMeters` still wins). Version 5 |
 | `GetGroundDelay(airport, out limit)` / `SetGroundDelay(airport, enabled, limit)` | Ground delay (saved) |
 | `Close(airport, reason)` / `Open(airport)` | Close until opened again. The reason shows in the panel and on the radio. Not saved |
 | `IsClosed(airport, out closedBy)` | Closed, and by what (a disaster event, or the airport or runway an add-on closed) |

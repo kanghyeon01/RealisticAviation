@@ -363,6 +363,8 @@ namespace RealisticAviation
                 GroundDelay = groundDelay,
                 GroundTraffic = groundTraffic,
                 LineUpAndWait = AirportSettings.IsLineUpEnabled(EntityManager, this, airport),
+                Vor = AirportSettings.IsVorEnabled(EntityManager, this, airport),
+                LongPushback = AirportSettings.IsLongPushback(EntityManager, airport),
             };
             return true;
         }
