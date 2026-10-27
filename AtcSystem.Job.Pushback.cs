@@ -107,6 +107,9 @@ namespace RealisticAviation
                     m_AtGate.Remove(entity);
                     float2 size = m_PrefabGeometryData.TryGetComponent(m_PrefabRefData[entity].m_Prefab, out ObjectGeometryData geometry)
                         ? geometry.m_Size.xz : new float2(30f, 30f);
+                    // A short push, about half the airplane's length (its whole length at an airport with long pushback; or the
+                    // airport's fixed distance, used as set), then it turns towards the taxiway.
+                    float scale = m_LongPushbackData.HasComponent(GetAirportOf(entity)) ? kLongPushbackFactor : 1f;
                     pushback = new Pushback
                     {
                         m_Start = transform.m_Position,
@@ -114,8 +117,8 @@ namespace RealisticAviation
                         m_Heading = forward,
                         m_Phase = PushbackPhase.AwaitingApproval,
                         m_PhaseFrame = m_Frame,
-                        // A short push, about half the airplane's length (or the airport's fixed distance), then it turns towards the taxiway.
-                        m_MaxDistance = fixedDistance > 0f ? fixedDistance : math.clamp(size.y * kPushbackLengthFactor, kMinPushbackDistance, kMaxPushbackDistance),
+                        m_MaxDistance = fixedDistance > 0f ? fixedDistance
+                            : scale * math.clamp(size.y * kPushbackLengthFactor, kMinPushbackDistance, kMaxPushbackDistance),
                         m_Radius = 0.5f * math.cmax(size) + kPushbackClearance,
                     };
                     if (m_Settings.m_DetailedLog)

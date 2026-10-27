@@ -194,6 +194,12 @@ namespace RealisticAviation
                 "then takes off the moment the runway is clear. When off, it holds short until the runway is clear. " +
                 "On by default at class B and C airports, off at class D; when the airport's class changes, it goes back to the new class's default."
             },
+            { "RealisticAviation.LongPushback.Label", "Long pushback" },
+            {
+                "RealisticAviation.LongPushback.Tooltip",
+                "When on, airplanes at this airport push back about their own length (30–80 m) instead of half of it. " +
+                "A pushback distance an add-on sets for the airport is used as set."
+            },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.EnablePushback)), "Pushback" },
             {
                 m_Setting.GetOptionDescLocaleID(nameof(Setting.EnablePushback)),
@@ -389,6 +395,12 @@ namespace RealisticAviation
                 "켜면 착륙기나 앞서 이륙하는 비행기가 진입 지점을 지나가는 즉시 출발기가 활주로에 들어가 정렬한 채 기다리다가, 활주로가 비는 순간 이륙합니다. " +
                 "끄면 활주로가 빌 때까지 Hold Short로 기다립니다. " +
                 "기본값은 Class B·C 공항은 켜짐, Class D 공항은 꺼짐이고, 공항 등급이 바뀌면 바뀐 등급의 기본값으로 돌아갑니다."
+            },
+            { "RealisticAviation.LongPushback.Label", "긴 푸쉬백" },
+            {
+                "RealisticAviation.LongPushback.Tooltip",
+                "켜면 이 공항의 비행기가 자기 길이의 절반 대신 자기 길이만큼(30~80 m) 뒤로 밀려 나옵니다. " +
+                "애드온이 이 공항에 정한 푸쉬백 거리가 있으면 그 값을 그대로 씁니다."
             },
             { m_Setting.GetOptionLabelLocaleID(nameof(Setting.EnablePushback)), "Pushback" },
             {

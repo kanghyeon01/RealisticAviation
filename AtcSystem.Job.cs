@@ -148,6 +148,10 @@ namespace RealisticAviation
             private const float kPushbackLengthFactor = 0.5f;
             private const float kMinPushbackDistance = 15f;
             private const float kMaxPushbackDistance = 40f;
+
+            // "Long pushback" at an airport (its checkbox): the push and its limits this many times as long (about the
+            // airplane's own length, 30-80 m; user). An add-on's fixed distance for the airport is used as set.
+            private const float kLongPushbackFactor = 2f;
             private const float kPushbackSettleDistance = 5f;
             private const float kPushbackTurnRate = 15f;
             private const int kPushbackUnknownPathTicks = 30;
@@ -209,6 +213,7 @@ namespace RealisticAviation
             [ReadOnly] public BufferLookup<LaneObject> m_LaneObjects;
             [ReadOnly] public BufferLookup<LaneOverlap> m_LaneOverlaps;
             [ReadOnly] public ComponentLookup<LineUpSetting> m_LineUpData;
+            [ReadOnly] public ComponentLookup<LongPushbackAirport> m_LongPushbackData;
             [ReadOnly] public ComponentLookup<RunwayPattern> m_RunwayPatternData;
             [ReadOnly] public ComponentLookup<Game.Events.WeatherPhenomenon> m_WeatherPhenomenonData;
             [ReadOnly] public ComponentLookup<Game.Events.Duration> m_DurationData;

@@ -7,7 +7,7 @@ using Unity.Mathematics;
 namespace RealisticAviation
 {
     /// <summary>
-    /// The airport settings that are saved with the city (line up and wait, ground delay, code, pattern side), read and written
+    /// The airport settings that are saved with the city (line up and wait, long pushback, ground delay, code, pattern side), read and written
     /// the same way for the airport info panel and for add-ons (Api). Main thread only.
     /// </summary>
     internal static class AirportSettings
@@ -30,6 +30,24 @@ namespace RealisticAviation
         {
             Set(entityManager, airport, new LineUpSetting { m_Enabled = enable, m_Class = (byte)CurrentClass(atcSystem, airport) });
             Mod.Log.Info($"Line up and wait {(enable ? "enabled" : "disabled")} at airport {airport}");
+        }
+
+        public static bool IsLongPushback(EntityManager entityManager, Entity airport)
+        {
+            return entityManager.HasComponent<LongPushbackAirport>(airport);
+        }
+
+        public static void SetLongPushback(EntityManager entityManager, Entity airport, bool enable)
+        {
+            if (enable && !entityManager.HasComponent<LongPushbackAirport>(airport))
+            {
+                entityManager.AddComponent<LongPushbackAirport>(airport);
+            }
+            else if (!enable && entityManager.HasComponent<LongPushbackAirport>(airport))
+            {
+                entityManager.RemoveComponent<LongPushbackAirport>(airport);
+            }
+            Mod.Log.Info($"Long pushback {(enable ? "enabled" : "disabled")} at airport {airport}");
         }
 
         public static GroundDelaySetting GetGroundDelay(EntityManager entityManager, AtcSystem atcSystem, Entity airport)

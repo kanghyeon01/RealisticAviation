@@ -1264,6 +1264,11 @@ Versions: MAJOR.MINOR.PATCH (the patch was meant as a letter, 1.1a, but the game
   Known issue (user, 2026-10-27: leave it): an airplane holding on cargo airway 1 (outside the map): the camera starts to
   follow and stops short. The game's own click and follow button on the same airplane work, so it is not the camera's
   map limit; the difference between SetSelection + Focus from the radio and the game's own path is not found yet.
+- Long pushback (user, 2026-10-27; "긴 푸쉬백"): a checkbox per airport in the airport panel (shown while pushback is
+  on), saved as the tag `LongPushbackAirport` on the airport building. Airplanes there push back about their own length:
+  the push and its limits x2 (`kLongPushbackFactor`: 30-80 m instead of 15-40 m). An add-on's fixed distance for the
+  airport is used as set (user). The detailed tuning stays with add-ons (1.2.2 decision); this is the one common choice.
+  Known risk: a push over 40 m may reach an arrival waiting at kGateHoldDistance (100 m) before the stand. Tested (user, 2026-10-27): pushes of 37-58 m (40 m at most before). A push still ends where the path behind turns away (kPushbackTurnDot), so short straight segments behind a gate keep it shorter than the airplane's length; kept so (user).
 - Procedure designators (user, 2026-10-26), ICAO Annex 11 App. 3: basic indicator (SID: its last fix, STAR: its first
   fix) + validity number + route letter. Route letter per runway end in use, A, B, C... within the airport, skipping I
   and O. Validity number 1 for now, but kept as data (per airport, per procedure; saved with the airport like its other

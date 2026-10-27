@@ -18,6 +18,14 @@ namespace RealisticAviation
     }
 
     /// <summary>
+    /// "Long pushback" for an airport (user, 2026-10-27; its checkbox in the airport panel): airplanes push back about their
+    /// own length instead of half of it. Saved with the city by its presence on the airport building.
+    /// </summary>
+    public struct LongPushbackAirport : IComponentData, IQueryTypeParameter, IEmptySerializable
+    {
+    }
+
+    /// <summary>
     /// Version of the settings saved with the city. Each one starts with a byte <see cref="kFlag"/> | version, so that a later
     /// version can add fields and still read older saves. Saves from before 2026-10-20 have no such byte: their first byte
     /// is the first field, always below 0x80 (a bool, a small count, a class, the bits of a pattern, the low byte of a code

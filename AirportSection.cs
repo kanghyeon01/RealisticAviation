@@ -9,14 +9,16 @@ namespace RealisticAviation
 {
     /// <summary>
     /// Tower options (including the ground delay and its limit) and the radio log (latest exchanges on the approach, tower and ground frequencies) in an airport's info panel (the closure
-    /// banner is <see cref="AirportClosedSection"/>). Options: line up
-    /// and wait for the airport, and the traffic pattern direction for each runway end (listed as RWY 09, RWY 27, ...).
+    /// banner is <see cref="AirportClosedSection"/>). Options: line up and wait and long pushback (with pushback on) for the
+    /// airport, and the traffic pattern direction for each runway end (listed as RWY 09, RWY 27, ...).
     /// RealisticAviation.mjs draws the checkboxes; a click comes back through a trigger binding and updates
-    /// <see cref="LineUpSetting"/> on the airport building or <see cref="RunwayPattern"/> on the runway's edges.
+    /// <see cref="LineUpSetting"/> or <see cref="LongPushbackAirport"/> on the airport building or <see cref="RunwayPattern"/> on
+    /// the runway's edges.
     /// </summary>
     public partial class AirportSection : InfoSectionBase
     {
         public const string kToggleLineUpTrigger = "ToggleLineUpAndWait";
+        public const string kToggleLongPushbackTrigger = "ToggleLongPushback";
         public const string kToggleRightHandTrigger = "ToggleRunwayRightHand";
         public const string kToggleGroundDelayTrigger = "ToggleGroundDelay";
         public const string kAdjustGroundDelayTrigger = "AdjustGroundDelayLimit";
@@ -52,6 +54,7 @@ namespace RealisticAviation
         private EntityQuery m_AirplaneStopQuery;
         private Entity m_Airport;
         private bool m_LineUp;
+        private bool m_LongPushback;
         private GroundDelaySetting m_GroundDelay;
         private string m_EnteredCode;
         private string m_AutomaticCode;
@@ -67,6 +70,7 @@ namespace RealisticAviation
             m_AirplaneStopQuery = Airports.CreateAirplaneStopQuery(EntityManager);
             m_InfoUISystem.AddMiddleSection(this);
             AddBinding(new TriggerBinding(Mod.kName, kToggleLineUpTrigger, ToggleLineUp));
+            AddBinding(new TriggerBinding(Mod.kName, kToggleLongPushbackTrigger, ToggleLongPushback));
             AddBinding(new TriggerBinding<int>(Mod.kName, kToggleRightHandTrigger, ToggleRightHand));
             AddBinding(new TriggerBinding(Mod.kName, kToggleGroundDelayTrigger, ToggleGroundDelay));
             AddBinding(new TriggerBinding<int>(Mod.kName, kAdjustGroundDelayTrigger, AdjustGroundDelayLimit));
@@ -105,6 +109,7 @@ namespace RealisticAviation
         protected override void OnProcess()
         {
             m_LineUp = IsLineUpEnabled();
+            m_LongPushback = AirportSettings.IsLongPushback(EntityManager, m_Airport);
             m_EnteredCode = AirportCodes.GetEntered(EntityManager, m_Airport) ?? string.Empty;
             m_AutomaticCode = AirportCodes.GetAutomatic(EntityManager, m_NameSystem, m_Airport);
             m_GroundDelay = GetGroundDelay();
@@ -162,6 +167,11 @@ namespace RealisticAviation
             writer.Write(m_AutomaticCode ?? string.Empty);
             writer.PropertyName("lineUp");
             writer.Write(m_LineUp);
+            // Long pushback: written always (a property that comes and goes crashes the UI), shown only with pushback on.
+            writer.PropertyName("longPushback");
+            writer.Write(m_LongPushback);
+            writer.PropertyName("pushback");
+            writer.Write(Mod.Setting != null && Mod.Setting.EnablePushback);
             writer.PropertyName("groundDelay");
             writer.Write(m_GroundDelay.m_Enabled);
             writer.PropertyName("groundDelayLimit");
@@ -218,6 +228,17 @@ namespace RealisticAviation
             }
             AirportSettings.SetLineUp(EntityManager, m_AtcSystem, m_Airport, !IsLineUpEnabled());
             // Re-sends every section to the UI; only marking this one dirty would leave the checkbox unchanged on screen.
+            m_InfoUISystem.RequestUpdate();
+        }
+
+        /// <summary>Flips long pushback for the airport.</summary>
+        private void ToggleLongPushback()
+        {
+            if (m_Airport == Entity.Null || !EntityManager.Exists(m_Airport))
+            {
+                return;
+            }
+            AirportSettings.SetLongPushback(EntityManager, m_Airport, !AirportSettings.IsLongPushback(EntityManager, m_Airport));
             m_InfoUISystem.RequestUpdate();
         }
 

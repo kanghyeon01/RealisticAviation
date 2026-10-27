@@ -222,6 +222,8 @@ function AirportSection(props) {
         }) : null,
         checkboxRow("lineUp", translate("RealisticAviation.LineUp.Label", "Line up and wait"), props.lineUp,
             () => api.trigger(GROUP, "ToggleLineUpAndWait"), translate("RealisticAviation.LineUp.Tooltip", "")),
+        props.pushback ? checkboxRow("longPushback", translate("RealisticAviation.LongPushback.Label", "Long pushback"), props.longPushback,
+            () => api.trigger(GROUP, "ToggleLongPushback"), translate("RealisticAviation.LongPushback.Tooltip", "")) : null,
         checkboxRow("groundDelay", translate("RealisticAviation.GroundDelay.Toggle", "Ground delay"), props.groundDelay,
             () => api.trigger(GROUP, "ToggleGroundDelay"), translate("RealisticAviation.GroundDelay.Tooltip", "")),
         React.createElement(InfoRow, {

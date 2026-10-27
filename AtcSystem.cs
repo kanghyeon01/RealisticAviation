@@ -74,6 +74,7 @@ namespace RealisticAviation
         private BufferLookup<LaneObject> m_LaneObjects;
         private BufferLookup<LaneOverlap> m_LaneOverlaps;
         private ComponentLookup<LineUpSetting> m_LineUpData;
+        private ComponentLookup<LongPushbackAirport> m_LongPushbackData;
         private ComponentLookup<RunwayPattern> m_RunwayPatternData;
         private ComponentLookup<Game.Events.WeatherPhenomenon> m_WeatherPhenomenonData;
         private ComponentLookup<Game.Events.Duration> m_DurationData;
@@ -459,6 +460,7 @@ namespace RealisticAviation
             m_LaneObjects = GetBufferLookup<LaneObject>(true);
             m_LaneOverlaps = GetBufferLookup<LaneOverlap>(true);
             m_LineUpData = GetComponentLookup<LineUpSetting>(true);
+            m_LongPushbackData = GetComponentLookup<LongPushbackAirport>(true);
             m_RunwayPatternData = GetComponentLookup<RunwayPattern>(true);
             m_WeatherPhenomenonData = GetComponentLookup<Game.Events.WeatherPhenomenon>(true);
             m_DurationData = GetComponentLookup<Game.Events.Duration>(true);
@@ -622,6 +624,7 @@ namespace RealisticAviation
             m_LaneObjects.Update(this);
             m_LaneOverlaps.Update(this);
             m_LineUpData.Update(this);
+            m_LongPushbackData.Update(this);
             m_RunwayPatternData.Update(this);
             m_WeatherPhenomenonData.Update(this);
             m_DurationData.Update(this);
@@ -663,6 +666,7 @@ namespace RealisticAviation
                 m_LaneObjects = m_LaneObjects,
                 m_LaneOverlaps = m_LaneOverlaps,
                 m_LineUpData = m_LineUpData,
+                m_LongPushbackData = m_LongPushbackData,
                 m_RunwayPatternData = m_RunwayPatternData,
                 m_WeatherPhenomenonData = m_WeatherPhenomenonData,
                 m_DurationData = m_DurationData,
