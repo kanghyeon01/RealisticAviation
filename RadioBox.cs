@@ -10,7 +10,8 @@ namespace RealisticAviation
     /// One frequency's recent transmissions as shown in an info panel (phase 4-2): a label such as "TWR 118.300" and
     /// the exchanges oldest first (newest at the bottom), each the controller's words and the pilot's readback (no
     /// readback for a broadcast; on a pilot's own call, such as a weather go-around, the pilot speaks first), and whether
-    /// it is the selected airplane's own. RealisticAviation.mjs draws it.
+    /// it is the selected airplane's own, and its airplane and airport (clicking an exchange selects its airplane, or for a
+    /// broadcast the airport, and moves the camera there). RealisticAviation.mjs draws it.
     /// </summary>
     internal sealed class RadioBox
     {
@@ -21,6 +22,12 @@ namespace RealisticAviation
             public bool m_Own;
             public bool m_PilotFirst;
             public string m_Id;
+
+            /// <summary>The airplane of the exchange (Entity.Null for a broadcast), selected when the exchange is clicked.</summary>
+            public Entity m_Airplane;
+
+            /// <summary>The airport that spoke, selected when a broadcast (no airplane) is clicked.</summary>
+            public Entity m_Airport;
         }
 
         private readonly List<AtcMessage> m_Messages = new List<AtcMessage>();
@@ -53,6 +60,8 @@ namespace RealisticAviation
                     m_PilotFirst = pilotFirst,
                     // Stable across panel updates, so the UI can tell a new exchange from one it already shows.
                     m_Id = $"{message.m_Frame}:{message.m_Airplane.Index}:{(int)message.m_Kind}",
+                    m_Airplane = message.m_Airplane,
+                    m_Airport = airport,
                 });
             }
         }
@@ -79,6 +88,14 @@ namespace RealisticAviation
                 writer.Write(exchange.m_PilotFirst);
                 writer.PropertyName("id");
                 writer.Write(exchange.m_Id);
+                writer.PropertyName("airplane");
+                writer.Write(exchange.m_Airplane.Index);
+                writer.PropertyName("airplaneVersion");
+                writer.Write(exchange.m_Airplane.Version);
+                writer.PropertyName("airport");
+                writer.Write(exchange.m_Airport.Index);
+                writer.PropertyName("airportVersion");
+                writer.Write(exchange.m_Airport.Version);
                 writer.TypeEnd();
             }
             writer.ArrayEnd();

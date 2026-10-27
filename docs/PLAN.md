@@ -1255,6 +1255,15 @@ Versions: MAJOR.MINOR.PATCH (the patch was meant as a letter, 1.1a, but the game
   could wait at the gate (the tower already runs their pushback); airplanes from outside connections spawn at the map edge
   through the game's own systems, so stopping them there would need game internals. Overlapping holds of nearby airports:
   recommended one shared stack (levels taken jointly, 1,000 ft apart) instead of odd/even thousands, which doubles the height.
+- Radio exchange click (user, 2026-10-27): clicking an exchange in any radio box (airport or airplane panel) selects its
+  airplane and follows it with the game's own functions (SelectedInfoUISystem.SetSelection, then Focus = the info panel's
+  follow button; user: use the game's functions, a custom camera move was rejected); a broadcast ("attention all
+  aircraft") selects and follows the airport that spoke (user: consistent UI); an airplane that has left does nothing. Under the
+  pointer an exchange lights up (a white wash, the newest one's blue a step brighter). RadioBox writes each exchange's
+  airplane and airport (index, version); triggers "SelectAirplane" / "SelectAirport" in AirplaneAtcSection. Works in game (user), except:
+  Known issue (user, 2026-10-27: leave it): an airplane holding on cargo airway 1 (outside the map): the camera starts to
+  follow and stops short. The game's own click and follow button on the same airplane work, so it is not the camera's
+  map limit; the difference between SetSelection + Focus from the radio and the game's own path is not found yet.
 - Procedure designators (user, 2026-10-26), ICAO Annex 11 App. 3: basic indicator (SID: its last fix, STAR: its first
   fix) + validity number + route letter. Route letter per runway end in use, A, B, C... within the airport, skipping I
   and O. Validity number 1 for now, but kept as data (per airport, per procedure; saved with the airport like its other

@@ -50,6 +50,9 @@ const EMPTY_STYLE = { color: "rgba(255, 255, 255, 0.5)" };
 
 // The newest exchange (at the bottom) is lit up, and each new one slides up into place, so the eye goes to the bottom.
 const NEWEST_BACKGROUND = "rgba(130, 200, 255, 0.16)";
+// Under the pointer: a white wash, or the newest exchange's blue a step brighter.
+const HOVER_BACKGROUND = "rgba(255, 255, 255, 0.1)";
+const NEWEST_HOVER_BACKGROUND = "rgba(130, 200, 255, 0.3)";
 const RADIO_ANIMATION_CLASS = "realistic-aviation-radio-in";
 const RADIO_STYLE_ID = "realistic-aviation-radio-style";
 const RADIO_CSS = "@keyframes realistic-aviation-radio-in { from { opacity: 0; transform: translateY(10rem); } to { opacity: 1; transform: translateY(0); } }"
@@ -65,22 +68,36 @@ function injectRadioStyle() {
     document.head.appendChild(style);
 }
 
+// One exchange. Clicking it selects its airplane and follows it (the game's own follow), or for a broadcast ("attention
+// all aircraft") the airport that spoke, the same way; under the pointer it lights up (white, or a brighter blue for the newest one, which is
+// already blue), so it reads as something to click.
+function RadioExchange(props) {
+    const [hover, setHover] = React.useState(false);
+    const exchange = props.exchange;
+    let style = exchange.own ? OWN_EXCHANGE_STYLE : EXCHANGE_STYLE;
+    if (props.newest || hover) {
+        style = Object.assign({}, style, { borderRadius: "3rem",
+            backgroundColor: props.newest ? (hover ? NEWEST_HOVER_BACKGROUND : NEWEST_BACKGROUND) : HOVER_BACKGROUND });
+    }
+    style = Object.assign({}, style, { cursor: "pointer" });
+    const onClick = () => exchange.airplane > 0
+        ? api.trigger(GROUP, "SelectAirplane", exchange.airplane, exchange.airplaneVersion)
+        : api.trigger(GROUP, "SelectAirport", exchange.airport, exchange.airportVersion);
+    return React.createElement("div", { className: RADIO_ANIMATION_CLASS, style: style, onClick: onClick,
+            onMouseEnter: () => setHover(true), onMouseLeave: () => setHover(false) },
+        // "tower" and "pilot" are the first and second line; on a pilot's own call (pilotFirst) the pilot speaks first.
+        React.createElement("div", { style: exchange.pilotFirst ? PILOT_LINE_STYLE : TOWER_LINE_STYLE }, exchange.tower),
+        exchange.pilot ? React.createElement("div", { style: exchange.pilotFirst ? TOWER_LINE_STYLE : PILOT_LINE_STYLE }, exchange.pilot) : null);
+}
+
 // A frequency's recent exchanges, oldest first, under a "Tower radio  TWR 118.300" row. A broadcast to all aircraft has
 // no readback (empty pilot line).
 function radioRows(key, box, translate) {
     const exchanges = (box && box.exchanges) || [];
     const children = [];
     for (let i = 0; i < exchanges.length; i++) {
-        const exchange = exchanges[i];
-        let style = exchange.own ? OWN_EXCHANGE_STYLE : EXCHANGE_STYLE;
-        if (i === exchanges.length - 1) {
-            style = Object.assign({}, style, { backgroundColor: NEWEST_BACKGROUND, borderRadius: "3rem" });
-        }
         // Keyed by the exchange itself: only a newly arrived one mounts, and so only it plays the slide-in animation.
-        children.push(React.createElement("div", { key: exchange.id || i, className: RADIO_ANIMATION_CLASS, style: style },
-            // "tower" and "pilot" are the first and second line; on a pilot's own call (pilotFirst) the pilot speaks first.
-            React.createElement("div", { style: exchange.pilotFirst ? PILOT_LINE_STYLE : TOWER_LINE_STYLE }, exchange.tower),
-            exchange.pilot ? React.createElement("div", { style: exchange.pilotFirst ? TOWER_LINE_STYLE : PILOT_LINE_STYLE }, exchange.pilot) : null));
+        children.push(React.createElement(RadioExchange, { key: exchanges[i].id || i, exchange: exchanges[i], newest: i === exchanges.length - 1 }));
     }
     if (children.length === 0) {
         children.push(React.createElement("div", { key: "empty", style: EMPTY_STYLE }, translate("RealisticAviation.Radio.Empty", "No recent transmissions")));

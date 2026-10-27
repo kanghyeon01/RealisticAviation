@@ -14,10 +14,14 @@ namespace RealisticAviation
     /// on (the one of its latest message: tower or ground), as every airplane on that frequency hears them, with its own
     /// exchanges marked. Shown only while the airplane has heard from the tower recently.
     /// With the "Remove airplane button" option, every airplane's panel also has a button that takes the airplane away.
+    /// Clicking an exchange in any radio box selects its airplane and follows it (for a broadcast, its airport)
+    /// (the triggers live here, the airport panel uses them too).
     /// </summary>
     public partial class AirplaneAtcSection : InfoSectionBase
     {
         public const string kRemoveAirplaneTrigger = "RemoveAirplane";
+        public const string kSelectAirplaneTrigger = "SelectAirplane";
+        public const string kSelectAirportTrigger = "SelectAirport";
 
         private const int kExchanges = 5;
 
@@ -36,6 +40,8 @@ namespace RealisticAviation
             m_AtcSystem = World.GetOrCreateSystemManaged<AtcSystem>();
             m_InfoUISystem.AddMiddleSection(this);
             AddBinding(new TriggerBinding(Mod.kName, kRemoveAirplaneTrigger, RemoveAirplane));
+            AddBinding(new TriggerBinding<int, int>(Mod.kName, kSelectAirplaneTrigger, SelectAirplane));
+            AddBinding(new TriggerBinding<int, int>(Mod.kName, kSelectAirportTrigger, SelectAirport));
         }
 
         protected override void Reset()
@@ -91,6 +97,36 @@ namespace RealisticAviation
             m_Radio.Write(writer);
             writer.PropertyName("canRemove");
             writer.Write(m_ShowRemove);
+        }
+
+        /// <summary>
+        /// Selects the airplane of a clicked radio exchange (in an airport's or an airplane's panel) and follows it, with the
+        /// game's own selection and follow (the info panel's follow button: SelectedInfoUISystem.Focus; user). One that has
+        /// left the city does nothing.
+        /// </summary>
+        private void SelectAirplane(int index, int version)
+        {
+            Entity entity = new Entity { Index = index, Version = version };
+            if (index > 0 && EntityManager.Exists(entity) && EntityManager.HasComponent<Airplane>(entity)
+                && !EntityManager.HasComponent<Game.Common.Deleted>(entity))
+            {
+                m_InfoUISystem.SetSelection(entity);
+                m_InfoUISystem.Focus(entity);
+            }
+        }
+
+        /// <summary>
+        /// A clicked broadcast ("attention all aircraft"): the airport that spoke, selected and followed as an airplane is
+        /// (user: the UI stays consistent).
+        /// </summary>
+        private void SelectAirport(int index, int version)
+        {
+            Entity entity = new Entity { Index = index, Version = version };
+            if (index > 0 && EntityManager.Exists(entity) && !EntityManager.HasComponent<Game.Common.Deleted>(entity))
+            {
+                m_InfoUISystem.SetSelection(entity);
+                m_InfoUISystem.Focus(entity);
+            }
         }
 
         /// <summary>
