@@ -110,7 +110,7 @@ Added in version 4 (Realistic Aviation 1.2.4):
   only once that departure is min(`DepartureAheadMeters`, `DepartureAheadShare` × runway length) past the threshold, or
   past the runway end (defaults 1,829 m = FAA 6,000 ft and 0.6; share clamped to 0–1)
 
-Added in version 5 (next update):
+Added in version 5 (Realistic Aviation 1.3.0):
 
 - `InitialMocFeet` (default 1,000), `IntermediateMocFeet` (500): minimum obstacle clearance of the initial segments and
   STAR holds, and of the intermediate segment. The tower raises the IF, the IAFs and the STAR hold bases until the obstacles
